@@ -1,0 +1,10 @@
+INSERT INTO users (full_name, student_code, email) VALUES ('Nguyễn Văn An', 'DH52200123', 'an.nguyen@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Trần Thị Bình', 'DH52200234', 'binh.tran@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Lê Hoàng Cường', 'DH52200345', 'cuong.le@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Phạm Minh Đức', 'DH52200456', 'duc.pham@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Vũ Thu Thảo', 'DH52200567', 'thao.vu@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Hoàng Quốc Khánh', 'DH52200678', 'khanh.hoang@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Phan Bá Lộc', 'DH52200789', 'loc.phan@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Đỗ Hải Yến', 'DH52200890', 'yen.do@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Bùi Tiến Dũng', 'DH52200901', 'dung.bui@student.edu.vn');
+INSERT INTO users (full_name, student_code, email) VALUES ('Ngô Mai Chi', 'DH52200912', 'chi.ngo@student.edu.vn');

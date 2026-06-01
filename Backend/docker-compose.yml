@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # 1. Hệ quản trị cơ sở dữ liệu PostgreSQL thực tế cho User Service
+  user-db:
+    image: postgres:16-alpine
+    container_name: user-db
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
+  # 2. Tổng đài Eureka Server
+  discovery-server:
+    build: ./discovery-server # Đường dẫn trỏ đến thư mục code tương ứng
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    networks:
+      - micro_network
+
+  # 3. API Gateway làm cửa ngõ chính
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - discovery-server
+    networks:
+      - micro_network
+
+  # 4. User Service (Ép chạy profile prod để ăn vào Postgres)
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod # <--- Ép kích hoạt file application-prod.yml
+      - DB_HOST=user-db             # Tên container database làm Host
+      - DB_PORT=5432
+      - DB_NAME=user_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - user-db
+      - discovery-server
+    networks:
+      - micro_network
+
+volumes:
+  postgres_user_data: # Giúp giữ lại dữ liệu Postgres kể cả khi tắt container
+
+networks:
+  micro_network: # Tạo mạng nội bộ riêng cho các container bắt tay với nhau

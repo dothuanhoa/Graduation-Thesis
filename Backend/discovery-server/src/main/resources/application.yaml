@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: discovery-server
+
+server:
+  port: 8761 # Cổng mặc định
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    register-with-eureka: false # Vì đây là máy chủ nên không cần tự đăng ký với chính nó
+    fetch-registry: false       # Không cần đi lấy danh sách từ nơi khác về

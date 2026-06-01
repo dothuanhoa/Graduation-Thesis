@@ -1,0 +1,28 @@
+server:
+  port: 8000 # Cổng duy nhất mà Frontend (React) sau này gọi vào
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # Định tuyến cho Auth (Bỏ qua Security)
+        - id: auth-route
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/auth/**
+
+        # Định tuyến cho User Service (Cần Security)
+        - id: user-service-route
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - AuthenticationFilter
+
+# Trỏ về tổng đài Eureka để biết danh bạ các service con
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

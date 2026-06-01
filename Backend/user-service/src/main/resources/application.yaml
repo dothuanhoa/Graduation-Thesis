@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: user-service
+  profiles:
+    active: local # Khi bạn chạy trên IDE, nó sẽ tự tìm file application-local.yml để đọc kèm
