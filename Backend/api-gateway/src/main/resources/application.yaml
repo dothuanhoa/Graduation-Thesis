@@ -1,5 +1,5 @@
 server:
-  port: 8000 # Cổng duy nhất mà Frontend (React) sau này gọi vào
+  port: 8000
 
 spring:
   application:
@@ -7,13 +7,11 @@ spring:
   cloud:
     gateway:
       routes:
-        # Định tuyến cho Auth (Bỏ qua Security)
         - id: auth-route
           uri: lb://USER-SERVICE
           predicates:
             - Path=/api/auth/**
 
-        # Định tuyến cho User Service (Cần Security)
         - id: user-service-route
           uri: lb://USER-SERVICE
           predicates:
@@ -21,7 +19,13 @@ spring:
           filters:
             - AuthenticationFilter
 
-# Trỏ về tổng đài Eureka để biết danh bạ các service con
+        - id: notification-service-route
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - AuthenticationFilter
+
 eureka:
   client:
     service-url:
