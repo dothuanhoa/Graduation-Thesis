@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import NotificationManager from "./pages/NotificationManager";
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -292,6 +293,8 @@ function App() {
           ))}
         </tbody>
       </table>
+
+      <NotificationManager token={token} onUnauthorized={handleLogout} />
     </div>
   );
 }
