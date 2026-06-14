@@ -215,17 +215,6 @@ function App() {
             />
           </div>
           <div style={{ marginBottom: 5 }}>
-            <label>studentCode: </label>
-            <input
-              type="studentCode"
-              value={formData.studentCode}
-              onChange={(e) =>
-                setFormData({ ...formData, studentCode: e.target.value })
-              }
-              required
-            />
-          </div>
-          <div style={{ marginBottom: 5 }}>
             <label>Password: </label>
             <input
               type="password"
@@ -267,7 +256,6 @@ function App() {
             <th>ID</th>
             <th>Full Name</th>
             <th>Student Code</th>
-            <th>studentCode</th>
             <th>Role</th>
             <th>Actions</th>
           </tr>
@@ -277,7 +265,6 @@ function App() {
             <tr key={u.id}>
               <td>{u.id}</td>
               <td>{u.fullName}</td>
-              <td>{u.studentCode}</td>
               <td>{u.studentCode}</td>
               <td>{u.role}</td>
               <td>
