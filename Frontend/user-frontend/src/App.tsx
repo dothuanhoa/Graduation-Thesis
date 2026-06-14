@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import NotificationManager from "./pages/NotificationManager";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "";
-
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [users, setUsers] = useState<any[]>([]);
@@ -29,7 +27,7 @@ function App() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/users`, {
+      const res = await fetch("/api/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
@@ -49,7 +47,7 @@ function App() {
     e.preventDefault();
     setLoginError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentCode, password }),
@@ -70,7 +68,7 @@ function App() {
     e.preventDefault();
     setLoginError("");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,9 +99,7 @@ function App() {
     e.preventDefault();
     try {
       const isUpdate = formData.id !== null;
-      const url = isUpdate
-        ? `${API_BASE_URL}/api/users/${formData.id}`
-        : "/api/users";
+      const url = isUpdate ? `/api/users/${formData.id}` : "/api/users";
       const method = isUpdate ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -135,7 +131,7 @@ function App() {
   const handleDeleteUser = async (id: number) => {
     if (!window.confirm("Delete this user?")) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const res = await fetch(`/api/users/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
