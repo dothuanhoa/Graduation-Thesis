@@ -22,13 +22,19 @@ dependencies {
     // Thư viện Cổng ngõ API Gateway
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
 
-    // Thư viện Eureka Client để Gateway biết đi tìm các service khác trên tổng đài
+    // Thư viện Eureka Client
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    // Load Balancer (Bắt buộc cho scheme lb://)
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
 
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // Redis Reactive for Gateway
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

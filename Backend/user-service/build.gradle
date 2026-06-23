@@ -21,9 +21,11 @@ repositories {
 dependencies {
     // 1. Thư viện Eureka Client (Đã sửa bỏ bản viết cứng)
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
     // 2. SỬA: Dòng webmvc sai tên đổi thành spring-boot-starter-web
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
 
     // 3. XÓA dòng 'spring-boot-h2console' bị sai đi (vì bản thân h2 starter bên dưới đã tự kích hoạt h2-console rồi)
 
@@ -35,13 +37,12 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // Security & JWT
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // Bỏ Security & JWT vì user-service không cần tự chặn nữa (Gateway đã lo việc đó)
 
-    // 4. SỬA các dòng test dưới đây cho đúng chuẩn (bỏ chữ mvc và jpa rời rạc ra)
+    // TSID & Hibernate Utils/
+    implementation 'com.github.f4b6a3:tsid-creator:5.2.6'
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.9.0'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -14,6 +14,14 @@ public class JwtUtil {
         Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token);
     }
 
+    public String extractSubject(final String token) {
+        return Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token).getPayload().getSubject();
+    }
+
+    public String extractClaim(final String token, String claimKey) {
+        return Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token).getPayload().get(claimKey, String.class);
+    }
+
     private SecretKey getSignKey() {
         byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(SECRET);
         return Keys.hmacShaKeyFor(keyBytes);

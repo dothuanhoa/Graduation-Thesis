@@ -1,15 +1,16 @@
 package com.userservice.service;
 
-import com.userservice.domain.User;
+import com.userservice.domain.UserProfile;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
-    List<User> findAll();
-    Optional<User> findById(long id);
-    Optional<User> findByStudentCode(String studentCode);
-    User save(User user);
-    User update(long id, User user);
-    void delete(long id);
+    List<UserProfile> findAll();
+    Optional<UserProfile> findById(Long id);
+    UserProfile save(UserProfile userProfile);
+    UserProfile update(Long id, UserProfile userProfile);
+    void delete(Long id);
+    String bulkImport(List<UserProfile> profiles);
+    UserProfile updateContactByStudentId(String studentId, String contactPhone);
 }

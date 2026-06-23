@@ -1,6 +1,9 @@
 version: '3.8'
 
 services:
+  # ==========================================
+  # 1. INFRASTRUCTURE (Databases & Cache)
+  # ==========================================
   user-db:
     image: postgres:16-alpine
     container_name: user-db
@@ -29,6 +32,33 @@ services:
     networks:
       - micro_network
 
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - micro_network
+
+  # ==========================================
+  # 2. MICROSERVICES
+  # ==========================================
   discovery-server:
     build: ./discovery-server
     container_name: discovery-server
@@ -45,6 +75,28 @@ services:
     environment:
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
+      - discovery-server
+    networks:
+      - micro_network
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_NAME=auth_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - auth-db
+      - redis
       - discovery-server
     networks:
       - micro_network
@@ -69,17 +121,17 @@ services:
       - micro_network
 
   notification-service:
-    build: ./notificationService
+    build: ./notification-service
     container_name: notification-service
     ports:
-      - "8082:8082"
+      - "8084:8084"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=notification-db
       - DB_PORT=5432
       - DB_NAME=notification_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=root
+      - DB_USER=postgres
+      - DB_PASS=root
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - notification-db
@@ -90,6 +142,8 @@ services:
 volumes:
   postgres_user_data:
   postgres_notification_data:
+  postgres_auth_data:
+  redis_data:
 
 networks:
   micro_network:

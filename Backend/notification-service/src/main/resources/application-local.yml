@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:user_db
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+
+server:
+  port: 8081
+
+# Cấu hình đăng ký thử với tổng đài Eureka ở local
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

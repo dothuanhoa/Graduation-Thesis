@@ -14,6 +14,9 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private org.springframework.data.redis.core.ReactiveStringRedisTemplate redisTemplate;
+
     public AuthenticationFilter() {
         super(Config.class);
     }
@@ -34,14 +37,36 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 return exchange.getResponse().setComplete();
             }
 
+            final String token = authHeader;
+            final String userId;
+            final String role;
+
             try {
-                jwtUtil.validateToken(authHeader);
+                jwtUtil.validateToken(token);
+                userId = jwtUtil.extractSubject(token);
+                role = jwtUtil.extractClaim(token, "role");
             } catch (Exception e) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }
 
-            return chain.filter(exchange);
+            // Kiểm tra Redis Blacklist (Bất đồng bộ WebFlux)
+            return redisTemplate.hasKey("jwt_blacklist:" + userId)
+                    .flatMap(isBanned -> {
+                        if (Boolean.TRUE.equals(isBanned)) {
+                            // User bị cấm
+                            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                            return exchange.getResponse().setComplete();
+                        }
+
+                        // An toàn -> Trích xuất ID và Role đưa vào Header
+                        var mutatedRequest = exchange.getRequest().mutate()
+                                .header("X-User-Code", userId)
+                                .header("X-User-Role", role != null ? role : "STUDENT")
+                                .build();
+
+                        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    });
         };
     }
 

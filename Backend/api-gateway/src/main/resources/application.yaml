@@ -4,11 +4,22 @@ server:
 spring:
   application:
     name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   cloud:
     gateway:
       routes:
+        - id: auth-internal-route
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/internal/**
+          filters:
+            - AuthenticationFilter
+
         - id: auth-route
-          uri: lb://USER-SERVICE
+          uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/**
 
