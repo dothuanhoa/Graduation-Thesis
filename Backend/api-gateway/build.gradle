@@ -36,6 +36,9 @@ dependencies {
     // Redis Reactive for Gateway
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 
+    // Swagger UI cho API Gateway
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.5.0'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

@@ -19,7 +19,7 @@ public class NotificationController {
 
     // ----- ADMIN APIs -----
     @PostMapping
-    public ResponseEntity<?> createNotification(
+    public ResponseEntity<Object> createNotification(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @RequestHeader(value = "X-User-Code", defaultValue = "UNKNOWN") String adminId,
             @Valid @RequestBody NotificationRequest request) {
@@ -31,7 +31,7 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateNotification(
+    public ResponseEntity<Object> updateNotification(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @PathVariable Long id,
             @Valid @RequestBody NotificationRequest request) {
@@ -43,7 +43,7 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> revokeNotification(
+    public ResponseEntity<Object> revokeNotification(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @PathVariable Long id) {
             

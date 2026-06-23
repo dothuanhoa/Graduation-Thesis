@@ -26,6 +26,9 @@ dependencies {
     // 2. SỬA: Dòng webmvc sai tên đổi thành spring-boot-starter-web
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    
+    // Swagger UI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
     // 3. XÓA dòng 'spring-boot-h2console' bị sai đi (vì bản thân h2 starter bên dưới đã tự kích hoạt h2-console rồi)
 

@@ -24,6 +24,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     
+    // Swagger UI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+    
     // TSID & Hibernate Utils
     implementation 'com.github.f4b6a3:tsid-creator:5.2.6'
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.3'

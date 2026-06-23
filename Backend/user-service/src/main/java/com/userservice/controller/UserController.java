@@ -33,19 +33,19 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @Valid @RequestBody UserProfile userProfile) {
+    public ResponseEntity<Object> createUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @Valid @RequestBody UserProfile userProfile) {
         if (!"ADMIN".equals(role)) return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
         return ResponseEntity.ok(userService.save(userProfile));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @PathVariable Long id, @Valid @RequestBody UserProfile userProfile) {
+    public ResponseEntity<Object> updateUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @PathVariable Long id, @Valid @RequestBody UserProfile userProfile) {
         if (!"ADMIN".equals(role)) return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
         return ResponseEntity.ok(userService.update(id, userProfile));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @PathVariable Long id) {
+    public ResponseEntity<Object> deleteUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @PathVariable Long id) {
         if (!"ADMIN".equals(role)) return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
         userService.delete(id);
         return ResponseEntity.noContent().build();
