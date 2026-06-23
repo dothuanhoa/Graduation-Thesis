@@ -1,5 +1,7 @@
 package com.notificationservice.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.notificationservice.domain.Notification;
 import lombok.Builder;
 import lombok.Data;
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
 @Data
 @Builder
 public class NotificationResponse {
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
     private String title;
     private String content;

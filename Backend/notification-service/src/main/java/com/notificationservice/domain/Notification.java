@@ -1,5 +1,7 @@
 package com.notificationservice.domain;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -14,6 +16,7 @@ public class Notification {
 
     @Id
     @Tsid
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Column(nullable = false)

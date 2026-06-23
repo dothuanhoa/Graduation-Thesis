@@ -18,6 +18,16 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     // ----- ADMIN APIs -----
+    @GetMapping
+    public ResponseEntity<Object> getAllNotifications(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền xem danh sách bảng tin");
+        }
+        return ResponseEntity.ok(notificationService.getAllNotifications());
+    }
+
     @PostMapping
     public ResponseEntity<Object> createNotification(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,

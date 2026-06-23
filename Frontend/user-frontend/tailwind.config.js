@@ -1,0 +1,57 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        background: "#f9f9ff",
+        surface: "#f9f9ff",
+        "surface-bright": "#f9f9ff",
+        "surface-container-lowest": "#ffffff",
+        "surface-container-low": "#f0f3ff",
+        "surface-container": "#e7eefe",
+        "surface-container-high": "#e2e8f8",
+        "surface-container-highest": "#dce2f3",
+        "surface-variant": "#dce2f3",
+        primary: "#00288e",
+        "primary-container": "#1e40af",
+        "primary-fixed": "#dde1ff",
+        "on-primary": "#ffffff",
+        "on-primary-container": "#a8b8ff",
+        secondary: "#5c5f60",
+        "secondary-container": "#dee0e2",
+        tertiary: "#611e00",
+        "tertiary-container": "#872d00",
+        error: "#ba1a1a",
+        "error-container": "#ffdad6",
+        outline: "#757684",
+        "outline-variant": "#c4c5d5",
+        "on-background": "#151c27",
+        "on-surface": "#151c27",
+        "on-surface-variant": "#444653",
+      },
+      borderRadius: {
+        DEFAULT: "0.125rem",
+        lg: "0.25rem",
+        xl: "0.5rem",
+        full: "9999px",
+      },
+      spacing: {
+        "sidebar-width": "260px",
+        "container-max": "1440px",
+        "padding-page": "32px",
+        "padding-card": "24px",
+        "stack-gap": "16px",
+        gutter: "24px",
+      },
+      fontFamily: {
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        panel: "0 2px 8px rgba(15, 23, 42, 0.06)",
+        raised: "0 10px 28px rgba(15, 23, 42, 0.12)",
+      },
+    },
+  },
+  plugins: [],
+};

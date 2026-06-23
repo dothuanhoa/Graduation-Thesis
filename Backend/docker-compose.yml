@@ -73,9 +73,12 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - discovery-server
+      - redis
     networks:
       - micro_network
 

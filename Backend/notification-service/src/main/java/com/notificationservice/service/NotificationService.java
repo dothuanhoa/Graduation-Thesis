@@ -20,6 +20,10 @@ public class NotificationService {
     private final NotificationReadRepository notificationReadRepository;
 
     // Cho Admin
+    public List<Notification> getAllNotifications() {
+        return notificationRepository.findAllByOrderByCreatedAtDesc();
+    }
+
     public Notification createNotification(NotificationRequest request, String adminId) {
         Notification notification = new Notification();
         notification.setTitle(request.getTitle());

@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
+    List<Notification> findAllByOrderByCreatedAtDesc();
 
     @Query("SELECT n FROM Notification n " +
            "WHERE n.status = 'PUBLISHED' " +

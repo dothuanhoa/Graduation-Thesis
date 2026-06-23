@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:user-db}:${DB_PORT:5432}/${DB_NAME:user_db}
+    url: jdbc:postgresql://${DB_HOST:notification-db}:${DB_PORT:5432}/${DB_NAME:notification_db}
     driver-class-name: org.postgresql.Driver
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:root}
   jpa:
     hibernate:
       ddl-auto: update # Tránh làm mất dữ liệu thật khi restart container
@@ -13,7 +13,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 server:
-  port: 8081
+  port: 8084
 
 # Khi chạy trong Docker network, các container gọi nhau bằng tên Service trong Docker-compose
 eureka:
