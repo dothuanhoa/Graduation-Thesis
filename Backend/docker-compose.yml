@@ -56,6 +56,20 @@ services:
     networks:
       - micro_network
 
+  certification-db:
+    image: postgres:16-alpine
+    container_name: certification-db
+    environment:
+      POSTGRES_DB: certification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_certification_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
   # ==========================================
   # 2. MICROSERVICES
   # ==========================================
@@ -142,10 +156,30 @@ services:
     networks:
       - micro_network
 
+  certification-service:
+    build: ./certification-service
+    container_name: certification-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=certification-db
+      - DB_PORT=5432
+      - DB_NAME=certification_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - certification-db
+      - discovery-server
+    networks:
+      - micro_network
+
 volumes:
   postgres_user_data:
   postgres_notification_data:
   postgres_auth_data:
+  postgres_certification_data:
   redis_data:
 
 networks:
