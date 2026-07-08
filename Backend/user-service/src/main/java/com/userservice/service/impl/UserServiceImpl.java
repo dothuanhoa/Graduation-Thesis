@@ -2,6 +2,7 @@ package com.userservice.service.impl;
 
 import com.userservice.client.AuthServiceClient;
 import com.userservice.domain.UserProfile;
+import com.userservice.exception.ResourceNotFoundException;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -17,45 +18,42 @@ public class UserServiceImpl implements UserService {
     private final UserProfileRepository userProfileRepository;
     private final AuthServiceClient authServiceClient;
 
-    public List<UserProfile> findAll(){
+    public List<UserProfile> findAll() {
         return userProfileRepository.findAll();
     }
 
-    public Optional<UserProfile> findById(Long id){
+    public Optional<UserProfile> findById(Long id) {
         return userProfileRepository.findById(id);
     }
 
     @Transactional
     public UserProfile save(UserProfile userProfile) {
-        // Lưu hồ sơ sinh viên
         UserProfile savedProfile = userProfileRepository.save(userProfile);
-        
-        // Tạo email theo chuẩn trường
-        String studentEmail = savedProfile.getStudentId() + "@student.stu.edu.vn";
-        
-        // Gọi API nội bộ sang auth-service để tự động tạo tài khoản (mật khẩu random, status REQUIRE_CHANGE_PWD)
-        authServiceClient.registerAccount(new AuthServiceClient.RegisterRequest(
-                savedProfile.getStudentId(),
-                studentEmail
-        ));
-
+        createAuthAccount(savedProfile);
         return savedProfile;
     }
 
     @Transactional
     public String bulkImport(List<UserProfile> profiles) {
-        // Lệnh saveAll này sẽ tự động được Hibernate gộp thành Batch Insert (ví dụ 100 row/lần)
-        List<UserProfile> savedProfiles = userProfileRepository.saveAll(profiles);
+        List<UserProfile> newProfiles = profiles.stream()
+                .filter(profile -> profile.getStudentId() != null && !profile.getStudentId().isBlank())
+                .filter(profile -> profile.getFullName() != null && !profile.getFullName().isBlank())
+                .filter(profile -> userProfileRepository.findByStudentId(profile.getStudentId()).isEmpty())
+                .toList();
 
-        // Chuẩn bị accounts để gọi Feign
-        List<com.userservice.dto.BulkRegisterMessage.UserAccountDTO> accounts = savedProfiles.stream().map(p -> {
-            return new com.userservice.dto.BulkRegisterMessage.UserAccountDTO(
-                    p.getStudentId(),
-                    p.getStudentId() + "@student.stu.edu.vn"
-            );
-        }).toList();
+        if (newProfiles.isEmpty()) {
+            return "Không có hồ sơ sinh viên mới để import.";
+        }
 
-        // Gửi qua API thay vì RabbitMQ
+        List<UserProfile> savedProfiles = userProfileRepository.saveAll(newProfiles);
+
+        List<com.userservice.dto.BulkRegisterMessage.UserAccountDTO> accounts = savedProfiles.stream()
+                .map(profile -> new com.userservice.dto.BulkRegisterMessage.UserAccountDTO(
+                        profile.getStudentId(),
+                        profile.getStudentId() + "@student.stu.edu.vn"
+                ))
+                .toList();
+
         authServiceClient.bulkRegisterAccount(accounts);
 
         return "Đã import thành công " + savedProfiles.size() + " hồ sơ sinh viên và đã tạo tài khoản ngầm.";
@@ -70,12 +68,12 @@ public class UserServiceImpl implements UserService {
             user.setContactPhone(userDetails.getContactPhone());
             user.setStudentStatus(userDetails.getStudentStatus());
             return userProfileRepository.save(user);
-        }).orElseThrow(() -> new com.userservice.exception.ResourceNotFoundException("Không tìm thấy UserProfile với id: " + id));
+        }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy UserProfile với id: " + id));
     }
 
     public void delete(Long id) {
         if (!userProfileRepository.existsById(id)) {
-            throw new com.userservice.exception.ResourceNotFoundException("Không tìm thấy UserProfile với id: " + id);
+            throw new ResourceNotFoundException("Không tìm thấy UserProfile với id: " + id);
         }
         userProfileRepository.deleteById(id);
     }
@@ -83,9 +81,16 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserProfile updateContactByStudentId(String studentId, String contactPhone) {
         UserProfile user = userProfileRepository.findByStudentId(studentId)
-                .orElseThrow(() -> new com.userservice.exception.ResourceNotFoundException("Không tìm thấy UserProfile với studentId: " + studentId));
-        
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy UserProfile với studentId: " + studentId));
+
         user.setContactPhone(contactPhone);
         return userProfileRepository.save(user);
+    }
+
+    private void createAuthAccount(UserProfile profile) {
+        authServiceClient.registerAccount(new AuthServiceClient.RegisterRequest(
+                profile.getStudentId(),
+                profile.getStudentId() + "@student.stu.edu.vn"
+        ));
     }
 }

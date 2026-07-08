@@ -125,7 +125,7 @@ function AdminNotificationsPage() {
       setFormData(null);
       setMessage("Đã cập nhật thông báo.");
     } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Khong cap nhat duoc thong bao."));
+      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không cập nhật được thông báo."));
     } finally {
       setSaving(false);
     }
@@ -150,7 +150,7 @@ function AdminNotificationsPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý thông báo"
-        subtitle="Tạo, cập nhật, xuất bản hoặc thu hồi thông báo qua notification-service."
+        subtitle="Tạo, cập nhật, xuất bản hoặc thu hồi thông báo gửi đến sinh viên."
       />
 
       <div className="flex flex-wrap gap-3">
@@ -219,7 +219,7 @@ function AdminNotificationsPage() {
               </button>
             </div>
           )}
-          caption="Danh sách thông báo từ notification-service"
+          caption="Danh sách thông báo"
           columns={columns}
           rows={rows}
         />

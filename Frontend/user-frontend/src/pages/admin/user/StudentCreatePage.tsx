@@ -32,7 +32,7 @@ function StudentCreatePage() {
     try {
       const payload = userProfileSchema.parse(formData);
       await userApi.create(payload);
-      setMessage("Đã tạo hồ sơ sinh viên và gửi yêu cầu tạo tài khoản sang auth-service.");
+      setMessage("Đã tạo hồ sơ sinh viên và tài khoản đăng nhập.");
       setTimeout(() => navigate("/admin/students"), 700);
     } catch (err) {
       setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không tạo được sinh viên."));
@@ -45,7 +45,7 @@ function StudentCreatePage() {
     <>
       <PageHeader
         title="Thêm sinh viên thủ công"
-        subtitle="Form này gọi POST /api/users của user-service. Backend sẽ gọi auth-service để tạo tài khoản."
+        subtitle="Tạo hồ sơ sinh viên mới kèm tài khoản đăng nhập ban đầu."
       />
       <Card>
         {message && <div className="mb-5 rounded-lg bg-surface-container-low px-4 py-3 font-semibold text-primary">{message}</div>}
