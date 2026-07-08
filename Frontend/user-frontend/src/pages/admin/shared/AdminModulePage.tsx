@@ -184,7 +184,7 @@ function SettingsContent() {
       </div>
       <div className="mt-6 flex items-center gap-3 rounded-lg bg-primary-fixed p-4 text-primary">
         <ShieldCheck className="h-5 w-5" />
-        <span className="font-semibold">Các cài đặt này là mock UI, chưa gọi API backend.</span>
+        <span className="font-semibold">Một số trang là mock UI, chưa gọi API backend.</span>
       </div>
     </Card>
   );

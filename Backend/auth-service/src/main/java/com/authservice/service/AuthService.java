@@ -57,7 +57,7 @@ public class AuthService {
                 redisService.lockoutUser(user.getUsername());
             }
             authUserRepository.save(user);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai mật khẩu");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai tài khoản hoặc mật khẩu");
         }
 
         // Reset failed attempts
