@@ -119,7 +119,7 @@ function StudentListPage() {
     <>
       <PageHeader
         title="Danh sách sinh viên"
-        subtitle="Dữ liệu được lấy từ user-service qua API Gateway."
+        subtitle="Tìm kiếm, lọc, thêm mới và quản lý hồ sơ sinh viên."
       />
       <div className="flex flex-wrap gap-3">
         <Link
@@ -168,7 +168,7 @@ function StudentListPage() {
               </button>
             </div>
           )}
-          caption="Danh sách sinh viên từ user-service"
+          caption="Danh sách sinh viên"
           columns={columns}
           rows={students}
         />

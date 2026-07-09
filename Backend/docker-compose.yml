@@ -46,6 +46,20 @@ services:
     networks:
       - micro_network
 
+  activity-db:
+    image: postgres:16-alpine
+    container_name: activity-db
+    environment:
+      POSTGRES_DB: activity_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_activity_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
   redis:
     image: redis:alpine
     container_name: redis
@@ -130,6 +144,7 @@ services:
       - DB_NAME=user_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=root
+      - AUTH_SERVICE_URL=http://auth-service:8083
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - user-db

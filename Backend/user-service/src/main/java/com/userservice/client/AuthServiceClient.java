@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
-@FeignClient(name = "auth-service")
+@FeignClient(name = "auth-service", url = "${auth.service.url:}")
 public interface AuthServiceClient {
 
     @PostMapping("/api/auth/internal/register")

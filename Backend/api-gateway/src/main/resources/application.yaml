@@ -41,6 +41,10 @@ spring:
           uri: lb://CERTIFICATION-SERVICE
           predicates:
             - Path=/api/certifications/**
+        - id: activity-service-route
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/api/activities/**
           filters:
             - AuthenticationFilter
 
@@ -72,6 +76,12 @@ spring:
             - Path=/v3/api-docs/certification-service
           filters:
             - RewritePath=/v3/api-docs/certification-service, /v3/api-docs
+        - id: openapi-activity
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/v3/api-docs/activity-service
+          filters:
+            - RewritePath=/v3/api-docs/activity-service, /v3/api-docs
 
 eureka:
   client:
@@ -90,3 +100,5 @@ springdoc:
         url: /v3/api-docs/notification-service
       - name: Certification Service
         url: /v3/api-docs/certification-service
+      - name: Activity Service
+        url: /v3/api-docs/activity-service

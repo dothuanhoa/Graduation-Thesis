@@ -4,7 +4,6 @@ import com.authservice.domain.AuthUser;
 import com.authservice.dto.ChangePasswordRequest;
 import com.authservice.dto.LoginRequest;
 import com.authservice.dto.TokenResponse;
-import com.authservice.dto.EmailMessage;
 import com.authservice.repository.AuthUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,8 +11,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,9 +25,11 @@ public class AuthService {
 
     public void internalRegister(String username, String email) {
         if (authUserRepository.findByUsername(username).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tài khoản đã tồn tại");
+            System.out.println("Account already exists, skip creating: " + username);
+            return;
         }
-        String randomPass = UUID.randomUUID().toString().substring(0, 8); // Chuỗi ngẫu nhiên
+
+        String randomPass = UUID.randomUUID().toString().substring(0, 8);
 
         AuthUser user = new AuthUser();
         user.setUsername(username);
@@ -36,10 +37,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(randomPass));
         user.setRole(AuthUser.Role.STUDENT);
         user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
-        
-        authUserRepository.save(user);
 
-        // TODO: Gửi email mật khẩu
+        authUserRepository.save(user);
         System.out.println("Created single account: " + username + " / Password: " + randomPass);
     }
 
@@ -60,12 +59,10 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai mật khẩu");
         }
 
-        // Reset failed attempts
         user.setFailedAttempts(0);
         authUserRepository.save(user);
 
         if (user.getStatus() == AuthUser.Status.REQUIRE_CHANGE_PWD) {
-            // Ném exception để controller catch và trả về HTTP 428 (Precondition Required)
             throw new ResponseStatusException(HttpStatus.PRECONDITION_REQUIRED, "REQUIRE_CHANGE_PWD");
         }
 
@@ -75,7 +72,7 @@ public class AuthService {
 
         String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken();
-        
+
         redisService.saveRefreshToken(refreshToken, user.getUsername());
 
         return new TokenResponse(accessToken, refreshToken);
@@ -99,7 +96,7 @@ public class AuthService {
 
         String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken();
-        
+
         redisService.saveRefreshToken(refreshToken, user.getUsername());
 
         return new TokenResponse(accessToken, refreshToken);
@@ -109,29 +106,27 @@ public class AuthService {
         AuthUser user = authUserRepository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User không tồn tại"));
 
-        // Cập nhật database
         user.setStatus(AuthUser.Status.INACTIVE);
         authUserRepository.save(user);
-
-        // Kích hoạt 2 bước xóa trên Redis
         redisService.revokeAccess(username);
     }
 
     public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
-        List<AuthUser> users = accounts.stream().map(acc -> {
-            AuthUser user = new AuthUser();
-            user.setUsername(acc.getUsername());
-            user.setEmail(acc.getEmail());
-            // Random password
-            String randomPwd = UUID.randomUUID().toString().substring(0, 8);
-            user.setPasswordHash(passwordEncoder.encode(randomPwd));
-            user.setRole(AuthUser.Role.STUDENT);
-            user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
-            
-            // TODO: Gửi email mật khẩu
-            System.out.println("Created bulk account: " + acc.getUsername() + " / Password: " + randomPwd);
-            return user;
-        }).collect(Collectors.toList());
+        List<AuthUser> users = accounts.stream()
+                .filter(account -> authUserRepository.findByUsername(account.getUsername()).isEmpty())
+                .map(account -> {
+                    String randomPwd = UUID.randomUUID().toString().substring(0, 8);
+                    AuthUser user = new AuthUser();
+                    user.setUsername(account.getUsername());
+                    user.setEmail(account.getEmail());
+                    user.setPasswordHash(passwordEncoder.encode(randomPwd));
+                    user.setRole(AuthUser.Role.STUDENT);
+                    user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
+
+                    System.out.println("Created bulk account: " + account.getUsername() + " / Password: " + randomPwd);
+                    return user;
+                })
+                .collect(Collectors.toList());
 
         authUserRepository.saveAll(users);
     }
@@ -139,12 +134,11 @@ public class AuthService {
     public void unlockUser(String username) {
         AuthUser user = authUserRepository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User không tồn tại"));
-        
+
         user.setStatus(AuthUser.Status.ACTIVE);
         user.setFailedAttempts(0);
         authUserRepository.save(user);
-        
-        // Xóa khỏi Redis lockout nếu có
+
         redisService.unlockUser(username);
     }
 
@@ -158,10 +152,7 @@ public class AuthService {
         user.setFailedAttempts(0);
         authUserRepository.save(user);
 
-        // Kích hoạt xóa session (logout người dùng ngay lập tức)
         redisService.revokeAccess(username);
-
-        // TODO: Gửi email mật khẩu
         System.out.println("Admin reset password for " + username + ". New password: " + randomPass);
     }
 
