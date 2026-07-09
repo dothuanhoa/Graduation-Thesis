@@ -8,6 +8,7 @@ import java.util.Optional;
 public interface UserService {
     List<UserProfile> findAll();
     Optional<UserProfile> findById(Long id);
+    Optional<UserProfile> findByStudentId(String studentId);
     UserProfile save(UserProfile userProfile);
     UserProfile update(Long id, UserProfile userProfile);
     void delete(Long id);

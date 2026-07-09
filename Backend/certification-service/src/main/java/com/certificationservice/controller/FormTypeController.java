@@ -1,6 +1,7 @@
 package com.certificationservice.controller;
 
 import com.certificationservice.dto.FormTypeDTO;
+import com.certificationservice.dto.FormTypeRequestDTO;
 import com.certificationservice.service.FormTypeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class FormTypeController {
     @PostMapping
     public ResponseEntity<FormTypeDTO> createFormType(
             @RequestHeader(value = "X-User-Role", required = false) String role,
-            @Valid @RequestBody FormTypeDTO dto) {
+            @Valid @RequestBody FormTypeRequestDTO dto) {
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -41,7 +42,7 @@ public class FormTypeController {
     public ResponseEntity<FormTypeDTO> updateFormType(
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @PathVariable Long id, 
-            @Valid @RequestBody FormTypeDTO dto) {
+            @Valid @RequestBody FormTypeRequestDTO dto) {
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

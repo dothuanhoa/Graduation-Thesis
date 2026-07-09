@@ -2,6 +2,7 @@ package com.certificationservice.service.impl;
 
 import com.certificationservice.domain.FormType;
 import com.certificationservice.dto.FormTypeDTO;
+import com.certificationservice.dto.FormTypeRequestDTO;
 import com.certificationservice.exception.ResourceNotFoundException;
 import com.certificationservice.repository.FormTypeRepository;
 import com.certificationservice.service.FormTypeService;
@@ -20,13 +21,14 @@ public class FormTypeServiceImpl implements FormTypeService {
 
     @Override
     @Transactional
-    public FormTypeDTO createFormType(FormTypeDTO dto) {
+    public FormTypeDTO createFormType(FormTypeRequestDTO dto) {
         if (formTypeRepository.existsByName(dto.getName())) {
             throw new IllegalArgumentException("Tên form đã tồn tại: " + dto.getName());
         }
         FormType formType = new FormType();
         formType.setName(dto.getName());
         formType.setDescription(dto.getDescription());
+        formType.setFormCode(dto.getFormCode());
         formType.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         FormType saved = formTypeRepository.save(formType);
         return mapToDTO(saved);
@@ -34,7 +36,7 @@ public class FormTypeServiceImpl implements FormTypeService {
 
     @Override
     @Transactional
-    public FormTypeDTO updateFormType(Long id, FormTypeDTO dto) {
+    public FormTypeDTO updateFormType(Long id, FormTypeRequestDTO dto) {
         FormType formType = formTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy form type: " + id));
         
@@ -44,6 +46,9 @@ public class FormTypeServiceImpl implements FormTypeService {
 
         formType.setName(dto.getName());
         formType.setDescription(dto.getDescription());
+        if (dto.getFormCode() != null) {
+            formType.setFormCode(dto.getFormCode());
+        }
         if (dto.getIsActive() != null) {
             formType.setIsActive(dto.getIsActive());
         }
@@ -80,6 +85,7 @@ public class FormTypeServiceImpl implements FormTypeService {
         FormTypeDTO dto = new FormTypeDTO();
         dto.setId(formType.getId());
         dto.setName(formType.getName());
+        dto.setFormCode(formType.getFormCode());
         dto.setDescription(formType.getDescription());
         dto.setIsActive(formType.getIsActive());
         dto.setCreatedAt(formType.getCreatedAt());

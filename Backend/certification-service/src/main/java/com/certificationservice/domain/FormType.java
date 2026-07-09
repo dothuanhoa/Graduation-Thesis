@@ -18,6 +18,9 @@ public class FormType {
     @Column(nullable = false, unique = true, length = 200)
     private String name;
 
+    @Column(name = "form_code", unique = true, length = 50)
+    private String formCode;
+
     @Column(length = 1000)
     private String description;
 
