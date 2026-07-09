@@ -103,7 +103,7 @@ function StudentNotificationDetailPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Chi tiết thông báo"
-        subtitle="Đọc nội dung thông báo từ notification-service và kiểm tra thời hạn áp dụng."
+        subtitle="Đọc nội dung thông báo và kiểm tra thời hạn áp dụng."
       />
 
       <div className="flex flex-wrap gap-3">

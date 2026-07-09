@@ -71,6 +71,57 @@ export type NotificationResponse = NotificationPayload & {
   isRead?: boolean;
 };
 
+export type ActivityCategory = "ACADEMIC" | "MOVEMENT" | "FACULTY" | "UNIVERSITY" | "OTHER";
+export type ActivityStatus = "UPCOMING" | "ONGOING" | "COMPLETED";
+
+export type ActivityPayload = {
+  title: string;
+  category: ActivityCategory;
+  reward?: string;
+  googleFormUrl?: string;
+  location?: string;
+  startTime: string;
+  endTime: string;
+  capacity?: number;
+};
+
+export type ActivityResponse = ActivityPayload & {
+  id: string;
+  status: ActivityStatus;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  registrationCount?: number;
+  attendedCount?: number;
+  checkerCount?: number;
+};
+
+export type ActivityRegistrationResponse = {
+  id: string;
+  userTsid: string;
+  studentCode: string;
+  fullName: string;
+  attended: boolean;
+  checkinTime?: string;
+};
+
+export type ActivityCheckerPayload = {
+  checkerTsid: string;
+  checkerCode: string;
+  checkerName: string;
+};
+
+export type ActivityCheckerResponse = ActivityCheckerPayload & {
+  id: string;
+};
+
+export type ActivityImportResult = {
+  totalRows: number;
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+};
+
 const getStoredToken = () => localStorage.getItem("accessToken") || localStorage.getItem("token") || "";
 
 const isJsonResponse = (res: Response) => res.headers.get("content-type")?.includes("application/json");
@@ -105,9 +156,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     const message =
       typeof data === "object" && data && "message" in data
         ? String((data as { message: unknown }).message)
-        : typeof data === "string"
-          ? data
-          : "Request failed";
+        : typeof data === "object" && data
+          ? Object.entries(data as Record<string, unknown>)
+              .map(([field, value]) => `${field}: ${String(value)}`)
+              .join(", ")
+          : typeof data === "string"
+            ? data
+            : "Request failed";
     throw new ApiError(res.status, message, data);
   }
 
@@ -219,6 +274,73 @@ export const notificationApi = {
   markAsRead(id: string) {
     return apiRequest<void>(`/api/notifications/${id}/read`, {
       method: "POST",
+    });
+  },
+};
+
+export const activityApi = {
+  list() {
+    return apiRequest<ActivityResponse[]>("/api/activities");
+  },
+  listMyCheckerActivities() {
+    return apiRequest<ActivityResponse[]>("/api/activities/checker/me");
+  },
+  get(id: string) {
+    return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`);
+  },
+  create(payload: ActivityPayload) {
+    return apiRequest<ActivityResponse>("/api/activities", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string, payload: ActivityPayload) {
+    return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateStatus(id: string, status: ActivityStatus) {
+    return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  remove(id: string) {
+    return apiRequest<void>(`/api/activities/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+  importRegistrations(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<ActivityImportResult>(`/api/activities/${encodeURIComponent(id)}/registrations/import`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+  listRegistrations(id: string) {
+    return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
+  },
+  addChecker(id: string, payload: ActivityCheckerPayload) {
+    return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  listCheckers(id: string) {
+    return apiRequest<ActivityCheckerResponse[]>(`/api/activities/${encodeURIComponent(id)}/checkers`);
+  },
+  removeChecker(activityId: string, checkerId: string) {
+    return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/checkers/${encodeURIComponent(checkerId)}`, {
+      method: "DELETE",
+    });
+  },
+  checkin(id: string, studentCode: string, checkerCode: string) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/checkin`, {
+      method: "POST",
+      headers: { "X-User-Code": checkerCode },
+      body: JSON.stringify({ studentCode }),
     });
   },
 };

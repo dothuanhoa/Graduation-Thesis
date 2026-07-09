@@ -5,6 +5,9 @@ import { useAuth } from "../context/useAuth";
 import AdminLayout from "../layouts/AdminLayout";
 import AuthLayout from "../layouts/AuthLayout";
 import StudentLayout from "../layouts/StudentLayout";
+import ActivityCreatePage from "../pages/admin/activity/ActivityCreatePage";
+import ActivityDetailPage from "../pages/admin/activity/ActivityDetailPage";
+import AdminActivitiesPage from "../pages/admin/activity/AdminActivitiesPage";
 import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
 import AdminModulePage from "../pages/admin/shared/AdminModulePage";
 import AdminNotificationsPage from "../pages/admin/notification/AdminNotificationsPage";
@@ -18,6 +21,7 @@ import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/auth/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import StudentActivitiesPage from "../pages/student/activity/StudentActivitiesPage";
+import StudentActivityDetailPage from "../pages/student/activity/StudentActivityDetailPage";
 import StudentCertificateRequestPage from "../pages/student/certificate/StudentCertificateRequestPage";
 import StudentCertificatesPage from "../pages/student/certificate/StudentCertificatesPage";
 import StudentExamsPage from "../pages/student/exam/StudentExamsPage";
@@ -31,7 +35,6 @@ import StudentRecordsPage from "../pages/student/record/StudentRecordsPage";
 import StudentSettingsPage from "../pages/student/settings/StudentSettingsPage";
 import StudentSupportPage from "../pages/student/support/StudentSupportPage";
 import {
-  activities,
   adminModuleMeta,
   auditLogs,
   certificates,
@@ -110,9 +113,9 @@ function AppRoutes() {
         <Route path="/admin/exams" element={<AdminModulePage meta={adminModuleMeta.exams} dataset={exams} />} />
         <Route path="/admin/questions" element={<AdminModulePage meta={adminModuleMeta.questions} dataset={exams} />} />
         <Route path="/admin/exam-results" element={<AdminModulePage meta={adminModuleMeta.examResults} />} />
-        <Route path="/admin/activities" element={<AdminModulePage meta={adminModuleMeta.activities} dataset={activities} />} />
-        <Route path="/admin/activities/new" element={<AdminModulePage meta={adminModuleMeta.activityNew} />} />
-        <Route path="/admin/activities/:id" element={<AdminModulePage meta={adminModuleMeta.activityDetail} />} />
+        <Route path="/admin/activities" element={<AdminActivitiesPage />} />
+        <Route path="/admin/activities/new" element={<ActivityCreatePage />} />
+        <Route path="/admin/activities/:id" element={<ActivityDetailPage />} />
         <Route path="/admin/attendance" element={<AdminModulePage meta={adminModuleMeta.attendance} />} />
         <Route path="/admin/activity-summary" element={<AdminModulePage meta={adminModuleMeta.activitySummary} />} />
         <Route path="/admin/certificates" element={<AdminModulePage meta={adminModuleMeta.certificates} dataset={certificates} />} />
@@ -149,7 +152,7 @@ function AppRoutes() {
         <Route path="/student/exams/:id/take" element={<ExamTakePage />} />
         <Route path="/student/exams/:id/result" element={<StudentModulePage meta={studentModuleMeta.examResult} />} />
         <Route path="/student/activities" element={<StudentActivitiesPage />} />
-        <Route path="/student/activities/:id" element={<StudentModulePage meta={studentModuleMeta.activityDetail} />} />
+        <Route path="/student/activities/:id" element={<StudentActivityDetailPage />} />
         <Route path="/student/certificates" element={<StudentCertificatesPage />} />
         <Route path="/student/certificates/new" element={<StudentCertificateRequestPage />} />
         <Route
@@ -178,7 +181,14 @@ function AppRoutes() {
         <Route path="/student/settings" element={<StudentSettingsPage />} />
       </Route>
 
-      <Route path="/checker/scan" element={<CheckerScanPage />} />
+      <Route
+        path="/checker/scan"
+        element={
+          <RequireRole>
+            <CheckerScanPage />
+          </RequireRole>
+        }
+      />
       <Route
         path="/403"
         element={

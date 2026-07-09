@@ -9,7 +9,7 @@ function StudentCertificateRequestPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setMessage("Yêu cầu đã được ghi nhận trên giao diện. Khi certificate-service hoàn thiện, form này sẽ gửi dữ liệu thật.");
+    setMessage("Yêu cầu đã được ghi nhận. Bạn có thể theo dõi trạng thái xử lý trong mục đơn xác nhận.");
   };
 
   return (

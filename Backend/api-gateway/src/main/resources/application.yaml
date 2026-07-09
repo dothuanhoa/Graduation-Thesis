@@ -37,6 +37,13 @@ spring:
           filters:
             - AuthenticationFilter
 
+        - id: activity-service-route
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/api/activities/**
+          filters:
+            - AuthenticationFilter
+
         # Định tuyến Swagger API Docs từ các Service con
         - id: openapi-auth
           uri: lb://AUTH-SERVICE
@@ -59,6 +66,13 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/notification-service, /v3/api-docs
 
+        - id: openapi-activity
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/v3/api-docs/activity-service
+          filters:
+            - RewritePath=/v3/api-docs/activity-service, /v3/api-docs
+
 eureka:
   client:
     service-url:
@@ -74,3 +88,5 @@ springdoc:
         url: /v3/api-docs/user-service
       - name: Notification Service
         url: /v3/api-docs/notification-service
+      - name: Activity Service
+        url: /v3/api-docs/activity-service

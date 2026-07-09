@@ -54,7 +54,7 @@ function StudentNotificationsPage() {
       setNotices(data.map(toNotice));
     } catch (err) {
       setNotices([]);
-      setMessage(err instanceof Error ? err.message : "Không tải được thông báo từ notification-service.");
+      setMessage(err instanceof Error ? err.message : "Không tải được thông báo.");
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ function StudentNotificationsPage() {
             <p className="text-sm font-semibold text-primary">{notices.filter((item) => !item.isRead).length} thông báo chưa đọc</p>
             <h2 className="text-xl font-bold text-on-surface">Hộp thư thông báo</h2>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Đang tải trực tiếp từ notification-service
+              Đang tải thông báo mới nhất
               {profile?.clazz?.classCode ? ` · Lớp ${profile.clazz.classCode}` : ""}
               {profile?.clazz?.faculty?.facultyCode ? ` · Khoa ${profile.clazz.faculty.facultyCode}` : ""}
             </p>

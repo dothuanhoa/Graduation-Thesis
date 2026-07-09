@@ -116,7 +116,7 @@ function StudentDetailPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Chi tiết hồ sơ sinh viên"
-        subtitle="Xem, cập nhật hồ sơ sinh viên và quản lý tài khoản đăng nhập liên kết với auth-service."
+        subtitle="Xem, cập nhật hồ sơ sinh viên và quản lý trạng thái tài khoản đăng nhập."
       />
 
       <div className="flex flex-wrap gap-3">
@@ -171,7 +171,7 @@ function StudentDetailPage() {
             </Card>
 
             <Card>
-              <h2 className="text-lg font-bold text-on-surface">Thao tác auth-service</h2>
+              <h2 className="text-lg font-bold text-on-surface">Thao tác tài khoản</h2>
               <div className="mt-5 grid gap-3">
                 <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => void runAuthAction("reset")} type="button">
                   <KeyRound className="h-5 w-5" />

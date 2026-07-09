@@ -48,9 +48,9 @@ function NotificationCreatePage() {
         startDate: toApiDateTime(validated.startDate),
         endDate: toApiDateTime(validated.endDate),
       });
-      setMessage("Đã tạo thông báo trên notification-service.");
+      setMessage("Đã tạo thông báo.");
     } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Khong tao duoc thong bao."));
+      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không tạo được thông báo."));
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ function NotificationCreatePage() {
     <>
       <PageHeader
         title="Tạo thông báo mới"
-        subtitle="Form này gọi POST /api/notifications, dùng role ADMIN từ JWT do Gateway truyền xuống."
+        subtitle="Soạn nội dung, chọn nhóm nhận và thời gian hiển thị thông báo."
       />
       <Card>
         {message && <div className="mb-5 rounded-lg bg-surface-container-low px-4 py-3 font-semibold text-primary">{message}</div>}
