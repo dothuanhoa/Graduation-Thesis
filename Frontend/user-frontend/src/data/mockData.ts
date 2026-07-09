@@ -41,7 +41,9 @@ export type StatusType =
   | "URGENT"
   | "NORMAL"
   | "EXPIRED"
-  | "REVOKED";
+  | "REVOKED"
+  | "CANCELLED"
+  | "NEEDS_INFO";
 
 export type NavItem = {
   label: string;

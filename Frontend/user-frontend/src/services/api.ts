@@ -153,16 +153,21 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const data = await parseResponse(res);
 
   if (!res.ok) {
-    const message =
-      typeof data === "object" && data && "message" in data
-        ? String((data as { message: unknown }).message)
-        : typeof data === "object" && data
-          ? Object.entries(data as Record<string, unknown>)
-              .map(([field, value]) => `${field}: ${String(value)}`)
-              .join(", ")
-          : typeof data === "string"
-            ? data
-            : "Request failed";
+    let message = "Request failed";
+    if (typeof data === "object" && data !== null) {
+      if ("message" in data) {
+        message = String((data as any).message);
+      } else if ("error" in data) {
+        message = String((data as any).error);
+      } else {
+        const errorValues = Object.values(data);
+        if (errorValues.length > 0 && typeof errorValues[0] === "string") {
+          message = errorValues.join(", ");
+        }
+      }
+    } else if (typeof data === "string") {
+      message = data;
+    }
     throw new ApiError(res.status, message, data);
   }
 
@@ -278,6 +283,83 @@ export const notificationApi = {
   },
 };
 
+// --- Certification Service Types ---
+
+export type RequestStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "REJECTED" | "NEEDS_INFO" | "CANCELLED";
+
+export type FormType = {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  formCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type FormTypePayload = {
+  name: string;
+  description?: string;
+  isActive: boolean;
+  formCode?: string;
+};
+
+export type ConfirmationRequest = {
+  id: string;
+  studentId: string;
+  formTypeId: string;
+  formTypeName: string;
+  formCode?: string;
+  reason?: string;
+  contactPhone?: string;
+  proofFileUrl?: string;
+  status: RequestStatus;
+  adminNote?: string;
+  appointmentDate?: string;
+  semester?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  metadata?: Record<string, any>;
+  studentProfile?: UserProfile;
+};
+
+export type CreateConfirmationRequestPayload = {
+  formTypeId: string;
+  reason?: string;
+  contactPhone?: string;
+  proofFileUrl?: string;
+  semester?: string;
+  metadata?: Record<string, any>;
+};
+
+export type UpdateStatusPayload = {
+  status: RequestStatus;
+  adminNote?: string;
+  appointmentDate?: string;
+  metadata?: Record<string, any>;
+};
+
+export type PageResponse<T> = {
+  content: T[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+  };
+  totalElements: number;
+  totalPages: number;
+};
+
+// --- Certification Service APIs ---
+
+export const formTypeApi = {
+  listAll() {
+    return apiRequest<FormType[]>("/api/certifications/form-types");
+  },
+  getById(id: string) {
+    return apiRequest<FormType>(`/api/certifications/form-types/${id}`);
+  },
+  create(payload: FormTypePayload) {
+    return apiRequest<FormType>("/api/certifications/form-types", {
 export const activityApi = {
   list() {
     return apiRequest<ActivityResponse[]>("/api/activities");
@@ -294,12 +376,64 @@ export const activityApi = {
       body: JSON.stringify(payload),
     });
   },
+  update(id: string, payload: FormTypePayload) {
+    return apiRequest<FormType>(`/api/certifications/form-types/${id}`, {
   update(id: string, payload: ActivityPayload) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
   },
+  remove(id: string) {
+    return apiRequest<void>(`/api/certifications/form-types/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export const certificationRequestApi = {
+  create(payload: CreateConfirmationRequestPayload) {
+    return apiRequest<ConfirmationRequest>("/api/certifications/requests", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  listMine() {
+    return apiRequest<ConfirmationRequest[]>("/api/certifications/requests/my-requests");
+  },
+  getMine(id: string) {
+    return apiRequest<ConfirmationRequest>(`/api/certifications/requests/my-requests/${id}`);
+  },
+  cancelMine(id: string) {
+    return apiRequest<void>(`/api/certifications/requests/my-requests/${id}/cancel`, {
+      method: "PUT",
+    });
+  },
+  listAll(page: number = 0, size: number = 10) {
+    return apiRequest<PageResponse<ConfirmationRequest>>(`/api/certifications/requests?page=${page}&size=${size}`);
+  },
+  getById(id: string) {
+    return apiRequest<ConfirmationRequest>(`/api/certifications/requests/${id}`);
+  },
+  updateStatus(id: string, payload: UpdateStatusPayload) {
+    return apiRequest<ConfirmationRequest>(`/api/certifications/requests/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+export const fileApi = {
+  upload(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<{ fileUrl: string }>("/api/certifications/files/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+};
+
   updateStatus(id: string, status: ActivityStatus) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
       method: "PATCH",

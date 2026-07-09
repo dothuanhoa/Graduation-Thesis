@@ -32,6 +32,13 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/profile/{studentId}")
+    public ResponseEntity<UserProfile> getUserByStudentId(@PathVariable String studentId){
+        return userService.findByStudentId(studentId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<Object> createUser(@RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role, @Valid @RequestBody UserProfile userProfile) {
         if (!"ADMIN".equals(role)) return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");

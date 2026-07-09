@@ -26,6 +26,10 @@ public class UserServiceImpl implements UserService {
         return userProfileRepository.findById(id);
     }
 
+    public Optional<UserProfile> findByStudentId(String studentId) {
+        return userProfileRepository.findByStudentId(studentId);
+    }
+
     @Transactional
     public UserProfile save(UserProfile userProfile) {
         UserProfile savedProfile = userProfileRepository.save(userProfile);

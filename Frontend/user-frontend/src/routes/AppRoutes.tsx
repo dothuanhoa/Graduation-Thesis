@@ -10,6 +10,9 @@ import ActivityDetailPage from "../pages/admin/activity/ActivityDetailPage";
 import AdminActivitiesPage from "../pages/admin/activity/AdminActivitiesPage";
 import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
 import AdminModulePage from "../pages/admin/shared/AdminModulePage";
+import AdminCertificatesPage from "../pages/admin/certificate/AdminCertificatesPage";
+import AdminCertificateDetailPage from "../pages/admin/certificate/AdminCertificateDetailPage";
+import AdminFormTypesPage from "../pages/admin/certificate/AdminFormTypesPage";
 import AdminNotificationsPage from "../pages/admin/notification/AdminNotificationsPage";
 import NotificationCreatePage from "../pages/admin/notification/NotificationCreatePage";
 import StudentCreatePage from "../pages/admin/user/StudentCreatePage";
@@ -118,9 +121,10 @@ function AppRoutes() {
         <Route path="/admin/activities/:id" element={<ActivityDetailPage />} />
         <Route path="/admin/attendance" element={<AdminModulePage meta={adminModuleMeta.attendance} />} />
         <Route path="/admin/activity-summary" element={<AdminModulePage meta={adminModuleMeta.activitySummary} />} />
-        <Route path="/admin/certificates" element={<AdminModulePage meta={adminModuleMeta.certificates} dataset={certificates} />} />
+        <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
         <Route path="/admin/certificates/handover" element={<AdminModulePage meta={adminModuleMeta.handover} />} />
-        <Route path="/admin/certificates/:id" element={<AdminModulePage meta={adminModuleMeta.certificateDetail} />} />
+        <Route path="/admin/certificates/:id" element={<AdminCertificateDetailPage />} />
+        <Route path="/admin/form-types" element={<AdminFormTypesPage />} />
         <Route path="/admin/appointments" element={<AdminModulePage meta={adminModuleMeta.appointments} dataset={certificates} />} />
         <Route path="/admin/reports/students" element={<AdminModulePage meta={adminModuleMeta.reportsStudents} />} />
         <Route path="/admin/reports/exams" element={<AdminModulePage meta={adminModuleMeta.reportsExams} />} />
