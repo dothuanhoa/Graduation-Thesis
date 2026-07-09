@@ -156,9 +156,9 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     let message = "Request failed";
     if (typeof data === "object" && data !== null) {
       if ("message" in data) {
-        message = String((data as any).message);
+        message = String((data as Record<string, unknown>).message);
       } else if ("error" in data) {
-        message = String((data as any).error);
+        message = String((data as Record<string, unknown>).error);
       } else {
         const errorValues = Object.values(data);
         if (errorValues.length > 0 && typeof errorValues[0] === "string") {
@@ -319,7 +319,7 @@ export type ConfirmationRequest = {
   semester?: string;
   createdAt?: string;
   updatedAt?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   studentProfile?: UserProfile;
 };
 
@@ -329,14 +329,14 @@ export type CreateConfirmationRequestPayload = {
   contactPhone?: string;
   proofFileUrl?: string;
   semester?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type UpdateStatusPayload = {
   status: RequestStatus;
   adminNote?: string;
   appointmentDate?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type PageResponse<T> = {
@@ -351,15 +351,6 @@ export type PageResponse<T> = {
 
 // --- Certification Service APIs ---
 
-export const formTypeApi = {
-  listAll() {
-    return apiRequest<FormType[]>("/api/certifications/form-types");
-  },
-  getById(id: string) {
-    return apiRequest<FormType>(`/api/certifications/form-types/${id}`);
-  },
-  create(payload: FormTypePayload) {
-    return apiRequest<FormType>("/api/certifications/form-types", {
 export const activityApi = {
   list() {
     return apiRequest<ActivityResponse[]>("/api/activities");
@@ -376,10 +367,72 @@ export const activityApi = {
       body: JSON.stringify(payload),
     });
   },
-  update(id: string, payload: FormTypePayload) {
-    return apiRequest<FormType>(`/api/certifications/form-types/${id}`, {
   update(id: string, payload: ActivityPayload) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateStatus(id: string, status: ActivityStatus) {
+    return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  remove(id: string) {
+    return apiRequest<void>(`/api/activities/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+  importRegistrations(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<ActivityImportResult>(`/api/activities/${encodeURIComponent(id)}/registrations/import`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+  listRegistrations(id: string) {
+    return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
+  },
+  addChecker(id: string, payload: ActivityCheckerPayload) {
+    return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  listCheckers(id: string) {
+    return apiRequest<ActivityCheckerResponse[]>(`/api/activities/${encodeURIComponent(id)}/checkers`);
+  },
+  removeChecker(activityId: string, checkerId: string) {
+    return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/checkers/${encodeURIComponent(checkerId)}`, {
+      method: "DELETE",
+    });
+  },
+  checkin(id: string, studentCode: string, checkerCode: string) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/checkin`, {
+      method: "POST",
+      headers: { "X-User-Code": checkerCode },
+      body: JSON.stringify({ studentCode }),
+    });
+  },
+};
+
+export const formTypeApi = {
+  listAll() {
+    return apiRequest<FormType[]>("/api/certifications/form-types");
+  },
+  getById(id: string) {
+    return apiRequest<FormType>(`/api/certifications/form-types/${id}`);
+  },
+  create(payload: FormTypePayload) {
+    return apiRequest<FormType>("/api/certifications/form-types", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string, payload: FormTypePayload) {
+    return apiRequest<FormType>(`/api/certifications/form-types/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
@@ -430,51 +483,6 @@ export const fileApi = {
     return apiRequest<{ fileUrl: string }>("/api/certifications/files/upload", {
       method: "POST",
       body: formData,
-    });
-  },
-};
-
-  updateStatus(id: string, status: ActivityStatus) {
-    return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-  },
-  remove(id: string) {
-    return apiRequest<void>(`/api/activities/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-  },
-  importRegistrations(id: string, file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return apiRequest<ActivityImportResult>(`/api/activities/${encodeURIComponent(id)}/registrations/import`, {
-      method: "POST",
-      body: formData,
-    });
-  },
-  listRegistrations(id: string) {
-    return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
-  },
-  addChecker(id: string, payload: ActivityCheckerPayload) {
-    return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-  listCheckers(id: string) {
-    return apiRequest<ActivityCheckerResponse[]>(`/api/activities/${encodeURIComponent(id)}/checkers`);
-  },
-  removeChecker(activityId: string, checkerId: string) {
-    return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/checkers/${encodeURIComponent(checkerId)}`, {
-      method: "DELETE",
-    });
-  },
-  checkin(id: string, studentCode: string, checkerCode: string) {
-    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/checkin`, {
-      method: "POST",
-      headers: { "X-User-Code": checkerCode },
-      body: JSON.stringify({ studentCode }),
     });
   },
 };

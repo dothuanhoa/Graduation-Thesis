@@ -8,6 +8,12 @@ import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType } from "../../../data/mockData";
 import { certificationRequestApi, type ConfirmationRequest, type RequestStatus, type UpdateStatusPayload } from "../../../services/api";
 
+const getMetadataText = (metadata: Record<string, unknown> | undefined, key: string) => {
+  const value = metadata?.[key];
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
 function AdminCertificateDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [request, setRequest] = useState<ConfirmationRequest | null>(null);
@@ -56,7 +62,7 @@ function AdminCertificateDetailPage() {
   const updateMetadata = (key: string, value: string) => {
     setFormData((current) => ({
       ...current,
-      metadata: { ...current.metadata, [key]: value },
+      metadata: { ...(current.metadata ?? {}), [key]: value },
     }));
   };
 
@@ -141,11 +147,11 @@ function AdminCertificateDetailPage() {
             {request.metadata && Object.keys(request.metadata).length > 0 && (
               <div className="mt-2 rounded-lg bg-surface-container-low p-3">
                 <span className="font-semibold block mb-2">Thông tin bổ sung (từ Sinh viên):</span>
-                {request.metadata.deductionType && <p>- Loại giảm trừ: {request.metadata.deductionType}</p>}
-                {request.metadata.cmnd && <p>- CMND/CCCD: {request.metadata.cmnd}</p>}
-                {request.metadata.ngayCap && <p>- Ngày cấp: {request.metadata.ngayCap}</p>}
-                {request.metadata.noiCap && <p>- Nơi cấp: {request.metadata.noiCap}</p>}
-                {request.metadata.doiTuong && <p>- Đối tượng: {request.metadata.doiTuong}</p>}
+                {getMetadataText(request.metadata, "deductionType") && <p>- Loại giảm trừ: {getMetadataText(request.metadata, "deductionType")}</p>}
+                {getMetadataText(request.metadata, "cmnd") && <p>- CMND/CCCD: {getMetadataText(request.metadata, "cmnd")}</p>}
+                {getMetadataText(request.metadata, "ngayCap") && <p>- Ngày cấp: {getMetadataText(request.metadata, "ngayCap")}</p>}
+                {getMetadataText(request.metadata, "noiCap") && <p>- Nơi cấp: {getMetadataText(request.metadata, "noiCap")}</p>}
+                {getMetadataText(request.metadata, "doiTuong") && <p>- Đối tượng: {getMetadataText(request.metadata, "doiTuong")}</p>}
               </div>
             )}
             <p className="flex items-center gap-2">
@@ -185,14 +191,14 @@ function AdminCertificateDetailPage() {
               <div className="md:col-span-2 grid gap-5 md:grid-cols-2 rounded-lg border border-outline-variant p-4">
                 <h3 className="md:col-span-2 font-bold text-primary">Thông tin xác nhận từ Nhà trường (Điền trước khi in)</h3>
                 
-                <FormField label="Ngày nhập học" type="date" value={formData.metadata?.ngayNhapHoc || ""} onChange={(e) => updateMetadata("ngayNhapHoc", e.target.value)} />
-                <FormField label="Thời gian ra trường (dự kiến)" type="date" value={formData.metadata?.ngayRaTruong || ""} onChange={(e) => updateMetadata("ngayRaTruong", e.target.value)} />
-                <FormField label="Thời gian học tại trường (tháng)" type="number" value={formData.metadata?.thoiGianHoc || ""} onChange={(e) => updateMetadata("thoiGianHoc", e.target.value)} />
-                <FormField label="Số tiền học phí hàng tháng (VNĐ)" type="number" value={formData.metadata?.hocPhi || ""} onChange={(e) => updateMetadata("hocPhi", e.target.value)} />
+                <FormField label="Ngày nhập học" type="date" value={getMetadataText(formData.metadata, "ngayNhapHoc")} onChange={(e) => updateMetadata("ngayNhapHoc", e.target.value)} />
+                <FormField label="Thời gian ra trường (dự kiến)" type="date" value={getMetadataText(formData.metadata, "ngayRaTruong")} onChange={(e) => updateMetadata("ngayRaTruong", e.target.value)} />
+                <FormField label="Thời gian học tại trường (tháng)" type="number" value={getMetadataText(formData.metadata, "thoiGianHoc")} onChange={(e) => updateMetadata("thoiGianHoc", e.target.value)} />
+                <FormField label="Số tiền học phí hàng tháng (VNĐ)" type="number" value={getMetadataText(formData.metadata, "hocPhi")} onChange={(e) => updateMetadata("hocPhi", e.target.value)} />
                 
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold text-on-surface-variant">Thuộc diện</label>
-                  <select className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus:border-primary" value={formData.metadata?.thuocDien || ""} onChange={(e) => updateMetadata("thuocDien", e.target.value)}>
+                  <select className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus:border-primary" value={getMetadataText(formData.metadata, "thuocDien")} onChange={(e) => updateMetadata("thuocDien", e.target.value)}>
                     <option value="">-- Chọn diện --</option>
                     <option value="Không miễn giảm">Không miễn giảm</option>
                     <option value="Giảm học phí">Giảm học phí</option>
@@ -200,7 +206,7 @@ function AdminCertificateDetailPage() {
                   </select>
                 </div>
                 
-                <FormField label="Kỷ luật hành chính (Nếu có)" value={formData.metadata?.kyLuat || ""} onChange={(e) => updateMetadata("kyLuat", e.target.value)} placeholder="VD: Không bị xử phạt hành chính..." />
+                <FormField label="Kỷ luật hành chính (Nếu có)" value={getMetadataText(formData.metadata, "kyLuat")} onChange={(e) => updateMetadata("kyLuat", e.target.value)} placeholder="VD: Không bị xử phạt hành chính..." />
               </div>
             )}
             

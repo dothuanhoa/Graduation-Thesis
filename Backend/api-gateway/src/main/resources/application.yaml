@@ -41,6 +41,9 @@ spring:
           uri: lb://CERTIFICATION-SERVICE
           predicates:
             - Path=/api/certifications/**
+          filters:
+            - AuthenticationFilter
+
         - id: activity-service-route
           uri: lb://ACTIVITY-SERVICE
           predicates:

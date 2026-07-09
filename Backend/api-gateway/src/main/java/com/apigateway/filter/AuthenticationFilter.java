@@ -44,7 +44,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             try {
                 jwtUtil.validateToken(token);
                 userId = jwtUtil.extractSubject(token);
-                role = jwtUtil.extractClaim(token, "role");
+                role = normalizeRole(jwtUtil.extractClaim(token, "role"));
             } catch (Exception e) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
@@ -71,5 +71,18 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     }
 
     public static class Config {
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "STUDENT";
+        }
+
+        String normalizedRole = role.trim().toUpperCase();
+        if (normalizedRole.startsWith("ROLE_")) {
+            normalizedRole = normalizedRole.substring("ROLE_".length());
+        }
+
+        return normalizedRole;
     }
 }

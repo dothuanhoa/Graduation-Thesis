@@ -12,56 +12,12 @@ import {
   type FormType,
 } from "../../../services/api";
 
-const getStudentIdFromToken = () => {
-  try {
-    const token =
-      localStorage.getItem("accessToken") ||
-      localStorage.getItem("token") ||
-      "";
-    if (!token) return "";
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split("")
-        .map(function (c) {
-          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
-        })
-        .join(""),
-    );
-    return JSON.parse(jsonPayload).sub || "";
-  } catch (e) {
-    return "";
-  }
-};
-
-const extractYearCode = (studentId: string): number | null => {
-  if (!studentId) return null;
-  // Match the first 2 consecutive digits in the student ID (e.g. '21' from '21110001' or 'N21CQCN')
-  const match = studentId.match(/\d{2}/);
-  if (match) {
-    return parseInt(match[0], 10);
-  }
-  return null;
-};
+type CertificateMetadata = Record<string, string>;
 
 const getCurrentSemesterStr = () => {
   const now = new Date();
   const month = now.getMonth() + 1; // 1-12
-  const currentYear = now.getFullYear();
-
-  let semester = 1;
-  let academicYearStart = currentYear;
-
-  if (month >= 9 || month === 1) {
-    semester = 1;
-    academicYearStart = month === 1 ? currentYear - 1 : currentYear;
-  } else {
-    semester = 2;
-    academicYearStart = currentYear - 1;
-  }
-  return `${semester}`;
+  return month >= 9 || month === 1 ? "1" : "2";
 };
 
 function StudentCertificateRequestPage() {
@@ -72,7 +28,7 @@ function StudentCertificateRequestPage() {
     contactPhone: "",
     semester: getCurrentSemesterStr(),
   });
-  const [metadata, setMetadata] = useState<Record<string, any>>({});
+  const [metadata, setMetadata] = useState<CertificateMetadata>({});
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -108,7 +64,7 @@ function StudentCertificateRequestPage() {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
-  const updateMetadata = (key: string, value: any) => {
+  const updateMetadata = (key: string, value: string) => {
     setMetadata((curr) => ({ ...curr, [key]: value }));
   };
 
