@@ -72,15 +72,12 @@ function StudentCertificateRequestPage() {
     updateField("formTypeId", value);
     setMetadata({});
     const type = formTypes.find((t) => String(t.id) === String(value));
-    if (type?.formCode === "DON_XIN_1" || type?.formCode === "DON_XIN_NVQS") {
+    if (type?.formCode === "NVQS") {
       updateField(
         "reason",
         "Bổ sung hồ sơ xin tạm hoãn nghĩa vụ quân sự tại địa phương",
       );
-    } else if (
-      type?.formCode === "DON_XIN_2" ||
-      type?.formCode === "DON_XIN_KHAC"
-    ) {
+    } else if (type?.formCode === "KHAC") {
       updateField("reason", "");
       setMetadata({ deductionType: "Khác" });
     } else {
@@ -225,8 +222,7 @@ function StudentCertificateRequestPage() {
             </div>
           </div>
 
-          {selectedFormCode === "DON_XIN_2" ||
-          selectedFormCode === "DON_XIN_KHAC" ? (
+          {selectedFormCode === "KHAC" ? (
             <div className="flex flex-col gap-2 md:col-span-2">
               <label className="text-sm font-semibold text-on-surface-variant">
                 Lý do xác nhận <span className="text-error">*</span>
@@ -268,8 +264,7 @@ function StudentCertificateRequestPage() {
                 />
               )}
             </div>
-          ) : selectedFormCode === "GIAY_VAY_VON" ||
-            selectedFormCode === "GIAY_XAC_NHAN_VAY_VON" ? (
+          ) : selectedFormCode === "VAY_VON" ? (
             <>
               <FormField
                 label="Số CMND/CCCD"
@@ -327,15 +322,8 @@ function StudentCertificateRequestPage() {
               placeholder="Nhập lý do chi tiết..."
               value={formData.reason || ""}
               onChange={(e) => updateField("reason", e.target.value)}
-              required={
-                !selectedFormCode ||
-                selectedFormCode === "DON_XIN_1" ||
-                selectedFormCode === "DON_XIN_NVQS"
-              }
-              disabled={
-                selectedFormCode === "DON_XIN_1" ||
-                selectedFormCode === "DON_XIN_NVQS"
-              }
+              required={!selectedFormCode || selectedFormCode === "NVQS"}
+              disabled={selectedFormCode === "NVQS"}
             />
           )}
 

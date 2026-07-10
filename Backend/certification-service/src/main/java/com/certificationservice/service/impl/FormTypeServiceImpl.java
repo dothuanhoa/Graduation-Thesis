@@ -28,7 +28,11 @@ public class FormTypeServiceImpl implements FormTypeService {
         FormType formType = new FormType();
         formType.setName(dto.getName());
         formType.setDescription(dto.getDescription());
-        formType.setFormCode(dto.getFormCode());
+        if(dto.getFormCode().compareTo("")==0){
+            formType.setFormCode(null);
+        }else {
+            formType.setFormCode(dto.getFormCode());
+        }
         formType.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         FormType saved = formTypeRepository.save(formType);
         return mapToDTO(saved);
