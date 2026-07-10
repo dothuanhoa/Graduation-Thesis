@@ -15,6 +15,9 @@ import AdminCertificateDetailPage from "../pages/admin/certificate/AdminCertific
 import AdminFormTypesPage from "../pages/admin/certificate/AdminFormTypesPage";
 import AdminNotificationsPage from "../pages/admin/notification/AdminNotificationsPage";
 import NotificationCreatePage from "../pages/admin/notification/NotificationCreatePage";
+import AcademicYearManagementPage from "../pages/admin/organization/AcademicYearManagementPage";
+import ClassManagementPage from "../pages/admin/organization/ClassManagementPage";
+import FacultyManagementPage from "../pages/admin/organization/FacultyManagementPage";
 import StudentCreatePage from "../pages/admin/user/StudentCreatePage";
 import StudentDetailPage from "../pages/admin/user/StudentDetailPage";
 import StudentImportPage from "../pages/admin/user/StudentImportPage";
@@ -41,10 +44,8 @@ import {
   adminModuleMeta,
   auditLogs,
   certificates,
-  classes,
   discipline,
   exams,
-  faculties,
   rewards,
   studentModuleMeta,
 } from "../data/mockData";
@@ -105,8 +106,9 @@ function AppRoutes() {
       >
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/statistics" element={<AdminModulePage meta={adminModuleMeta.statistics} />} />
-        <Route path="/admin/faculties" element={<AdminModulePage meta={adminModuleMeta.faculties} dataset={faculties} />} />
-        <Route path="/admin/classes" element={<AdminModulePage meta={adminModuleMeta.classes} dataset={classes} />} />
+        <Route path="/admin/faculties" element={<FacultyManagementPage />} />
+        <Route path="/admin/academic-years" element={<AcademicYearManagementPage />} />
+        <Route path="/admin/classes" element={<ClassManagementPage />} />
         <Route path="/admin/students" element={<StudentListPage />} />
         <Route path="/admin/students/new" element={<StudentCreatePage />} />
         <Route path="/admin/students/import" element={<StudentImportPage />} />
@@ -196,18 +198,22 @@ function AppRoutes() {
       <Route
         path="/403"
         element={
-          <RouteErrorBoundary>
-            <ForbiddenPage />
-          </RouteErrorBoundary>
+          <RequireRole>
+            <RouteErrorBoundary>
+              <ForbiddenPage />
+            </RouteErrorBoundary>
+          </RequireRole>
         }
       />
       <Route path="/" element={<RootRedirect />} />
       <Route
         path="*"
         element={
-          <RouteErrorBoundary>
-            <NotFoundPage />
-          </RouteErrorBoundary>
+          <RequireRole>
+            <RouteErrorBoundary>
+              <NotFoundPage />
+            </RouteErrorBoundary>
+          </RequireRole>
         }
       />
     </Routes>

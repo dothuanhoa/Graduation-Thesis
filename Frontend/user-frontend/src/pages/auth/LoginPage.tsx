@@ -1,42 +1,19 @@
 import { Lock, LogIn, UserRound } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, type FormEvent } from "react";
 import Card from "../../components/Card";
 import FormField from "../../components/FormField";
 import { useAuth } from "../../context/useAuth";
 import { ApiError } from "../../services/api";
-import { getDashboardPath } from "../../utils/authRouting";
-
-const getRoleFromToken = (token: string) => {
-  try {
-    const payload = token.split(".")[1] || "";
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(normalized)).role || "STUDENT";
-  } catch {
-    return "STUDENT";
-  }
-};
 
 function LoginPage() {
-  const navigate = useNavigate();
   const auth = useAuth();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const redirectByRole = (role: string) => {
-    navigate(getDashboardPath(role), { replace: true });
-  };
-
-  useEffect(() => {
-    if (auth.isAuthenticated) {
-      navigate(getDashboardPath(auth.role), { replace: true });
-    }
-  }, [auth.isAuthenticated, auth.role, navigate]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,7 +22,6 @@ function LoginPage() {
 
     try {
       await auth.login({ username, password });
-      redirectByRole(getRoleFromToken(localStorage.getItem("accessToken") || ""));
     } catch (err) {
       if (err instanceof ApiError && err.status === 428) {
         setNeedsPasswordChange(true);
@@ -75,7 +51,6 @@ function LoginPage() {
     setLoading(true);
     try {
       await auth.firstChangePassword({ username, oldPassword: password, newPassword });
-      redirectByRole(getRoleFromToken(localStorage.getItem("accessToken") || ""));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không đổi được mật khẩu.");
     } finally {
@@ -99,8 +74,9 @@ function LoginPage() {
         )}
 
         {!needsPasswordChange ? (
-          <form className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleLogin}>
+          <form autoComplete="off" className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleLogin}>
             <FormField
+              autoComplete="off"
               icon={<UserRound className="h-5 w-5" />}
               label="MSSV / Tên đăng nhập"
               onChange={(event) => setUsername(event.target.value)}
@@ -108,6 +84,7 @@ function LoginPage() {
               value={username}
             />
             <FormField
+              autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
               label="Mật khẩu"
               onChange={(event) => setPassword(event.target.value)}
@@ -125,8 +102,9 @@ function LoginPage() {
             </button>
           </form>
         ) : (
-          <form className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleFirstChangePassword}>
+          <form autoComplete="off" className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleFirstChangePassword}>
             <FormField
+              autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
               label="Mật khẩu mới"
               onChange={(event) => setNewPassword(event.target.value)}
@@ -135,6 +113,7 @@ function LoginPage() {
               value={newPassword}
             />
             <FormField
+              autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
               label="Xác nhận mật khẩu mới"
               onChange={(event) => setConfirmPassword(event.target.value)}

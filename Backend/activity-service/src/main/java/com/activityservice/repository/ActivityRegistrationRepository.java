@@ -10,6 +10,7 @@ public interface ActivityRegistrationRepository extends JpaRepository<ActivityRe
     List<ActivityRegistration> findByActivityIdOrderByStudentCodeAsc(Long activityId);
     Optional<ActivityRegistration> findByActivityIdAndStudentCodeIgnoreCase(Long activityId, String studentCode);
     boolean existsByActivityIdAndStudentCodeIgnoreCase(Long activityId, String studentCode);
+    boolean existsByActivityIdAndUserTsidIgnoreCase(Long activityId, String userTsid);
     long countByActivityId(Long activityId);
     long countByActivityIdAndAttendedTrue(Long activityId);
 }

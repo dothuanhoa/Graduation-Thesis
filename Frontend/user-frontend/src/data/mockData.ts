@@ -63,7 +63,9 @@ export type TableRow = Record<string, string | number | StatusType>;
 
 export const adminNav: NavItem[] = [
   { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
-  { label: "Tổ chức", path: "/admin/faculties", icon: Building2 },
+  { label: "Khoa", path: "/admin/faculties", icon: Building2 },
+  { label: "Niên khóa", path: "/admin/academic-years", icon: BookOpenCheck },
+  { label: "Lớp", path: "/admin/classes", icon: GraduationCap },
   { label: "Sinh viên", path: "/admin/students", icon: Users },
   { label: "Thông báo", path: "/admin/notifications", icon: Bell },
   { label: "Kỳ thi", path: "/admin/exams", icon: NotebookTabs },

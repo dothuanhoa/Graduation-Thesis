@@ -1,5 +1,7 @@
 import * as yup from "yup";
 import { z } from "zod";
+import { emitToast } from "../utils/toastBus";
+import { toUserFacingMessage } from "../utils/messages";
 
 const phoneRegex = /^(0|\+84)(\d{8,10})$/;
 
@@ -53,14 +55,18 @@ export const excelImportSchema = yup.object({
 
 export const getZodMessage = (error: unknown, fallback: string) => {
   if (error instanceof z.ZodError) {
-    return error.issues[0]?.message || fallback;
+    const message = toUserFacingMessage(error.issues[0]?.message || fallback);
+    emitToast({ variant: "warning", message });
+    return message;
   }
   return fallback;
 };
 
 export const getYupMessage = (error: unknown, fallback: string) => {
   if (error instanceof yup.ValidationError) {
-    return error.errors[0] || fallback;
+    const message = toUserFacingMessage(error.errors[0] || fallback);
+    emitToast({ variant: "warning", message });
+    return message;
   }
   return fallback;
 };

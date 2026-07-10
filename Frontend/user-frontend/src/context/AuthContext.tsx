@@ -2,6 +2,10 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { AuthContext, type AuthContextValue } from "./authStore";
 import { authApi, type ChangePasswordPayload, type LoginPayload, type TokenResponse } from "../services/api";
 
+const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
+const LEGACY_TOKEN_KEY = "token";
+
 type JwtPayload = {
   sub?: string;
   role?: string;
@@ -26,9 +30,41 @@ const decodeJwt = (token: string): JwtPayload => {
 };
 
 const saveTokens = ({ accessToken, refreshToken }: TokenResponse) => {
-  localStorage.setItem("accessToken", accessToken);
-  localStorage.setItem("refreshToken", refreshToken);
-  localStorage.setItem("token", accessToken);
+  sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+};
+
+const clearStoredTokens = () => {
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+};
+
+const isExpired = (payload: JwtPayload) => {
+  if (!payload.exp) return true;
+  return payload.exp * 1000 <= Date.now();
+};
+
+const getInitialAccessToken = () => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY) || "";
+  if (!token) return "";
+
+  const payload = decodeJwt(token);
+  if (!payload.sub || isExpired(payload)) {
+    clearStoredTokens();
+    return "";
+  }
+
+  return token;
 };
 
 type AuthProviderProps = {
@@ -36,10 +72,11 @@ type AuthProviderProps = {
 };
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [accessToken, setAccessToken] = useState(() => localStorage.getItem("accessToken") || localStorage.getItem("token") || "");
-  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem("refreshToken") || "");
+  const [accessToken, setAccessToken] = useState(getInitialAccessToken);
+  const [refreshToken, setRefreshToken] = useState(() => sessionStorage.getItem(REFRESH_TOKEN_KEY) || "");
 
   const payload = useMemo(() => decodeJwt(accessToken), [accessToken]);
+  const isAuthenticated = Boolean(accessToken && payload.sub && !isExpired(payload));
 
   const applyTokenResponse = useCallback((tokens: TokenResponse) => {
     saveTokens(tokens);
@@ -58,9 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [applyTokenResponse]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("token");
+    clearStoredTokens();
     setAccessToken("");
     setRefreshToken("");
   }, []);
@@ -71,12 +106,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       refreshToken,
       username: payload.sub || "",
       role: payload.role || "STUDENT",
-      isAuthenticated: Boolean(accessToken),
+      isAuthenticated,
       login,
       firstChangePassword,
       logout,
     }),
-    [accessToken, firstChangePassword, login, logout, payload.role, payload.sub, refreshToken],
+    [accessToken, firstChangePassword, isAuthenticated, login, logout, payload.role, payload.sub, refreshToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

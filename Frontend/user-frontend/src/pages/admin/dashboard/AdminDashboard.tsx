@@ -73,8 +73,6 @@ function AdminDashboard() {
   const urgentNotifications = notifications.filter((item) => item.priority === "URGENT");
   const ongoingActivities = activities.filter((item) => item.status === "ONGOING");
   const upcomingActivities = activities.filter((item) => item.status === "UPCOMING");
-  const registeredCount = activities.reduce((total, activity) => total + (activity.registrationCount ?? 0), 0);
-  const attendedCount = activities.reduce((total, activity) => total + (activity.attendedCount ?? 0), 0);
 
   const stats = useMemo(
     () => [
@@ -102,23 +100,13 @@ function AdminDashboard() {
         tone: "success",
         path: "/admin/activities",
       },
-      {
-        label: "Điểm danh",
-        value: loading ? "..." : `${formatNumber(attendedCount)}/${formatNumber(registeredCount)}`,
-        trend: "Đã quét",
-        icon: QrCode,
-        tone: "warning",
-        path: "/checker/scan",
-      },
     ],
     [
       activities.length,
-      attendedCount,
       loading,
       notifications.length,
       ongoingActivities.length,
       publishedNotifications.length,
-      registeredCount,
       students.length,
     ],
   );
@@ -136,7 +124,7 @@ function AdminDashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <PageHeader
           title="Tổng quan hệ thống"
-          subtitle="Theo dõi nhanh sinh viên, thông báo, hoạt động và tình hình điểm danh trong ngày."
+          subtitle="Theo dõi nhanh sinh viên, thông báo và hoạt động đang vận hành."
         />
         <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadDashboard} type="button">
           <RefreshCw className="h-5 w-5" />
@@ -146,7 +134,7 @@ function AdminDashboard() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
-      <section className="grid gap-gutter md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-gutter md:grid-cols-2 xl:grid-cols-3">
         {stats.map((stat) => (
           <Link key={stat.label} className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to={stat.path}>
             <StatCard {...stat} />

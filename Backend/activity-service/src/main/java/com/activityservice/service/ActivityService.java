@@ -1,5 +1,6 @@
 package com.activityservice.service;
 
+import com.activityservice.client.UserClient;
 import com.activityservice.domain.Activity;
 import com.activityservice.domain.ActivityChecker;
 import com.activityservice.domain.ActivityRegistration;
@@ -10,6 +11,7 @@ import com.activityservice.exception.ResourceNotFoundException;
 import com.activityservice.repository.ActivityCheckerRepository;
 import com.activityservice.repository.ActivityRegistrationRepository;
 import com.activityservice.repository.ActivityRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -18,11 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +34,7 @@ public class ActivityService {
     private final ActivityRepository activityRepository;
     private final ActivityRegistrationRepository registrationRepository;
     private final ActivityCheckerRepository checkerRepository;
+    private final UserClient userClient;
 
     public List<ActivityResponse> findAll() {
         return activityRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
@@ -129,7 +134,7 @@ public class ActivityService {
 
                 String studentCode = readString(row, 0);
                 String fullName = readString(row, 1);
-                String userTsid = readString(row, 2);
+                String userTsid = studentCode;
 
                 if (studentCode.isBlank()) {
                     skipped++;
@@ -137,17 +142,33 @@ public class ActivityService {
                     continue;
                 }
 
-                if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode)) {
+                if (fullName.isBlank()) {
+                    skipped++;
+                    errors.add("Dòng " + rowNumber + ": Họ tên trống");
+                    continue;
+                }
+
+                if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode)
+                        || registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
                     skipped++;
                     errors.add("Dòng " + rowNumber + ": MSSV " + studentCode + " đã tồn tại trong hoạt động");
                     continue;
                 }
 
+                UserProfileDTO studentProfile;
+                try {
+                    studentProfile = requireMatchingStudent(studentCode, fullName, "sinh viên");
+                } catch (BadRequestException ex) {
+                    skipped++;
+                    errors.add("Dòng " + rowNumber + ": " + ex.getMessage());
+                    continue;
+                }
+
                 ActivityRegistration registration = new ActivityRegistration();
                 registration.setActivity(activity);
-                registration.setStudentCode(studentCode);
-                registration.setFullName(fullName);
-                registration.setUserTsid(userTsid.isBlank() ? studentCode : userTsid);
+                registration.setStudentCode(studentProfile.getStudentId().trim());
+                registration.setFullName(studentProfile.getFullName().trim());
+                registration.setUserTsid(userTsid);
                 registrationRepository.save(registration);
                 imported++;
             }
@@ -171,21 +192,72 @@ public class ActivityService {
     }
 
     @Transactional
+    public void removeRegistration(Long activityId, Long registrationId) {
+        ActivityRegistration registration = registrationRepository.findById(registrationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sinh viên đăng ký"));
+
+        if (!registration.getActivity().getId().equals(activityId)) {
+            throw new BadRequestException("Sinh viên đăng ký không thuộc hoạt động này");
+        }
+        if (registration.isAttended()) {
+            throw new BadRequestException("Sinh viên đã điểm danh nên không thể gỡ khỏi danh sách");
+        }
+
+        registrationRepository.delete(registration);
+    }
+
+    @Transactional
+    public RegistrationResponse addRegistration(Long activityId, RegistrationRequest request) {
+        Activity activity = getActivity(activityId);
+        if (activity.getStatus() != Activity.Status.UPCOMING) {
+            throw new BadRequestException("Chỉ được thêm sinh viên đăng ký trước khi hoạt động ONGOING");
+        }
+
+        String studentCode = request.getStudentCode().trim();
+        String fullName = request.getFullName().trim();
+        String userTsid = studentCode;
+
+        if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode)) {
+            throw new BadRequestException("MSSV " + studentCode + " đã tồn tại trong hoạt động");
+        }
+        if (registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
+            throw new BadRequestException("MSSV " + studentCode + " đã tồn tại trong hoạt động");
+        }
+
+        UserProfileDTO studentProfile = requireMatchingStudent(studentCode, fullName, "sinh viên");
+
+        ActivityRegistration registration = new ActivityRegistration();
+        registration.setActivity(activity);
+        registration.setStudentCode(studentProfile.getStudentId().trim());
+        registration.setFullName(studentProfile.getFullName().trim());
+        registration.setUserTsid(userTsid);
+        return toRegistrationResponse(registrationRepository.save(registration));
+    }
+
+    @Transactional
     public CheckerResponse addChecker(Long activityId, CheckerRequest request) {
         Activity activity = getActivity(activityId);
         if (activity.getStatus() == Activity.Status.COMPLETED) {
             throw new BadRequestException("Không được thêm checker cho hoạt động đã COMPLETED");
         }
-        if (checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCase(activityId, request.getCheckerTsid())
-                || checkerRepository.existsByActivityIdAndCheckerCodeIgnoreCase(activityId, request.getCheckerCode())) {
+
+        String checkerCode = request.getCheckerCode().trim();
+        String checkerName = request.getCheckerName().trim();
+        String checkerTsid = request.getCheckerTsid() == null || request.getCheckerTsid().isBlank()
+                ? checkerCode
+                : request.getCheckerTsid().trim();
+        UserProfileDTO checkerProfile = requireMatchingStudent(checkerCode, checkerName, "người điểm danh");
+
+        if (checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCase(activityId, checkerTsid)
+                || checkerRepository.existsByActivityIdAndCheckerCodeIgnoreCase(activityId, checkerCode)) {
             throw new BadRequestException("Checker đã được phân quyền cho hoạt động này");
         }
 
         ActivityChecker checker = new ActivityChecker();
         checker.setActivity(activity);
-        checker.setCheckerTsid(request.getCheckerTsid());
-        checker.setCheckerCode(request.getCheckerCode());
-        checker.setCheckerName(request.getCheckerName());
+        checker.setCheckerTsid(checkerTsid);
+        checker.setCheckerCode(checkerProfile.getStudentId().trim());
+        checker.setCheckerName(checkerProfile.getFullName().trim());
         return toCheckerResponse(checkerRepository.save(checker));
     }
 
@@ -251,9 +323,51 @@ public class ActivityService {
     }
 
     private void validateTimeWindow(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null) {
+            throw new BadRequestException("Thời gian bắt đầu không được để trống");
+        }
+        if (endTime == null) {
+            throw new BadRequestException("Thời gian kết thúc không được để trống");
+        }
         if (startTime != null && endTime != null && !endTime.isAfter(startTime)) {
             throw new BadRequestException("Thời gian kết thúc phải sau thời gian bắt đầu");
         }
+    }
+
+    private UserProfileDTO requireMatchingStudent(String studentCode, String fullName, String subjectLabel) {
+        UserProfileDTO profile;
+        try {
+            profile = userClient.getStudentProfile(studentCode);
+        } catch (FeignException.NotFound ex) {
+            throw new BadRequestException("Không tìm thấy " + subjectLabel + " có mã " + studentCode + " trong hệ thống");
+        } catch (FeignException ex) {
+            throw new BadRequestException("Chưa kiểm tra được thông tin " + subjectLabel + " " + studentCode + ", vui lòng thử lại");
+        }
+
+        if (profile == null || profile.getStudentId() == null || profile.getFullName() == null) {
+            throw new BadRequestException("Hồ sơ " + subjectLabel + " " + studentCode + " chưa đầy đủ thông tin");
+        }
+        if (!normalizeText(profile.getStudentId()).equals(normalizeText(studentCode))) {
+            throw new BadRequestException("Mã " + subjectLabel + " không khớp với hồ sơ");
+        }
+        if (!normalizeText(profile.getFullName()).equals(normalizeText(fullName))) {
+            throw new BadRequestException("Họ tên không khớp với MSSV " + studentCode + ". Họ tên trong hồ sơ: " + profile.getFullName());
+        }
+        return profile;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized = value.trim()
+                .replaceAll("\\s+", " ")
+                .replace('đ', 'd')
+                .replace('Đ', 'D');
+        return Normalizer.normalize(normalized, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private ActivityResponse toResponse(Activity activity) {

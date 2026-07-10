@@ -1,3 +1,6 @@
+import { emitToast } from "../utils/toastBus";
+import { toSuccessMessage, toUserFacingMessage } from "../utils/messages";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
@@ -29,7 +32,7 @@ export type ChangePasswordPayload = {
 };
 
 export type UserProfile = {
-  id: number;
+  id: string;
   studentId: string;
   fullName: string;
   dob?: string;
@@ -37,9 +40,11 @@ export type UserProfile = {
   contactPhone?: string;
   studentStatus?: "STUDYING" | "RESERVED" | "SUSPENDED" | "GRADUATED";
   clazz?: {
-    id?: number;
+    id?: string;
     classCode?: string;
+    academicYear?: AcademicYearResponse;
     faculty?: {
+      id?: string;
       facultyName?: string;
       facultyCode?: string;
     };
@@ -47,6 +52,57 @@ export type UserProfile = {
 };
 
 export type UserProfilePayload = Omit<UserProfile, "id">;
+
+export type OrganizationStatus = "ACTIVE" | "INACTIVE";
+
+export type AcademicYearResponse = {
+  id: string;
+  yearName: string;
+  startYear?: number;
+  classCount?: number;
+};
+
+export type AcademicYearPayload = {
+  yearName: string;
+  startYear: number;
+};
+
+export type FacultyResponse = {
+  id: string;
+  facultyCode: string;
+  facultyName: string;
+  status: OrganizationStatus;
+  classCount?: number;
+  studentCount?: number;
+};
+
+export type FacultyPayload = {
+  facultyCode: string;
+  facultyName: string;
+  status: OrganizationStatus;
+};
+
+export type ClassResponse = {
+  id: string;
+  classCode: string;
+  faculty?: {
+    id: string;
+    facultyCode: string;
+    facultyName: string;
+  };
+  academicYear?: AcademicYearResponse;
+  status: OrganizationStatus;
+  studentCount?: number;
+};
+
+export type ClassPayload = {
+  classCode: string;
+  facultyId: string;
+  academicYearId?: string;
+  academicYearName?: string;
+  startYear?: number;
+  status: OrganizationStatus;
+};
 
 export type NotificationPriority = "NORMAL" | "URGENT";
 export type NotificationTargetType = "ALL" | "FACULTY" | "CLASS" | "USER";
@@ -77,12 +133,12 @@ export type ActivityStatus = "UPCOMING" | "ONGOING" | "COMPLETED";
 export type ActivityPayload = {
   title: string;
   category: ActivityCategory;
-  reward?: string;
-  googleFormUrl?: string;
-  location?: string;
+  reward: string;
+  googleFormUrl: string;
+  location: string;
   startTime: string;
   endTime: string;
-  capacity?: number;
+  capacity: number;
 };
 
 export type ActivityResponse = ActivityPayload & {
@@ -105,26 +161,36 @@ export type ActivityRegistrationResponse = {
   checkinTime?: string;
 };
 
+export type ActivityRegistrationPayload = {
+  studentCode: string;
+  fullName: string;
+};
+
 export type ActivityCheckerPayload = {
-  checkerTsid: string;
   checkerCode: string;
   checkerName: string;
 };
 
 export type ActivityCheckerResponse = ActivityCheckerPayload & {
   id: string;
+  checkerTsid?: string;
 };
 
 export type ActivityImportResult = {
-  totalRows: number;
-  successCount: number;
-  failedCount: number;
+  imported: number;
+  skipped: number;
   errors: string[];
 };
 
-const getStoredToken = () => localStorage.getItem("accessToken") || localStorage.getItem("token") || "";
+const getStoredToken = () => sessionStorage.getItem("accessToken") || "";
 
 const isJsonResponse = (res: Response) => res.headers.get("content-type")?.includes("application/json");
+
+type ApiRequestInit = RequestInit & {
+  errorMessage?: string;
+  successMessage?: string;
+  suppressToast?: boolean;
+};
 
 async function parseResponse(res: Response) {
   if (res.status === 204) return null;
@@ -132,8 +198,9 @@ async function parseResponse(res: Response) {
   return res.text();
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
+export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { errorMessage, successMessage, suppressToast, ...requestInit } = init;
+  const headers = new Headers(requestInit.headers);
   const hasBody = init.body !== undefined;
 
   if (hasBody && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -145,10 +212,19 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...requestInit,
+      headers,
+    });
+  } catch (err) {
+    const userMessage = toUserFacingMessage(errorMessage || "Không kết nối được đến hệ thống.");
+    if (!suppressToast) {
+      emitToast({ variant: "error", message: userMessage });
+    }
+    throw new ApiError(0, userMessage, err);
+  }
 
   const data = await parseResponse(res);
 
@@ -168,7 +244,16 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     } else if (typeof data === "string") {
       message = data;
     }
-    throw new ApiError(res.status, message, data);
+    const userMessage = toUserFacingMessage(errorMessage || message);
+    if (!suppressToast) {
+      emitToast({ variant: "error", message: userMessage });
+    }
+    throw new ApiError(res.status, userMessage, data);
+  }
+
+  const method = (requestInit.method || "GET").toUpperCase();
+  if (!suppressToast && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    emitToast({ variant: "success", message: toSuccessMessage(successMessage || "Thao tác thành công.") });
   }
 
   return data as T;
@@ -178,12 +263,14 @@ export const authApi = {
   login(payload: LoginPayload) {
     return apiRequest<TokenResponse>("/api/auth/login", {
       method: "POST",
+      suppressToast: true,
       body: JSON.stringify(payload),
     });
   },
   firstChangePassword(payload: ChangePasswordPayload) {
     return apiRequest<TokenResponse>("/api/auth/first-change-password", {
       method: "POST",
+      successMessage: "Đổi mật khẩu thành công.",
       body: JSON.stringify(payload),
     });
   },
@@ -208,12 +295,26 @@ export const userApi = {
   list() {
     return apiRequest<UserProfile[]>("/api/users");
   },
-  getById(id: number) {
+  getById(id: string | number) {
     return apiRequest<UserProfile>(`/api/users/${id}`);
   },
   async getByStudentId(studentId: string) {
-    const profiles = await apiRequest<UserProfile[]>("/api/users");
-    return profiles.find((profile) => profile.studentId?.toLowerCase() === studentId.toLowerCase()) ?? null;
+    const cleanStudentId = studentId.trim();
+    if (!cleanStudentId) return null;
+
+    try {
+      return await apiRequest<UserProfile>(`/api/users/profile/${encodeURIComponent(cleanStudentId)}`, {
+        suppressToast: true,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return null;
+      }
+
+      const message = err instanceof Error ? err.message : toUserFacingMessage("Không kiểm tra được thông tin sinh viên.");
+      emitToast({ variant: "error", message });
+      throw err;
+    }
   },
   create(payload: UserProfilePayload) {
     return apiRequest<UserProfile>("/api/users", {
@@ -221,13 +322,13 @@ export const userApi = {
       body: JSON.stringify(payload),
     });
   },
-  update(id: number, payload: UserProfilePayload) {
+  update(id: string | number, payload: UserProfilePayload) {
     return apiRequest<UserProfile>(`/api/users/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
   },
-  remove(id: number) {
+  remove(id: string | number) {
     return apiRequest<void>(`/api/users/${id}`, {
       method: "DELETE",
     });
@@ -244,6 +345,75 @@ export const userApi = {
     return apiRequest<UserProfile>("/api/users/me/contacts", {
       method: "PATCH",
       body: JSON.stringify({ contactPhone }),
+    });
+  },
+};
+
+export const facultyApi = {
+  list() {
+    return apiRequest<FacultyResponse[]>("/api/users/faculties");
+  },
+  create(payload: FacultyPayload) {
+    return apiRequest<FacultyResponse>("/api/users/faculties", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string | number, payload: FacultyPayload) {
+    return apiRequest<FacultyResponse>(`/api/users/faculties/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  remove(id: string | number) {
+    return apiRequest<void>(`/api/users/faculties/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export const academicYearApi = {
+  list() {
+    return apiRequest<AcademicYearResponse[]>("/api/users/academic-years");
+  },
+  create(payload: AcademicYearPayload) {
+    return apiRequest<AcademicYearResponse>("/api/users/academic-years", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string | number, payload: AcademicYearPayload) {
+    return apiRequest<AcademicYearResponse>(`/api/users/academic-years/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  remove(id: string | number) {
+    return apiRequest<void>(`/api/users/academic-years/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export const classApi = {
+  list() {
+    return apiRequest<ClassResponse[]>("/api/users/classes");
+  },
+  create(payload: ClassPayload) {
+    return apiRequest<ClassResponse>("/api/users/classes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string | number, payload: ClassPayload) {
+    return apiRequest<ClassResponse>(`/api/users/classes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  remove(id: string | number) {
+    return apiRequest<void>(`/api/users/classes/${id}`, {
+      method: "DELETE",
     });
   },
 };
@@ -394,6 +564,17 @@ export const activityApi = {
   },
   listRegistrations(id: string) {
     return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
+  },
+  addRegistration(id: string, payload: ActivityRegistrationPayload) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/registrations`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  removeRegistration(activityId: string, registrationId: string) {
+    return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/registrations/${encodeURIComponent(registrationId)}`, {
+      method: "DELETE",
+    });
   },
   addChecker(id: string, payload: ActivityCheckerPayload) {
     return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {

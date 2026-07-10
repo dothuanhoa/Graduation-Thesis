@@ -88,6 +88,25 @@ public class ActivityController {
         return ResponseEntity.ok(activityService.getRegistrations(id));
     }
 
+    @PostMapping("/{id}/registrations")
+    public ResponseEntity<RegistrationResponse> addRegistration(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable Long id,
+            @Valid @RequestBody RegistrationRequest request) {
+        requireAdmin(role);
+        return ResponseEntity.ok(activityService.addRegistration(id, request));
+    }
+
+    @DeleteMapping("/{activityId}/registrations/{registrationId}")
+    public ResponseEntity<Void> removeRegistration(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable Long activityId,
+            @PathVariable Long registrationId) {
+        requireAdmin(role);
+        activityService.removeRegistration(activityId, registrationId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/checkers")
     public ResponseEntity<CheckerResponse> addChecker(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,

@@ -6,4 +6,7 @@ import java.util.Optional;
 
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
     Optional<UserProfile> findByStudentId(String studentId);
+    long countByClazzId(Long clazzId);
+    long countByClazzFacultyId(Long facultyId);
+    boolean existsByClazzId(Long clazzId);
 }

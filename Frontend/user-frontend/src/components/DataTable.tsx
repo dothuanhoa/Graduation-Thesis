@@ -37,11 +37,15 @@ const isStatus = (value: string | number): value is StatusType => {
     "NORMAL",
     "EXPIRED",
     "REVOKED",
+    "CANCELLED",
+    "NEEDS_INFO",
   ];
   return typeof value === "string" && statuses.includes(value as StatusType);
 };
 
 function DataTable<T extends TableRow>({ columns, rows, caption, actions }: DataTableProps<T>) {
+  const fromRecord = rows.length > 0 ? 1 : 0;
+
   return (
     <div className="panel overflow-hidden">
       {caption && (
@@ -103,20 +107,17 @@ function DataTable<T extends TableRow>({ columns, rows, caption, actions }: Data
             ))}
           </tbody>
         </table>
+        {rows.length === 0 && (
+          <div className="border-t border-outline-variant px-5 py-8 text-center text-sm font-semibold text-on-surface-variant">
+            Không có dữ liệu phù hợp.
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-between border-t border-outline-variant px-5 py-4 text-sm text-on-surface-variant">
-        <span>Hiển thị 1-{rows.length} của 2,450 bản ghi</span>
-        <div className="flex gap-2">
-          <button className="rounded-lg border border-outline-variant px-3 py-2 hover:bg-surface-container" type="button">
-            1
-          </button>
-          <button className="rounded-lg border border-outline-variant px-3 py-2 hover:bg-surface-container" type="button">
-            2
-          </button>
-          <button className="rounded-lg border border-outline-variant px-3 py-2 hover:bg-surface-container" type="button">
-            ...
-          </button>
-        </div>
+        <span>Hiển thị {fromRecord}-{rows.length} của {rows.length} bản ghi</span>
+        {rows.length > 0 && (
+          <span className="rounded-lg border border-outline-variant px-3 py-2 font-semibold text-primary">Trang 1</span>
+        )}
       </div>
     </div>
   );

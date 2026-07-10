@@ -5,7 +5,7 @@ import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { authApi, userApi, type UserProfile, type UserProfilePayload } from "../../../services/api";
+import { authApi, classApi, userApi, type ClassResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
 import { userProfileSchema } from "../../../validation/userSchemas";
 
 const emptyProfile: UserProfilePayload = {
@@ -20,15 +20,17 @@ const emptyProfile: UserProfilePayload = {
 function StudentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const numericId = Number(id);
+  const profileId = id || "";
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState<UserProfilePayload>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [classId, setClassId] = useState("");
 
   const loadProfile = useCallback(async () => {
-    if (!numericId) {
+    if (!profileId) {
       setMessage("ID sinh viên không hợp lệ.");
       setLoading(false);
       return;
@@ -37,8 +39,13 @@ function StudentDetailPage() {
     setLoading(true);
     setMessage("");
     try {
-      const data = await userApi.getById(numericId);
+      const [data, classData] = await Promise.all([
+        userApi.getById(profileId),
+        classApi.list(),
+      ]);
       setProfile(data);
+      setClasses(classData);
+      setClassId(data.clazz?.id ? String(data.clazz.id) : "");
       setFormData({
         studentId: data.studentId,
         fullName: data.fullName,
@@ -46,14 +53,13 @@ function StudentDetailPage() {
         gender: data.gender || "MALE",
         contactPhone: data.contactPhone || "",
         studentStatus: data.studentStatus || "STUDYING",
-        clazz: data.clazz,
       });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không tải được hồ sơ sinh viên.");
     } finally {
       setLoading(false);
     }
-  }, [numericId]);
+  }, [profileId]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -74,9 +80,14 @@ function StudentDetailPage() {
     setSaving(true);
     setMessage("");
     try {
-      const payload = userProfileSchema.parse(formData);
+      const validated = userProfileSchema.parse(formData);
+      const payload: UserProfilePayload = {
+        ...validated,
+        clazz: classId ? { id: classId } : undefined,
+      };
       const updated = await userApi.update(profile.id, payload);
       setProfile(updated);
+      setClassId(updated.clazz?.id ? String(updated.clazz.id) : "");
       setMessage("Đã cập nhật hồ sơ sinh viên.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
@@ -149,6 +160,21 @@ function StudentDetailPage() {
                 options={["STUDYING", "RESERVED", "SUSPENDED", "GRADUATED"]}
                 value={formData.studentStatus}
               />
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Lớp</span>
+                <select
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                  onChange={(event) => setClassId(event.target.value)}
+                  value={classId}
+                >
+                  <option value="">Chưa phân lớp</option>
+                  {classes.map((clazz) => (
+                    <option key={clazz.id} value={clazz.id}>
+                      {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="md:col-span-2 flex flex-wrap gap-3">
                 <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={saving} type="submit">
                   <Save className="h-5 w-5" />

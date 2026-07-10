@@ -34,12 +34,12 @@ const initialForm: ActivityFormState = {
 const toPayload = (form: ActivityFormState): ActivityPayload => ({
   title: form.title.trim(),
   category: form.category,
-  reward: form.reward.trim() || undefined,
+  reward: form.reward.trim(),
   googleFormUrl: form.googleFormUrl.trim(),
-  location: form.location.trim() || undefined,
+  location: form.location.trim(),
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
-  capacity: form.capacity ? Number(form.capacity) : undefined,
+  capacity: Number(form.capacity),
 });
 
 function ActivityCreatePage() {
@@ -93,11 +93,11 @@ function ActivityCreatePage() {
             options={["ACADEMIC", "MOVEMENT", "FACULTY", "UNIVERSITY", "OTHER"]}
             value={form.category}
           />
-          <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} placeholder="Ví dụ: +5 điểm" value={form.reward} />
-          <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} type="number" value={form.capacity} />
+          <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} placeholder="Ví dụ: +5 điểm" required value={form.reward} />
+          <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
           <FormField label="Thời gian bắt đầu" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
           <FormField label="Thời gian kết thúc" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
-          <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} value={form.location} />
+          <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
           <FormField label="Google Form đăng ký" onChange={(event) => updateField("googleFormUrl", event.target.value)} placeholder="https://forms.gle/..." required value={form.googleFormUrl} />
 
           <div className="md:col-span-2">

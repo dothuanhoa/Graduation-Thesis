@@ -1,8 +1,10 @@
 package com.userservice.service.impl;
 
 import com.userservice.client.AuthServiceClient;
+import com.userservice.domain.Clazz;
 import com.userservice.domain.UserProfile;
 import com.userservice.exception.ResourceNotFoundException;
+import com.userservice.repository.ClassRepository;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserProfileRepository userProfileRepository;
+    private final ClassRepository classRepository;
     private final AuthServiceClient authServiceClient;
 
     public List<UserProfile> findAll() {
@@ -32,6 +35,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public UserProfile save(UserProfile userProfile) {
+        userProfile.setClazz(resolveClazz(userProfile));
         UserProfile savedProfile = userProfileRepository.save(userProfile);
         createAuthAccount(savedProfile);
         return savedProfile;
@@ -70,6 +74,7 @@ public class UserServiceImpl implements UserService {
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
+            user.setClazz(resolveClazz(userDetails));
             user.setStudentStatus(userDetails.getStudentStatus());
             return userProfileRepository.save(user);
         }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy UserProfile với id: " + id));
@@ -96,5 +101,14 @@ public class UserServiceImpl implements UserService {
                 profile.getStudentId(),
                 profile.getStudentId() + "@student.stu.edu.vn"
         ));
+    }
+
+    private Clazz resolveClazz(UserProfile userProfile) {
+        if (userProfile.getClazz() == null || userProfile.getClazz().getId() == null) {
+            return null;
+        }
+
+        return classRepository.findById(userProfile.getClazz().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + userProfile.getClazz().getId()));
     }
 }

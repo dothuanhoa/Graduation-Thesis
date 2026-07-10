@@ -1,10 +1,10 @@
 import { Save } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
-import { userApi, type UserProfilePayload } from "../../../services/api";
+import { classApi, userApi, type ClassResponse, type UserProfilePayload } from "../../../services/api";
 import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
 
 function StudentCreatePage() {
@@ -19,6 +19,19 @@ function StudentCreatePage() {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [classId, setClassId] = useState("");
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      classApi
+        .list()
+        .then(setClasses)
+        .catch((err) => setMessage(err instanceof Error ? err.message : "Không tải được danh sách lớp."));
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, []);
 
   const updateField = (field: keyof UserProfilePayload, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -30,7 +43,11 @@ function StudentCreatePage() {
     setLoading(true);
 
     try {
-      const payload = userProfileSchema.parse(formData);
+      const validated = userProfileSchema.parse(formData);
+      const payload: UserProfilePayload = {
+        ...validated,
+        clazz: classId ? { id: classId } : undefined,
+      };
       await userApi.create(payload);
       setMessage("Đã tạo hồ sơ sinh viên và tài khoản đăng nhập.");
       setTimeout(() => navigate("/admin/students"), 700);
@@ -90,6 +107,21 @@ function StudentCreatePage() {
             options={["STUDYING", "RESERVED", "SUSPENDED", "GRADUATED"]}
             value={formData.studentStatus}
           />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">Lớp</span>
+            <select
+              className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+              onChange={(event) => setClassId(event.target.value)}
+              value={classId}
+            >
+              <option value="">Chưa phân lớp</option>
+              {classes.map((clazz) => (
+                <option key={clazz.id} value={clazz.id}>
+                  {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="md:col-span-2">
             <button
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
