@@ -10,6 +10,7 @@ import {
   LifeBuoy,
   LogOut,
   NotebookTabs,
+  QrCode,
   Settings,
   ShieldAlert,
   Trophy,
@@ -91,6 +92,7 @@ export const studentMainNav: StudentNavItem[] = [
   { label: "Thông báo", path: "/student/notifications", icon: Bell },
   { label: "Kỳ thi", path: "/student/exams", icon: NotebookTabs },
   { label: "Hoạt động", path: "/student/activities", icon: CalendarCheck },
+  { label: "Điểm danh", path: "/checker/scan", icon: QrCode },
   { label: "Đơn xác nhận", path: "/student/certificates", icon: FileCheck2 },
 ];
 

@@ -115,7 +115,7 @@ function StudentDashboard() {
   );
   const urgentNotices = notices.filter((notice) => notice.priority === "URGENT");
   const canScanAttendance = scanActivities.length > 0;
-  const visibleQuickActions = quickActions.filter((action) => !action.requiresScanPermission || canScanAttendance);
+  const visibleQuickActions = quickActions;
 
   return (
     <div className="space-y-gutter">
@@ -131,12 +131,10 @@ function StudentDashboard() {
               Kiểm tra hồ sơ
               <ArrowRight className="h-4 w-4" />
             </Link>
-            {canScanAttendance && (
-              <Link className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-3 font-semibold text-white" to="/checker/scan">
-                <QrCode className="h-4 w-4" />
-                Quét điểm danh
-              </Link>
-            )}
+            <Link className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-3 font-semibold text-white" to="/checker/scan">
+              <QrCode className="h-4 w-4" />
+              Quét điểm danh
+            </Link>
           </div>
         </div>
 
@@ -171,7 +169,7 @@ function StudentDashboard() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
-      <section className={`grid gap-4 ${canScanAttendance ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+      <section className="grid gap-4 md:grid-cols-3">
         <Link className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/student/notifications">
           <Card className="h-full">
             <div className="flex items-start justify-between gap-4">
@@ -202,22 +200,22 @@ function StudentDashboard() {
           </Card>
         </Link>
 
-        {canScanAttendance && (
-          <Link className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/checker/scan">
-            <Card className="h-full">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-on-surface-variant">Điểm danh</p>
-                  <p className="mt-3 text-3xl font-bold text-on-surface">{loading ? "..." : scanActivities.length}</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">Hoạt động được phân quyền</p>
-                </div>
-                <div className="rounded-lg bg-orange-100 p-3 text-orange-800">
-                  <QrCode className="h-6 w-6" />
-                </div>
+        <Link className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/checker/scan">
+          <Card className="h-full">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-on-surface-variant">Điểm danh</p>
+                <p className="mt-3 text-3xl font-bold text-on-surface">{loading ? "..." : scanActivities.length}</p>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {canScanAttendance ? "Hoạt động được phân quyền" : "Mở màn hình quét mã"}
+                </p>
               </div>
-            </Card>
-          </Link>
-        )}
+              <div className="rounded-lg bg-orange-100 p-3 text-orange-800">
+                <QrCode className="h-6 w-6" />
+              </div>
+            </div>
+          </Card>
+        </Link>
       </section>
 
       <section>
@@ -225,7 +223,7 @@ function StudentDashboard() {
           <p className="text-sm font-semibold text-primary">Lối tắt</p>
           <h2 className="text-2xl font-bold text-on-surface">Tác vụ thường dùng</h2>
         </div>
-        <div className={`grid gap-4 md:grid-cols-2 ${canScanAttendance ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {visibleQuickActions.map((action) => {
             const Icon = action.icon;
             return (
