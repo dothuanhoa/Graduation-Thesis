@@ -446,6 +446,25 @@ export const notificationApi = {
     const query = search.toString();
     return apiRequest<NotificationResponse[]>(`/api/notifications/my${query ? `?${query}` : ""}`);
   },
+  async listMineForProfile(profile: UserProfile | null) {
+    const unique = (values: Array<string | undefined>) => Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]));
+    const facultyIds = unique([profile?.clazz?.faculty?.id, profile?.clazz?.faculty?.facultyCode, profile?.clazz?.faculty?.facultyName]);
+    const classIds = unique([profile?.clazz?.id, profile?.clazz?.classCode]);
+
+    const scopeCandidates: Array<{ facultyId?: string; classId?: string }> = [
+      { facultyId: facultyIds[0], classId: classIds[0] },
+      ...facultyIds.slice(1).map((facultyId) => ({ facultyId })),
+      ...classIds.slice(1).map((classId) => ({ classId })),
+    ];
+    const scopes = scopeCandidates.filter((scope) => scope.facultyId || scope.classId);
+
+    if (scopes.length === 0) {
+      return this.listMine();
+    }
+
+    const results = await Promise.all(scopes.map((scope) => this.listMine(scope)));
+    return Array.from(new Map(results.flat().map((item) => [item.id, item])).values());
+  },
   markAsRead(id: string) {
     return apiRequest<void>(`/api/notifications/${id}/read`, {
       method: "POST",

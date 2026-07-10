@@ -1,5 +1,6 @@
 package com.userservice.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.hypersistence.utils.hibernate.id.Tsid;
@@ -12,6 +13,7 @@ import java.time.LocalDate;
     @Index(name = "idx_student_id", columnList = "student_id")
 })
 @Data
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class UserProfile {
     
     @Id

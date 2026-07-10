@@ -52,10 +52,7 @@ function StudentNotificationDetailPage() {
 
     try {
       const currentProfile = username ? await userApi.getByStudentId(username) : null;
-      const data = await notificationApi.listMine({
-        facultyId: currentProfile?.clazz?.faculty?.facultyCode || currentProfile?.clazz?.faculty?.facultyName || "",
-        classId: currentProfile?.clazz?.classCode || (currentProfile?.clazz?.id ? String(currentProfile.clazz.id) : ""),
-      });
+      const data = await notificationApi.listMineForProfile(currentProfile);
       const found = data.map(toNotice).find((item) => item.id === notificationId);
       const selected = found ?? null;
 
