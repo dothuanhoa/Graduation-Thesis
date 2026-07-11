@@ -16,6 +16,7 @@ public class ActivityResponse {
     private String title;
     private Activity.Category category;
     private String reward;
+    private Activity.ParticipationType participationType;
     private String googleFormUrl;
     private String location;
     private LocalDateTime startTime;

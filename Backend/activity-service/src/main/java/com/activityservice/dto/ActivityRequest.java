@@ -1,6 +1,7 @@
 package com.activityservice.dto;
 
 import com.activityservice.domain.Activity;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -23,9 +24,11 @@ public class ActivityRequest {
     @Size(max = 100, message = "Điểm rèn luyện không được vượt quá 100 ký tự")
     private String reward;
 
-    @NotBlank(message = "Link Google Form không được để trống")
+    @NotNull(message = "Hình thức tham gia không được để trống")
+    private Activity.ParticipationType participationType = Activity.ParticipationType.LIMITED;
+
     @Size(max = 500, message = "Link Google Form không được vượt quá 500 ký tự")
-    @Pattern(regexp = "^https?://.+", message = "Link Google Form phải bắt đầu bằng http:// hoặc https://")
+    @Pattern(regexp = "^$|^https?://.+", message = "Link Google Form phải bắt đầu bằng http:// hoặc https://")
     private String googleFormUrl;
 
     @NotBlank(message = "Địa điểm không được để trống")
@@ -38,7 +41,16 @@ public class ActivityRequest {
     @NotNull(message = "Thời gian kết thúc không được để trống")
     private LocalDateTime endTime;
 
-    @NotNull(message = "Số lượng tối đa không được để trống")
     @Positive(message = "Số lượng tối đa phải lớn hơn 0")
     private Integer capacity;
+
+    @AssertTrue(message = "Hoạt động giới hạn cần có link Google Form đăng ký")
+    public boolean isGoogleFormRequiredForLimitedActivity() {
+        return participationType != Activity.ParticipationType.LIMITED || (googleFormUrl != null && !googleFormUrl.isBlank());
+    }
+
+    @AssertTrue(message = "Hoạt động giới hạn cần có số lượng tối đa")
+    public boolean isCapacityRequiredForLimitedActivity() {
+        return participationType != Activity.ParticipationType.LIMITED || capacity != null;
+    }
 }

@@ -7,16 +7,27 @@ export const activitySchema = z
     title: z.string().trim().min(3, "Tên hoạt động phải có ít nhất 3 ký tự.").max(255, "Tên hoạt động không được vượt quá 255 ký tự."),
     category: z.enum(["ACADEMIC", "MOVEMENT", "FACULTY", "UNIVERSITY", "OTHER"]),
     reward: z.string().trim().min(1, "Vui lòng nhập điểm rèn luyện.").max(100, "Điểm rèn luyện không được vượt quá 100 ký tự."),
+    participationType: z.enum(["LIMITED", "OPEN"], {
+      message: "Vui lòng chọn hình thức tham gia.",
+    }),
     googleFormUrl: z
       .string()
       .trim()
-      .min(1, "Vui lòng nhập link Google Form.")
       .max(500, "Link Google Form không được vượt quá 500 ký tự.")
-      .refine((value) => /^https?:\/\/.+/i.test(value), "Link Google Form phải bắt đầu bằng http:// hoặc https://."),
+      .optional()
+      .refine((value) => !value || /^https?:\/\/.+/i.test(value), "Link Google Form phải bắt đầu bằng http:// hoặc https://."),
     location: z.string().trim().min(1, "Vui lòng nhập địa điểm.").max(255, "Địa điểm không được vượt quá 255 ký tự."),
     startTime: z.string().trim().min(1, "Vui lòng chọn thời gian bắt đầu.").refine(isValidDateTime, "Thời gian bắt đầu không hợp lệ."),
     endTime: z.string().trim().min(1, "Vui lòng chọn thời gian kết thúc.").refine(isValidDateTime, "Thời gian kết thúc không hợp lệ."),
-    capacity: z.number().int("Số lượng tối đa phải là số nguyên.").positive("Số lượng tối đa phải lớn hơn 0."),
+    capacity: z.number().int("Số lượng tối đa phải là số nguyên.").positive("Số lượng tối đa phải lớn hơn 0.").optional(),
+  })
+  .refine((data) => data.participationType !== "LIMITED" || Boolean(data.googleFormUrl?.trim()), {
+    message: "Hoạt động giới hạn cần có link Google Form đăng ký.",
+    path: ["googleFormUrl"],
+  })
+  .refine((data) => data.participationType !== "LIMITED" || data.capacity !== undefined, {
+    message: "Hoạt động giới hạn cần có số lượng tối đa.",
+    path: ["capacity"],
   })
   .refine((data) => new Date(data.endTime).getTime() > new Date(data.startTime).getTime(), {
     message: "Thời gian kết thúc phải sau thời gian bắt đầu.",

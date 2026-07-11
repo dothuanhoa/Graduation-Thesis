@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/useAuth";
 import { activityApi, type ActivityRegistrationResponse, type ActivityResponse } from "../../services/api";
-import { formatActivityRange } from "../../utils/activityUi";
+import { activityParticipationLabels, formatActivityRange, isActivityScanActive } from "../../utils/activityUi";
 import { checkinSchema } from "../../validation/activitySchemas";
 import { getZodMessage } from "../../validation/userSchemas";
 
@@ -75,11 +75,12 @@ function CheckerScanPage() {
     }
 
     try {
-      const data = await activityApi.listMyCheckerActivities();
-      setActivities(data);
-      setActivityId((current) => (current && data.some((activity) => activity.id === current) ? current : data[0]?.id || ""));
+      const data = await activityApi.listMyCheckerActivities({ suppressToast: true });
+      const activeActivities = data.filter((activity) => isActivityScanActive(activity));
+      setActivities(activeActivities);
+      setActivityId((current) => (current && activeActivities.some((activity) => activity.id === current) ? current : activeActivities[0]?.id || ""));
 
-      if (data.length === 0) {
+      if (activeActivities.length === 0) {
         stopScanner();
         if (!preserveFeedback) {
           setMessage("Bạn chưa được phân quyền quét điểm danh cho hoạt động đang diễn ra.");
@@ -191,7 +192,8 @@ function CheckerScanPage() {
 
   const checkedIn = selectedActivity?.attendedCount ?? 0;
   const registered = selectedActivity?.registrationCount ?? 0;
-  const percent = registered > 0 ? Math.min(100, Math.round((checkedIn / registered) * 100)) : 0;
+  const isOpenActivity = selectedActivity?.participationType === "OPEN";
+  const percent = !isOpenActivity && registered > 0 ? Math.min(100, Math.round((checkedIn / registered) * 100)) : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-white">
@@ -304,17 +306,20 @@ function CheckerScanPage() {
                       {selectedActivity.location || "Chưa cập nhật địa điểm"}
                     </p>
                     <p className="mt-1 text-sm text-on-surface-variant">{formatActivityRange(selectedActivity.startTime, selectedActivity.endTime)}</p>
+                    <p className="mt-1 text-sm font-semibold text-primary">{activityParticipationLabels[selectedActivity.participationType || "LIMITED"]}</p>
 
                     <div className="mt-5 flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold text-on-surface-variant">Đã điểm danh</p>
                         <p className="text-4xl font-bold text-primary">{checkedIn}</p>
                       </div>
-                      <p className="pb-2 text-sm font-semibold text-on-surface-variant">/ {registered} sinh viên</p>
+                      {!isOpenActivity && <p className="pb-2 text-sm font-semibold text-on-surface-variant">/ {registered} sinh viên</p>}
                     </div>
-                    <div className="mt-4 h-2 rounded-full bg-primary-fixed">
-                      <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
-                    </div>
+                    {!isOpenActivity && (
+                      <div className="mt-4 h-2 rounded-full bg-primary-fixed">
+                        <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+                      </div>
+                    )}
                   </div>
                 )}
               </>

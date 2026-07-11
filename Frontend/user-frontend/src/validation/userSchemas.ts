@@ -47,9 +47,9 @@ export const excelImportSchema = yup.object({
       if (!file) return false;
       return /\.(xlsx|xls)$/i.test(file.name);
     })
-    .test("fileSize", "File tối đa 10MB", (file) => {
+    .test("fileSize", "File tối đa 30MB", (file) => {
       if (!file) return false;
-      return file.size <= 10 * 1024 * 1024;
+      return file.size <= 30 * 1024 * 1024;
     }),
 });
 

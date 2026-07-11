@@ -19,8 +19,8 @@ function translateMessage(message: string) {
   }
   if (value.includes("không có quyền") || value.includes("không được phân quyền")) return "You do not have permission to perform this action.";
   if (value.includes("đã tồn tại")) return "This record already exists.";
+  if (value.includes("không thành công") || value.includes("thất bại") || value.includes("không ")) return "The action could not be completed. Please try again.";
   if (value.includes("thành công") || value.includes("đã ")) return "Action completed successfully.";
-  if (value.includes("thất bại") || value.includes("không ")) return "The action could not be completed. Please try again.";
 
   return "Please check the information and try again.";
 }

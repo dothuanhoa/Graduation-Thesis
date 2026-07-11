@@ -4,10 +4,9 @@ import { Link, useParams } from "react-router-dom";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
-import { notificationApi, userApi, type NotificationResponse } from "../../../services/api";
+import { notificationApi, type NotificationResponse } from "../../../services/api";
 
 const formatDateTime = (value?: string) => {
   if (!value) return "Chưa cập nhật";
@@ -34,7 +33,6 @@ const toNotice = (item: NotificationResponse): StudentNotice => ({
 
 function StudentNotificationDetailPage() {
   const { id } = useParams();
-  const { username } = useAuth();
   const notificationId = useMemo(() => id || "", [id]);
   const [notice, setNotice] = useState<StudentNotice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,8 +49,7 @@ function StudentNotificationDetailPage() {
     setMessage("");
 
     try {
-      const currentProfile = username ? await userApi.getByStudentId(username) : null;
-      const data = await notificationApi.listMineForProfile(currentProfile);
+      const data = await notificationApi.listMine();
       const found = data.map(toNotice).find((item) => item.id === notificationId);
       const selected = found ?? null;
 
@@ -73,7 +70,7 @@ function StudentNotificationDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [notificationId, username]);
+  }, [notificationId]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

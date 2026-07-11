@@ -29,7 +29,11 @@ public class Activity {
     @Column(length = 100)
     private String reward;
 
-    @Column(name = "google_form_url", nullable = false, length = 500)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "participation_type", length = 20)
+    private ParticipationType participationType = ParticipationType.LIMITED;
+
+    @Column(name = "google_form_url", length = 500)
     private String googleFormUrl;
 
     @Column(length = 255)
@@ -61,6 +65,10 @@ public class Activity {
 
     public enum Category {
         ACADEMIC, MOVEMENT, FACULTY, UNIVERSITY, OTHER
+    }
+
+    public enum ParticipationType {
+        LIMITED, OPEN
     }
 
     public enum Status {

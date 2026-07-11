@@ -6,6 +6,9 @@ import com.userservice.dto.ClassRequest;
 import com.userservice.dto.ClassResponse;
 import com.userservice.dto.FacultyRequest;
 import com.userservice.dto.FacultyResponse;
+import com.userservice.dto.OrganizationImportSummary;
+import com.userservice.dto.StudentImportRow;
+import com.userservice.service.ExcelService;
 import com.userservice.service.OrganizationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -22,6 +26,7 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class OrganizationController {
     private final OrganizationService organizationService;
+    private final ExcelService excelService;
 
     @GetMapping("/faculties")
     public ResponseEntity<List<FacultyResponse>> getFaculties(
@@ -36,6 +41,20 @@ public class OrganizationController {
             @Valid @RequestBody FacultyRequest request) {
         requireAdmin(role);
         return ResponseEntity.ok(organizationService.createFaculty(request));
+    }
+
+    @PostMapping("/faculties/import")
+    public ResponseEntity<String> importFaculties(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestParam("file") MultipartFile file) {
+        requireAdmin(role);
+        try {
+            List<StudentImportRow> rows = excelService.parseOrganizationFile(file);
+            OrganizationImportSummary summary = organizationService.importFaculties(rows);
+            return ResponseEntity.ok(summary.toFacultyMessage());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
+        }
     }
 
     @PutMapping("/faculties/{id}")
@@ -71,6 +90,20 @@ public class OrganizationController {
         return ResponseEntity.ok(organizationService.createClass(request));
     }
 
+    @PostMapping("/classes/import")
+    public ResponseEntity<String> importClasses(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestParam("file") MultipartFile file) {
+        requireAdmin(role);
+        try {
+            List<StudentImportRow> rows = excelService.parseOrganizationFile(file);
+            OrganizationImportSummary summary = organizationService.importClasses(rows);
+            return ResponseEntity.ok(summary.toClassMessage());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
+        }
+    }
+
     @PutMapping("/classes/{id}")
     public ResponseEntity<ClassResponse> updateClass(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
@@ -102,6 +135,20 @@ public class OrganizationController {
             @Valid @RequestBody AcademicYearRequest request) {
         requireAdmin(role);
         return ResponseEntity.ok(organizationService.createAcademicYear(request));
+    }
+
+    @PostMapping("/academic-years/import")
+    public ResponseEntity<String> importAcademicYears(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestParam("file") MultipartFile file) {
+        requireAdmin(role);
+        try {
+            List<StudentImportRow> rows = excelService.parseOrganizationFile(file);
+            OrganizationImportSummary summary = organizationService.importAcademicYears(rows);
+            return ResponseEntity.ok(summary.toAcademicYearMessage());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
+        }
     }
 
     @PutMapping("/academic-years/{id}")

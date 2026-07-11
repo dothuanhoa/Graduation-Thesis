@@ -9,6 +9,8 @@ import com.userservice.dto.ClassRequest;
 import com.userservice.dto.ClassResponse;
 import com.userservice.dto.FacultyRequest;
 import com.userservice.dto.FacultyResponse;
+import com.userservice.dto.OrganizationImportSummary;
+import com.userservice.dto.StudentImportRow;
 import com.userservice.exception.BadRequestException;
 import com.userservice.exception.ResourceNotFoundException;
 import com.userservice.repository.AcademicYearRepository;
@@ -19,7 +21,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -125,6 +131,54 @@ public class OrganizationService {
     }
 
     @Transactional
+    public OrganizationImportSummary importFaculties(List<StudentImportRow> rows) {
+        OrganizationImportSummary summary = new OrganizationImportSummary();
+        Set<String> seenFacultyCodes = new HashSet<>();
+
+        for (StudentImportRow row : rows) {
+            String facultyCode = normalizeCode(row.getFacultyCode());
+            if (facultyCode.isBlank() || !seenFacultyCodes.add(facultyCode)) {
+                continue;
+            }
+            ensureFaculty(facultyCode, row.getFacultyName(), summary);
+        }
+
+        return summary;
+    }
+
+    @Transactional
+    public OrganizationImportSummary importAcademicYears(List<StudentImportRow> rows) {
+        OrganizationImportSummary summary = new OrganizationImportSummary();
+        Set<String> seenAcademicYears = new HashSet<>();
+
+        for (StudentImportRow row : rows) {
+            String yearName = clean(row.getAcademicYearName());
+            if (yearName.isBlank() || !seenAcademicYears.add(yearName.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            ensureAcademicYear(yearName, row.getAcademicYearStartYear(), summary);
+        }
+
+        return summary;
+    }
+
+    @Transactional
+    public OrganizationImportSummary importClasses(List<StudentImportRow> rows) {
+        OrganizationImportSummary summary = new OrganizationImportSummary();
+        Set<String> seenClassCodes = new HashSet<>();
+
+        for (StudentImportRow row : rows) {
+            String classCode = normalizeCode(row.getClassCode());
+            if (classCode.isBlank() || !seenClassCodes.add(classCode)) {
+                continue;
+            }
+            ensureClass(row, summary);
+        }
+
+        return summary;
+    }
+
+    @Transactional
     public AcademicYearResponse createAcademicYear(AcademicYearRequest request) {
         String yearName = request.getYearName().trim();
         if (academicYearRepository.existsByYearNameIgnoreCase(yearName)) {
@@ -181,6 +235,101 @@ public class OrganizationService {
     private void applyAcademicYearRequest(AcademicYear academicYear, AcademicYearRequest request) {
         academicYear.setYearName(request.getYearName().trim());
         academicYear.setStartYear(request.getStartYear());
+    }
+
+    public Faculty ensureFaculty(String facultyCode, String facultyName, OrganizationImportSummary summary) {
+        String cleanFacultyCode = normalizeCode(facultyCode);
+        String cleanFacultyName = clean(facultyName);
+
+        if (cleanFacultyCode.isBlank()) {
+            if (summary != null) summary.facultySkipped();
+            return null;
+        }
+
+        Faculty faculty = facultyRepository.findByFacultyCodeIgnoreCase(cleanFacultyCode).orElse(null);
+        if (faculty == null) {
+            Faculty newFaculty = new Faculty();
+            newFaculty.setFacultyCode(cleanFacultyCode);
+            newFaculty.setFacultyName(cleanFacultyName.isBlank() ? cleanFacultyCode : cleanFacultyName);
+            newFaculty.setStatus(Faculty.Status.ACTIVE);
+            if (summary != null) summary.facultyCreated();
+            return facultyRepository.save(newFaculty);
+        }
+
+        if (shouldUpdateFacultyName(faculty, cleanFacultyName)) {
+            faculty.setFacultyName(cleanFacultyName);
+            faculty.setStatus(Faculty.Status.ACTIVE);
+            if (summary != null) summary.facultyUpdated();
+            return facultyRepository.save(faculty);
+        }
+
+        if (summary != null) summary.facultySkipped();
+        return faculty;
+    }
+
+    public AcademicYear ensureAcademicYear(String academicYearName, Integer startYear, OrganizationImportSummary summary) {
+        String yearName = clean(academicYearName);
+        if (yearName.isBlank()) {
+            if (summary != null) summary.academicYearSkipped();
+            return null;
+        }
+
+        return academicYearRepository.findByYearNameIgnoreCase(yearName)
+                .map(existing -> {
+                    if (summary != null) summary.academicYearSkipped();
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    AcademicYear academicYear = new AcademicYear();
+                    academicYear.setYearName(yearName);
+                    academicYear.setStartYear(startYear);
+                    if (summary != null) summary.academicYearCreated();
+                    return academicYearRepository.save(academicYear);
+                });
+    }
+
+    public Clazz ensureClass(StudentImportRow row, OrganizationImportSummary summary) {
+        String classCode = normalizeCode(row.getClassCode());
+        if (classCode.isBlank()) {
+            if (summary != null) summary.classSkipped();
+            return null;
+        }
+
+        Faculty faculty = ensureFaculty(row.getFacultyCode(), row.getFacultyName(), summary);
+        AcademicYear academicYear = ensureAcademicYear(row.getAcademicYearName(), row.getAcademicYearStartYear(), summary);
+
+        Clazz clazz = classRepository.findByClassCodeIgnoreCase(classCode).orElse(null);
+        if (clazz == null) {
+            Clazz newClazz = new Clazz();
+            newClazz.setClassCode(classCode);
+            newClazz.setFaculty(faculty);
+            newClazz.setAcademicYear(academicYear);
+            newClazz.setStatus(Clazz.Status.ACTIVE);
+            if (summary != null) summary.classCreated();
+            return classRepository.save(newClazz);
+        }
+
+        boolean changed = false;
+        if (faculty != null && (clazz.getFaculty() == null || !Objects.equals(clazz.getFaculty().getId(), faculty.getId()))) {
+            clazz.setFaculty(faculty);
+            changed = true;
+        }
+        if (academicYear != null && (clazz.getAcademicYear() == null || !Objects.equals(clazz.getAcademicYear().getId(), academicYear.getId()))) {
+            clazz.setAcademicYear(academicYear);
+            changed = true;
+        }
+        if (clazz.getStatus() != Clazz.Status.ACTIVE) {
+            clazz.setStatus(Clazz.Status.ACTIVE);
+            changed = true;
+        }
+
+        if (changed) {
+            if (summary != null) summary.classUpdated();
+            return classRepository.save(clazz);
+        }
+
+        if (summary != null) summary.classSkipped();
+        return clazz;
     }
 
     private AcademicYear resolveAcademicYear(ClassRequest request) {
@@ -242,8 +391,26 @@ public class OrganizationService {
                 .build();
     }
 
+    private boolean shouldUpdateFacultyName(Faculty faculty, String newFacultyName) {
+        if (newFacultyName.isBlank() || newFacultyName.equals(faculty.getFacultyName())) {
+            return false;
+        }
+
+        String currentName = faculty.getFacultyName();
+        return currentName == null
+                || currentName.isBlank()
+                || currentName.equalsIgnoreCase(faculty.getFacultyCode());
+    }
+
+    private String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().replaceAll("\\s+", " ");
+    }
+
     private String normalizeCode(String value) {
-        return value.trim().toUpperCase();
+        return clean(value).toUpperCase(Locale.ROOT);
     }
 
     private Long parseId(String value, String message) {

@@ -3,6 +3,17 @@ spring:
     name: user-service
   profiles:
     active: local
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 120000
   jpa:
     hibernate:
       ddl-auto: update

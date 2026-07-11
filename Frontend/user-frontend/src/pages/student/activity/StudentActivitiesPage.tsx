@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { activityApi, type ActivityResponse } from "../../../services/api";
-import { activityCategoryLabels, formatActivityRange } from "../../../utils/activityUi";
+import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
 
 function StudentActivitiesPage() {
   const [activities, setActivities] = useState<ActivityResponse[]>([]);
@@ -45,6 +47,15 @@ function StudentActivitiesPage() {
     [activities],
   );
 
+  const {
+    pageItems: paginatedActivities,
+    pageIndex,
+    pageSize,
+    totalItems,
+    setPageIndex,
+    setPageSize,
+  } = usePaginatedList(sortedActivities);
+
   return (
     <div className="space-y-gutter">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -65,8 +76,9 @@ function StudentActivitiesPage() {
       ) : sortedActivities.length === 0 ? (
         <div className="panel p-6 text-on-surface-variant">Hiện chưa có hoạt động nào đang mở.</div>
       ) : (
+        <>
         <div className="grid gap-gutter lg:grid-cols-3">
-          {sortedActivities.map((activity) => (
+          {paginatedActivities.map((activity) => (
             <Card key={activity.id} className="flex flex-col overflow-hidden p-0">
               <div className="bg-surface-container-low p-5">
                 <div className="mb-8 flex items-start justify-between gap-4">
@@ -86,14 +98,16 @@ function StudentActivitiesPage() {
                 </p>
                 <p className="flex items-center gap-2">
                   <TicketCheck className="h-4 w-4 text-primary" />
-                  {activity.registrationCount ?? 0} sinh viên đăng ký
-                  {activity.capacity ? ` / tối đa ${activity.capacity}` : ""}
+                  {(activity.participationType || "LIMITED") === "OPEN"
+                    ? "Tự do tham gia"
+                    : `${activity.registrationCount ?? 0} sinh viên đăng ký${activity.capacity ? ` / tối đa ${activity.capacity}` : ""}`}
                 </p>
+                <p className="text-xs font-semibold text-primary">{activityParticipationLabels[activity.participationType || "LIMITED"]}</p>
                 <div className="mt-auto flex flex-wrap gap-3 pt-4">
                   <Link className="rounded-lg border border-primary px-4 py-3 font-semibold text-primary hover:bg-surface-container-low" to={`/student/activities/${activity.id}`}>
                     Xem chi tiết
                   </Link>
-                  {activity.googleFormUrl && activity.status !== "COMPLETED" && (
+                  {(activity.participationType || "LIMITED") === "LIMITED" && activity.googleFormUrl && activity.status !== "COMPLETED" && (
                     <a className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" href={activity.googleFormUrl} rel="noreferrer" target="_blank">
                       <ExternalLink className="h-4 w-4" />
                       Đăng ký
@@ -104,6 +118,15 @@ function StudentActivitiesPage() {
             </Card>
           ))}
         </div>
+        <PaginationControls
+          itemLabel="hoạt động"
+          onPageChange={setPageIndex}
+          onPageSizeChange={setPageSize}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          totalItems={totalItems}
+        />
+        </>
       )}
     </div>
   );

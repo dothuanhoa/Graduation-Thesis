@@ -38,17 +38,17 @@ function AdminCertificatesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const size = 10;
+  const [pageSize, setPageSize] = useState(10);
+  const [totalElements, setTotalElements] = useState(0);
   const navigate = useNavigate();
 
-  const loadRequests = useCallback(async (pageIndex: number) => {
+  const loadRequests = useCallback(async (pageIndex: number, size = pageSize) => {
     setLoading(true);
     setMessage("");
     try {
       const data = await certificationRequestApi.listAll(pageIndex, size);
       setRequests(data.content || []);
-      setTotalPages(data.totalPages || 1);
+      setTotalElements(data.totalElements || data.content?.length || 0);
       setPage(pageIndex);
     } catch (err) {
       setRequests([]);
@@ -56,7 +56,7 @@ function AdminCertificatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [size]);
+  }, [pageSize]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -78,7 +78,7 @@ function AdminCertificatesPage() {
         <Link className="inline-flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-3 font-semibold text-primary" to="/admin/form-types">
           Quản lý Loại biểu mẫu
         </Link>
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => loadRequests(page)} type="button">
+        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => loadRequests(page, pageSize)} type="button">
           <RefreshCw className="h-5 w-5" />
           Tải lại
         </button>
@@ -89,45 +89,34 @@ function AdminCertificatesPage() {
       {loading ? (
         <div className="panel p-6 text-on-surface-variant">Đang tải danh sách...</div>
       ) : (
-        <>
-          <DataTable
-            actions={(row) => (
-              <div className="flex justify-end gap-2">
-                <button 
-                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container" 
-                  onClick={() => navigate(`/admin/certificates/${row.id}`)} 
-                  type="button"
-                >
-                  <Eye className="h-4 w-4" />
-                  Xem chi tiết
-                </button>
-              </div>
-            )}
-            caption="Danh sách yêu cầu chứng nhận"
-            columns={columns}
-            rows={rows}
-          />
-          
-          <div className="flex items-center justify-between gap-4 py-4">
-            <button 
-              className="rounded-lg border border-outline-variant px-4 py-2 font-semibold text-primary disabled:opacity-50"
-              disabled={page === 0}
-              onClick={() => loadRequests(page - 1)}
-            >
-              Trang trước
-            </button>
-            <span className="text-sm text-on-surface-variant">
-              Trang {page + 1} / {totalPages}
-            </span>
-            <button 
-              className="rounded-lg border border-outline-variant px-4 py-2 font-semibold text-primary disabled:opacity-50"
-              disabled={page >= totalPages - 1}
-              onClick={() => loadRequests(page + 1)}
-            >
-              Trang sau
-            </button>
-          </div>
-        </>
+        <DataTable
+          actions={(row) => (
+            <div className="flex justify-end gap-2">
+              <button
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container"
+                onClick={() => navigate(`/admin/certificates/${row.id}`)}
+                type="button"
+              >
+                <Eye className="h-4 w-4" />
+                Xem chi tiết
+              </button>
+            </div>
+          )}
+          caption="Danh sách yêu cầu chứng nhận"
+          columns={columns}
+          itemLabel="yêu cầu"
+          rows={rows}
+          serverPagination={{
+            pageIndex: page,
+            pageSize,
+            totalItems: totalElements,
+            onPageChange: (nextPage) => void loadRequests(nextPage, pageSize),
+            onPageSizeChange: (nextPageSize) => {
+              setPageSize(nextPageSize);
+              void loadRequests(0, nextPageSize);
+            },
+          }}
+        />
       )}
     </div>
   );

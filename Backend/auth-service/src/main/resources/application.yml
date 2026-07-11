@@ -9,10 +9,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
+        jdbc.batch_size: 100
+        order_inserts: true
+        order_updates: true
   data:
     redis:
       host: ${REDIS_HOST:localhost}
