@@ -1,6 +1,7 @@
 package com.userservice.service;
 
 import com.userservice.domain.UserProfile;
+import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 
@@ -17,5 +18,7 @@ public interface UserService {
     void delete(Long id);
     String bulkImport(List<StudentImportRow> rows);
     String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer);
+    BulkStudentUpdateResponse assignStudentsToClass(List<Long> studentIds, Long classId);
+    BulkStudentUpdateResponse updateStudentStatuses(List<Long> studentIds, UserProfile.StudentStatus status);
     UserProfile updateContactByStudentId(String studentId, String contactPhone);
 }

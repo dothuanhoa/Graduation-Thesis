@@ -26,6 +26,10 @@ type DataTableProps<T extends TableRow> = {
   rows: T[];
   caption?: string;
   actions?: (row: T) => ReactNode;
+  getRowId?: (row: T, rowIndex: number) => string;
+  selectedRowIds?: string[];
+  onSelectedRowIdsChange?: (selectedRowIds: string[]) => void;
+  selectable?: boolean;
   defaultPageSize?: number;
   itemLabel?: string;
   pagination?: boolean;
@@ -65,6 +69,10 @@ function DataTable<T extends TableRow>({
   rows,
   caption,
   actions,
+  getRowId,
+  selectedRowIds,
+  onSelectedRowIdsChange,
+  selectable = true,
   defaultPageSize = 10,
   itemLabel = "bản ghi",
   pagination = true,
@@ -79,6 +87,9 @@ function DataTable<T extends TableRow>({
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const rawPageIndex = serverPagination?.pageIndex ?? clientPageIndex;
   const pageIndex = Math.min(Math.max(rawPageIndex, 0), totalPages - 1);
+  const [internalSelectedRowIds, setInternalSelectedRowIds] = useState<string[]>([]);
+  const currentSelectedRowIds = selectedRowIds ?? internalSelectedRowIds;
+  const selectedSet = useMemo(() => new Set(currentSelectedRowIds), [currentSelectedRowIds]);
 
   const visibleRows = useMemo(() => {
     if (!pagination || isServerPaginated) return rows;
@@ -103,6 +114,34 @@ function DataTable<T extends TableRow>({
     setClientPageIndex(0);
   };
 
+  const resolveRowId = (row: T, rowIndex: number) => getRowId?.(row, rowIndex) ?? String(row.id ?? rowIndex);
+
+  const updateSelectedRowIds = (nextSelectedRowIds: string[]) => {
+    if (onSelectedRowIdsChange) {
+      onSelectedRowIdsChange(nextSelectedRowIds);
+      return;
+    }
+    setInternalSelectedRowIds(nextSelectedRowIds);
+  };
+
+  const visibleRowIds = visibleRows.map((row, rowIndex) => resolveRowId(row, rowIndex));
+  const allVisibleSelected = visibleRowIds.length > 0 && visibleRowIds.every((rowId) => selectedSet.has(rowId));
+  const toggleVisibleRows = (checked: boolean) => {
+    if (checked) {
+      updateSelectedRowIds(Array.from(new Set([...currentSelectedRowIds, ...visibleRowIds])));
+      return;
+    }
+    updateSelectedRowIds(currentSelectedRowIds.filter((rowId) => !visibleRowIds.includes(rowId)));
+  };
+
+  const toggleRow = (rowId: string, checked: boolean) => {
+    if (checked) {
+      updateSelectedRowIds(Array.from(new Set([...currentSelectedRowIds, rowId])));
+      return;
+    }
+    updateSelectedRowIds(currentSelectedRowIds.filter((selectedRowId) => selectedRowId !== rowId));
+  };
+
   return (
     <div className="panel overflow-hidden">
       {caption && (
@@ -114,9 +153,16 @@ function DataTable<T extends TableRow>({
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="bg-surface-container-low">
             <tr>
-              <th className="w-12 px-5 py-4">
-                <input className="h-4 w-4 rounded border-outline-variant text-primary focus-ring" type="checkbox" />
-              </th>
+              {selectable && (
+                <th className="w-12 px-5 py-4">
+                  <input
+                    checked={allVisibleSelected}
+                    className="h-4 w-4 rounded border-outline-variant text-primary focus-ring"
+                    onChange={(event) => toggleVisibleRows(event.target.checked)}
+                    type="checkbox"
+                  />
+                </th>
+              )}
               {columns.map((column) => (
                 <th key={String(column.key)} className="px-5 py-4 font-semibold text-on-surface">
                   {column.header}
@@ -126,11 +172,20 @@ function DataTable<T extends TableRow>({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((row, rowIndex) => (
-              <tr key={String(row.id ?? rowIndex)} className="border-t border-outline-variant bg-surface-container-lowest">
-                <td className="px-5 py-4">
-                  <input className="h-4 w-4 rounded border-outline-variant text-primary focus-ring" type="checkbox" />
-                </td>
+            {visibleRows.map((row, rowIndex) => {
+              const rowId = resolveRowId(row, rowIndex);
+              return (
+              <tr key={rowId} className="border-t border-outline-variant bg-surface-container-lowest">
+                {selectable && (
+                  <td className="px-5 py-4">
+                    <input
+                      checked={selectedSet.has(rowId)}
+                      className="h-4 w-4 rounded border-outline-variant text-primary focus-ring"
+                      onChange={(event) => toggleRow(rowId, event.target.checked)}
+                      type="checkbox"
+                    />
+                  </td>
+                )}
                 {columns.map((column) => {
                   const value = row[column.key];
                   return (
@@ -157,7 +212,8 @@ function DataTable<T extends TableRow>({
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {rows.length === 0 && (

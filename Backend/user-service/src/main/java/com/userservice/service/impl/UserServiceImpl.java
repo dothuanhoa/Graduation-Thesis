@@ -3,10 +3,12 @@ package com.userservice.service.impl;
 import com.userservice.client.AuthServiceClient;
 import com.userservice.domain.Clazz;
 import com.userservice.domain.UserProfile;
+import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.BulkRegisterMessage;
 import com.userservice.dto.OrganizationImportSummary;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
+import com.userservice.exception.BadRequestException;
 import com.userservice.exception.ResourceNotFoundException;
 import com.userservice.repository.ClassRepository;
 import com.userservice.repository.UserProfileRepository;
@@ -23,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -34,6 +37,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
     private static final int PROFILE_BATCH_SIZE = 250;
     private static final int AUTH_BATCH_SIZE = 100;
+    private static final int MAX_STUDENTS_PER_CLASS = 120;
 
     private final UserProfileRepository userProfileRepository;
     private final ClassRepository classRepository;
@@ -54,7 +58,9 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public UserProfile save(UserProfile userProfile) {
-        userProfile.setClazz(resolveClazz(userProfile));
+        Clazz targetClazz = resolveClazz(userProfile);
+        ensureClassHasRoom(null, targetClazz, 1);
+        userProfile.setClazz(targetClazz);
         UserProfile savedProfile = userProfileRepository.save(userProfile);
         createAuthAccount(savedProfile);
         return savedProfile;
@@ -153,15 +159,50 @@ public class UserServiceImpl implements UserService {
 
     public UserProfile update(Long id, UserProfile userDetails) {
         return userProfileRepository.findById(id).map(user -> {
+            Clazz targetClazz = resolveClazz(userDetails);
+            ensureClassHasRoom(user, targetClazz, 1);
             user.setFullName(userDetails.getFullName());
             user.setStudentId(userDetails.getStudentId());
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
-            user.setClazz(resolveClazz(userDetails));
+            user.setClazz(targetClazz);
             user.setStudentStatus(userDetails.getStudentStatus());
             return userProfileRepository.save(user);
         }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
+    }
+
+    @Transactional
+    public BulkStudentUpdateResponse assignStudentsToClass(List<Long> studentIds, Long classId) {
+        Clazz targetClazz = classRepository.findById(classId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + classId));
+        if (targetClazz.getStatus() != Clazz.Status.ACTIVE) {
+            throw new BadRequestException("Lớp " + targetClazz.getClassCode() + " đang ngưng hoạt động.");
+        }
+
+        List<UserProfile> students = loadStudentsByIds(studentIds);
+        int incomingCount = (int) students.stream()
+                .filter(student -> !sameClass(student.getClazz(), targetClazz))
+                .count();
+        ensureClassHasRoom(null, targetClazz, incomingCount);
+
+        students.forEach(student -> student.setClazz(targetClazz));
+        userProfileRepository.saveAll(students);
+        return new BulkStudentUpdateResponse(
+                students.size(),
+                "Đã chuyển " + students.size() + " sinh viên vào lớp " + targetClazz.getClassCode() + "."
+        );
+    }
+
+    @Transactional
+    public BulkStudentUpdateResponse updateStudentStatuses(List<Long> studentIds, UserProfile.StudentStatus status) {
+        List<UserProfile> students = loadStudentsByIds(studentIds);
+        students.forEach(student -> student.setStudentStatus(status));
+        userProfileRepository.saveAll(students);
+        return new BulkStudentUpdateResponse(
+                students.size(),
+                "Đã cập nhật trạng thái cho " + students.size() + " sinh viên."
+        );
     }
 
     public void delete(Long id) {
@@ -244,6 +285,59 @@ public class UserServiceImpl implements UserService {
 
         return classRepository.findById(userProfile.getClazz().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + userProfile.getClazz().getId()));
+    }
+
+    private List<UserProfile> loadStudentsByIds(List<Long> studentIds) {
+        LinkedHashSet<Long> uniqueIds = studentIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (uniqueIds.isEmpty()) {
+            throw new BadRequestException("Vui lòng chọn ít nhất một sinh viên.");
+        }
+
+        List<UserProfile> students = userProfileRepository.findAllById(uniqueIds);
+        Set<Long> foundIds = students.stream()
+                .map(UserProfile::getId)
+                .collect(Collectors.toSet());
+        List<Long> missingIds = uniqueIds.stream()
+                .filter(id -> !foundIds.contains(id))
+                .toList();
+        if (!missingIds.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy sinh viên với id: " + missingIds);
+        }
+
+        return students;
+    }
+
+    private void ensureClassHasRoom(UserProfile currentStudent, Clazz targetClazz, int incomingCount) {
+        if (targetClazz == null || incomingCount <= 0) {
+            return;
+        }
+
+        if (targetClazz.getStatus() != Clazz.Status.ACTIVE) {
+            throw new BadRequestException("Lớp " + targetClazz.getClassCode() + " đang ngưng hoạt động.");
+        }
+
+        if (currentStudent != null && sameClass(currentStudent.getClazz(), targetClazz)) {
+            return;
+        }
+
+        long currentCount = userProfileRepository.countByClazzId(targetClazz.getId());
+        long nextCount = currentCount + incomingCount;
+        if (nextCount > MAX_STUDENTS_PER_CLASS) {
+            throw new BadRequestException("Lớp " + targetClazz.getClassCode()
+                    + " tối đa " + MAX_STUDENTS_PER_CLASS
+                    + " sinh viên. Hiện có " + currentCount
+                    + ", chỉ có thể chuyển thêm "
+                    + Math.max(0, MAX_STUDENTS_PER_CLASS - currentCount)
+                    + " sinh viên.");
+        }
+    }
+
+    private boolean sameClass(Clazz currentClazz, Clazz targetClazz) {
+        return currentClazz != null
+                && targetClazz != null
+                && Objects.equals(currentClazz.getId(), targetClazz.getId());
     }
 
     private void applyImportRow(UserProfile profile, StudentImportRow row, Clazz clazz) {

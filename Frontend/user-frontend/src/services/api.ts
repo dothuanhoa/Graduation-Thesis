@@ -53,6 +53,11 @@ export type UserProfile = {
 
 export type UserProfilePayload = Omit<UserProfile, "id">;
 
+export type BulkStudentUpdateResponse = {
+  updatedCount: number;
+  message: string;
+};
+
 export type StudentImportJobStatus = {
   jobId: string;
   status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -354,6 +359,24 @@ export const userApi = {
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/${id}`, {
       method: "DELETE",
+    });
+  },
+  assignStudentsToClass(studentIds: Array<string | number>, classId: string | number) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/class", {
+      method: "PATCH",
+      body: JSON.stringify({
+        studentIds,
+        classId,
+      }),
+    });
+  },
+  updateStudentStatuses(studentIds: Array<string | number>, status: NonNullable<UserProfile["studentStatus"]>) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/status", {
+      method: "PATCH",
+      body: JSON.stringify({
+        studentIds,
+        status,
+      }),
     });
   },
   importExcel(file: File) {

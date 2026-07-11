@@ -1,6 +1,9 @@
 package com.userservice.controller;
 
 import com.userservice.domain.UserProfile;
+import com.userservice.dto.BulkStudentClassRequest;
+import com.userservice.dto.BulkStudentStatusRequest;
+import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 import com.userservice.service.ExcelService;
@@ -75,6 +78,30 @@ public class UserController {
             return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
         }
         return ResponseEntity.ok(userService.update(id, userProfile));
+    }
+
+    @PatchMapping("/bulk/class")
+    public ResponseEntity<Object> assignStudentsToClass(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @Valid @RequestBody BulkStudentClassRequest request
+    ) {
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        }
+        BulkStudentUpdateResponse response = userService.assignStudentsToClass(request.getStudentIds(), request.getClassId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/bulk/status")
+    public ResponseEntity<Object> updateStudentStatuses(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @Valid @RequestBody BulkStudentStatusRequest request
+    ) {
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        }
+        BulkStudentUpdateResponse response = userService.updateStudentStatuses(request.getStudentIds(), request.getStatus());
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
