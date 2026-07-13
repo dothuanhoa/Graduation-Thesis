@@ -27,14 +27,20 @@ function LoginPage() {
         setNeedsPasswordChange(true);
         setError("Tài khoản cần đổi mật khẩu lần đầu trước khi vào hệ thống.");
       } else {
-        setError(err instanceof Error ? err.message : "Không đăng nhập được. Vui lòng thử lại.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Không đăng nhập được. Vui lòng thử lại.",
+        );
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFirstChangePassword = async (event: FormEvent<HTMLFormElement>) => {
+  const handleFirstChangePassword = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setError("");
 
@@ -50,7 +56,11 @@ function LoginPage() {
 
     setLoading(true);
     try {
-      await auth.firstChangePassword({ username, oldPassword: password, newPassword });
+      await auth.firstChangePassword({
+        username,
+        oldPassword: password,
+        newPassword,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không đổi được mật khẩu.");
     } finally {
@@ -62,10 +72,18 @@ function LoginPage() {
     <div className="w-full max-w-[430px]">
       <Card className="p-8 text-center">
         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-outline-variant bg-surface-container-low">
-          <img alt="STU" className="h-14 w-14 object-contain" src="/Logo_STU.png" />
+          <img
+            alt="STU"
+            className="h-14 w-14 object-contain"
+            src="/Logo_STU.png"
+          />
         </div>
-        <h1 className="text-2xl font-bold text-on-surface">Đăng nhập hệ thống</h1>
-        <p className="mt-2 text-on-surface-variant">Cổng thông tin sinh viên và cán bộ CTSV</p>
+        <h1 className="text-2xl font-bold text-on-surface">
+          Đăng nhập hệ thống
+        </h1>
+        <p className="mt-2 text-on-surface-variant">
+          Cổng thông tin sinh viên và cán bộ CTSV
+        </p>
 
         {error && (
           <div className="mt-5 rounded-lg border border-error-container bg-error-container px-4 py-3 text-left text-sm font-semibold text-error">
@@ -74,7 +92,11 @@ function LoginPage() {
         )}
 
         {!needsPasswordChange ? (
-          <form autoComplete="off" className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleLogin}>
+          <form
+            autoComplete="off"
+            className="mt-8 flex flex-col gap-5 text-left"
+            onSubmit={handleLogin}
+          >
             <FormField
               autoComplete="off"
               icon={<UserRound className="h-5 w-5" />}
@@ -102,7 +124,11 @@ function LoginPage() {
             </button>
           </form>
         ) : (
-          <form autoComplete="off" className="mt-8 flex flex-col gap-5 text-left" onSubmit={handleFirstChangePassword}>
+          <form
+            autoComplete="off"
+            className="mt-8 flex flex-col gap-5 text-left"
+            onSubmit={handleFirstChangePassword}
+          >
             <FormField
               autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
@@ -133,10 +159,13 @@ function LoginPage() {
         )}
 
         <div className="mt-8 border-t border-outline-variant pt-5 text-sm text-on-surface-variant">
-          Gặp sự cố khi đăng nhập? <span className="font-semibold text-primary">Liên hệ hỗ trợ</span>
+          Gặp sự cố khi đăng nhập?{" "}
+          <span className="font-semibold text-primary">Liên hệ hỗ trợ</span>
         </div>
       </Card>
-      <p className="mt-6 text-center text-sm text-on-surface-variant">© 2026 Hệ thống Quản lý CTSV</p>
+      <p className="mt-6 text-center text-sm text-on-primary">
+        © 2026 Hệ thống Quản lý CTSV
+      </p>
     </div>
   );
 }

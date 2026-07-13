@@ -23,7 +23,6 @@ import {
   exams,
   faculties,
   notifications,
-  rewards,
   type ModuleMeta,
   type TableRow,
 } from "../../../data/mockData";
