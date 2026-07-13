@@ -1,6 +1,7 @@
 package com.userservice.service;
 
 import com.userservice.domain.UserProfile;
+import com.userservice.domain.StudentGroup;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
@@ -13,6 +14,7 @@ public interface UserService {
     List<UserProfile> findAll();
     Optional<UserProfile> findById(Long id);
     Optional<UserProfile> findByStudentId(String studentId);
+    List<StudentGroup> findAllStudentGroups();
     UserProfile save(UserProfile userProfile);
     UserProfile update(Long id, UserProfile userProfile);
     void delete(Long id);

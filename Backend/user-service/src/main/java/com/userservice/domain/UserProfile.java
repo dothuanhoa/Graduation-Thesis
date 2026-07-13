@@ -10,7 +10,8 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "user_profiles", indexes = {
-    @Index(name = "idx_student_id", columnList = "student_id")
+    @Index(name = "idx_student_id", columnList = "student_id"),
+    @Index(name = "idx_student_group", columnList = "student_group_id")
 })
 @Data
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
@@ -40,6 +41,10 @@ public class UserProfile {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
     private Clazz clazz;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_group_id")
+    private StudentGroup studentGroup;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "student_status", length = 30)

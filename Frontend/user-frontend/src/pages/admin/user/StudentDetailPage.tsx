@@ -5,7 +5,8 @@ import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { authApi, classApi, userApi, type ClassResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
+import { authApi, classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
+import { defaultStudentGroups } from "../../../utils/studentGroups";
 import { userProfileSchema } from "../../../validation/userSchemas";
 
 const emptyProfile: UserProfilePayload = {
@@ -27,7 +28,9 @@ function StudentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [classId, setClassId] = useState("");
+  const [studentGroupId, setStudentGroupId] = useState("1");
 
   const loadProfile = useCallback(async () => {
     if (!profileId) {
@@ -43,9 +46,12 @@ function StudentDetailPage() {
         userApi.getById(profileId),
         classApi.list(),
       ]);
+      const groupData = await userApi.listStudentGroups();
       setProfile(data);
       setClasses(classData);
+      setStudentGroups(groupData.length ? groupData : defaultStudentGroups);
       setClassId(data.clazz?.id ? String(data.clazz.id) : "");
+      setStudentGroupId(data.studentGroup?.id ? String(data.studentGroup.id) : data.studentGroup?.code || "1");
       setFormData({
         studentId: data.studentId,
         fullName: data.fullName,
@@ -84,10 +90,12 @@ function StudentDetailPage() {
       const payload: UserProfilePayload = {
         ...validated,
         clazz: classId ? { id: classId } : undefined,
+        studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
       const updated = await userApi.update(profile.id, payload);
       setProfile(updated);
       setClassId(updated.clazz?.id ? String(updated.clazz.id) : "");
+      setStudentGroupId(updated.studentGroup?.id ? String(updated.studentGroup.id) : updated.studentGroup?.code || "1");
       setMessage("Đã cập nhật hồ sơ sinh viên.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
@@ -171,6 +179,20 @@ function StudentDetailPage() {
                   {classes.map((clazz) => (
                     <option key={clazz.id} value={clazz.id}>
                       {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Nhóm sinh viên</span>
+                <select
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                  onChange={(event) => setStudentGroupId(event.target.value)}
+                  value={studentGroupId}
+                >
+                  {studentGroups.map((group) => (
+                    <option key={group.id ?? group.code} value={group.id ?? group.code}>
+                      {group.name}
                     </option>
                   ))}
                 </select>

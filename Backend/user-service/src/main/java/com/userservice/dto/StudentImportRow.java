@@ -19,4 +19,5 @@ public class StudentImportRow {
     private String facultyName;
     private String academicYearName;
     private Integer academicYearStartYear;
+    private String studentGroupCode;
 }

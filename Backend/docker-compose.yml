@@ -58,6 +58,20 @@ services:
     networks:
       - micro_network
 
+  exam-db:
+    image: postgres:16-alpine
+    container_name: exam-db
+    environment:
+      POSTGRES_DB: exam_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_exam_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
   redis:
     image: redis:alpine
     container_name: redis
@@ -207,12 +221,35 @@ services:
     networks:
       - micro_network
 
+  exam-service:
+    build: ./exam-service
+    container_name: exam-service
+    ports:
+      - "8087:8087"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=exam-db
+      - DB_PORT=5432
+      - DB_NAME=exam_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - exam-db
+      - redis
+      - discovery-server
+    networks:
+      - micro_network
+
 volumes:
   postgres_user_data:
   postgres_notification_data:
   postgres_auth_data:
   postgres_activity_data:
   postgres_certification_data:
+  postgres_exam_data:
   redis_data:
 
 networks:

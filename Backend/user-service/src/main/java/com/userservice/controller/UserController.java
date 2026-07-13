@@ -1,6 +1,7 @@
 package com.userservice.controller;
 
 import com.userservice.domain.UserProfile;
+import com.userservice.domain.StudentGroup;
 import com.userservice.dto.BulkStudentClassRequest;
 import com.userservice.dto.BulkStudentStatusRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
@@ -55,6 +56,11 @@ public class UserController {
         return userService.findByStudentId(studentId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/student-groups")
+    public ResponseEntity<List<StudentGroup>> getStudentGroups() {
+        return ResponseEntity.ok(userService.findAllStudentGroups());
     }
 
     @PostMapping

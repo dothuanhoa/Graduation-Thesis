@@ -60,6 +60,7 @@ public class ExcelService {
 
     private List<StudentImportRow> parseWorkbook(Workbook workbook) {
         Map<String, String> facultyDictionary = readFacultyDictionary(workbook);
+        Map<String, String> studentGroupDictionary = readStudentGroupDictionary(workbook);
         Sheet sheet = findDataSheet(workbook);
         Row headerRow = findHeaderRow(sheet);
         List<StudentImportRow> rows = new ArrayList<>();
@@ -74,7 +75,7 @@ public class ExcelService {
                 continue;
             }
 
-            StudentImportRow item = parseRow(row, columns, facultyDictionary);
+            StudentImportRow item = parseRow(row, columns, facultyDictionary, studentGroupDictionary);
             if (!isBlank(item.getStudentId()) || !isBlank(item.getClassCode())
                     || !isBlank(item.getFacultyCode()) || !isBlank(item.getAcademicYearName())) {
                 rows.add(item);
@@ -84,12 +85,18 @@ public class ExcelService {
         return rows;
     }
 
-    private StudentImportRow parseRow(Row row, ColumnIndexes columns, Map<String, String> facultyDictionary) {
+    private StudentImportRow parseRow(
+            Row row,
+            ColumnIndexes columns,
+            Map<String, String> facultyDictionary,
+            Map<String, String> studentGroupDictionary
+    ) {
         String studentId = clean(readString(row, columns.studentIdIndex));
         String fullName = clean(joinName(readString(row, columns.fullNameIndex), readString(row, columns.fullNameExtraIndex)));
         String classCode = normalizeCode(readString(row, columns.classCodeIndex));
         String facultyCode = normalizeCode(readString(row, columns.facultyCodeIndex));
         String academicYearName = clean(readString(row, columns.academicYearIndex));
+        String studentGroupCode = resolveStudentGroupCode(readString(row, columns.studentGroupIndex), studentGroupDictionary);
         String facultyName = facultyDictionary.getOrDefault(facultyCode, facultyCode);
 
         return StudentImportRow.builder()
@@ -103,6 +110,7 @@ public class ExcelService {
                 .facultyName(clean(facultyName))
                 .academicYearName(academicYearName)
                 .academicYearStartYear(parseStartYear(academicYearName))
+                .studentGroupCode(studentGroupCode)
                 .build();
     }
 
@@ -127,6 +135,34 @@ public class ExcelService {
                 }
 
                 dictionary.put(facultyCode, facultyName);
+            }
+        }
+
+        return dictionary;
+    }
+
+    private Map<String, String> readStudentGroupDictionary(Workbook workbook) {
+        Map<String, String> dictionary = new HashMap<>();
+
+        for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+            Sheet sheet = workbook.getSheetAt(sheetIndex);
+            if (!normalize(sheet.getSheetName()).contains("tu dien nhom")) {
+                continue;
+            }
+
+            for (Row row : sheet) {
+                String groupName = clean(readString(row, 0));
+                String groupCode = normalizeGroupCode(readString(row, 1));
+                String normalizedName = normalize(groupName);
+
+                if (isBlank(groupName) || isBlank(groupCode)
+                        || normalizedName.contains("ten nhom")
+                        || normalize(groupCode).contains("ma nhom")) {
+                    continue;
+                }
+
+                dictionary.put(groupCode, groupCode);
+                dictionary.put(normalizedName, groupCode);
             }
         }
 
@@ -196,6 +232,8 @@ public class ExcelService {
                 indexes.genderIndex = columnIndex;
             } else if (header.contains("so dien thoai") || header.contains("sdt") || header.contains("phone")) {
                 indexes.phoneIndex = columnIndex;
+            } else if (header.equals("nhom") || header.contains("ma nhom") || header.contains("group")) {
+                indexes.studentGroupIndex = columnIndex;
             }
         }
 
@@ -295,6 +333,23 @@ public class ExcelService {
         return clean(value).toUpperCase(Locale.ROOT);
     }
 
+    private String normalizeGroupCode(String value) {
+        String code = clean(value);
+        if (code.endsWith(".0")) {
+            code = code.substring(0, code.length() - 2);
+        }
+        return code;
+    }
+
+    private String resolveStudentGroupCode(String value, Map<String, String> studentGroupDictionary) {
+        String groupCode = normalizeGroupCode(value);
+        if (isBlank(groupCode)) {
+            return "";
+        }
+        String normalizedName = normalize(groupCode);
+        return studentGroupDictionary.getOrDefault(groupCode, studentGroupDictionary.getOrDefault(normalizedName, groupCode));
+    }
+
     private String clean(String value) {
         if (value == null) {
             return "";
@@ -322,6 +377,7 @@ public class ExcelService {
         private int classCodeIndex = 5;
         private int facultyCodeIndex = 6;
         private int academicYearIndex = 8;
+        private int studentGroupIndex = 10;
         private int genderIndex = -1;
         private int phoneIndex = -1;
     }

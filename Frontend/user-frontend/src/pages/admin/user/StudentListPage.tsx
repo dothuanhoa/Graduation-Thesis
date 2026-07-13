@@ -8,6 +8,7 @@ import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { ApiError, classApi, userApi, type ClassResponse, type UserProfile } from "../../../services/api";
+import { studentGroupName } from "../../../utils/studentGroups";
 
 type StudentRow = TableRow & {
   id: string;
@@ -15,6 +16,7 @@ type StudentRow = TableRow & {
   name: string;
   className: string;
   faculty: string;
+  studentGroup: string;
   status: StatusType;
 };
 
@@ -68,6 +70,7 @@ const toStudentRow = (profile: UserProfile): StudentRow => ({
   name: profile.fullName,
   className: profile.clazz?.classCode || "Chưa phân lớp",
   faculty: profile.clazz?.faculty?.facultyName || profile.clazz?.faculty?.facultyCode || "Chưa có khoa",
+  studentGroup: profile.studentGroup?.name || studentGroupName(profile.studentGroup?.code),
   status: profile.studentStatus || "STUDYING",
 });
 
@@ -91,6 +94,7 @@ const columns: Column<StudentRow>[] = [
   },
   { header: "Lớp", key: "className" },
   { header: "Khoa", key: "faculty" },
+  { header: "Nhóm", key: "studentGroup" },
   { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.status} /> },
 ];
 
@@ -205,7 +209,7 @@ function StudentListPage() {
     return students.filter((student) => {
       const matchesKeyword =
         !keyword ||
-        [student.studentCode, student.name, student.className, student.faculty]
+        [student.studentCode, student.name, student.className, student.faculty, student.studentGroup]
           .map(normalizeSearch)
           .some((value) => value.includes(keyword));
       const matchesFaculty = !facultyKeyword || normalizeSearch(student.faculty).includes(facultyKeyword);

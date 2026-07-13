@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
-import { classApi, userApi, type ClassResponse, type UserProfilePayload } from "../../../services/api";
+import { classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfilePayload } from "../../../services/api";
+import { defaultStudentGroups } from "../../../utils/studentGroups";
 import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
 
 function StudentCreatePage() {
@@ -20,13 +21,17 @@ function StudentCreatePage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [classId, setClassId] = useState("");
+  const [studentGroupId, setStudentGroupId] = useState("1");
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
-      classApi
-        .list()
-        .then(setClasses)
+      Promise.all([classApi.list(), userApi.listStudentGroups()])
+        .then(([classData, groupData]) => {
+          setClasses(classData);
+          setStudentGroups(groupData.length ? groupData : defaultStudentGroups);
+        })
         .catch((err) => setMessage(err instanceof Error ? err.message : "Không tải được danh sách lớp."));
     }, 0);
 
@@ -47,6 +52,7 @@ function StudentCreatePage() {
       const payload: UserProfilePayload = {
         ...validated,
         clazz: classId ? { id: classId } : undefined,
+        studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
       await userApi.create(payload);
       setMessage("Đã tạo hồ sơ sinh viên và tài khoản đăng nhập.");
@@ -118,6 +124,20 @@ function StudentCreatePage() {
               {classes.map((clazz) => (
                 <option key={clazz.id} value={clazz.id}>
                   {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">Nhóm sinh viên</span>
+            <select
+              className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+              onChange={(event) => setStudentGroupId(event.target.value)}
+              value={studentGroupId}
+            >
+              {studentGroups.map((group) => (
+                <option key={group.id ?? group.code} value={group.id ?? group.code}>
+                  {group.name}
                 </option>
               ))}
             </select>
