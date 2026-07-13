@@ -39,6 +39,7 @@ export type UserProfile = {
   gender?: "MALE" | "FEMALE" | "OTHER";
   contactPhone?: string;
   studentStatus?: "STUDYING" | "RESERVED" | "SUSPENDED" | "GRADUATED";
+  studentGroup?: StudentGroupResponse;
   clazz?: {
     id?: string;
     classCode?: string;
@@ -52,6 +53,12 @@ export type UserProfile = {
 };
 
 export type UserProfilePayload = Omit<UserProfile, "id">;
+
+export type StudentGroupResponse = {
+  id?: number;
+  code?: string;
+  name?: string;
+};
 
 export type BulkStudentUpdateResponse = {
   updatedCount: number;
@@ -206,6 +213,108 @@ export type ActivityImportResult = {
   errors: string[];
 };
 
+export type ExamStatus = "ACTIVE" | "INACTIVE";
+export type AttemptStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "LOCKED";
+export type StudentExamAvailability = "UPCOMING" | "AVAILABLE" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "LOCKED";
+
+export type ExamPayload = {
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  durationMins: number;
+  questionCount: number;
+  targetGroupCode: string;
+  status: ExamStatus;
+};
+
+export type ExamResponse = ExamPayload & {
+  id: string;
+  targetGroupName?: string;
+  availableQuestionCount?: number;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type QuestionOptionPayload = {
+  content: string;
+  correct: boolean;
+};
+
+export type QuestionPayload = {
+  content: string;
+  options: QuestionOptionPayload[];
+};
+
+export type QuestionOptionResponse = QuestionOptionPayload & {
+  id: string;
+};
+
+export type QuestionResponse = {
+  id: string;
+  examId: string;
+  content: string;
+  options: QuestionOptionResponse[];
+};
+
+export type QuestionImportResult = {
+  imported: number;
+  skipped: number;
+  errors: string[];
+};
+
+export type AttemptResponse = {
+  id: string;
+  examId: string;
+  examTitle: string;
+  userTsid: string;
+  score?: number;
+  correctCount?: number;
+  totalQuestions?: number;
+  violationCount: number;
+  status: AttemptStatus;
+  startedAt?: string;
+  submittedAt?: string;
+  lockedReason?: string;
+};
+
+export type StudentExamSummary = {
+  id: string;
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  durationMins: number;
+  questionCount: number;
+  targetGroupCode: string;
+  targetGroupName?: string;
+  availabilityStatus: StudentExamAvailability;
+  attemptStatus: AttemptStatus;
+  score?: number;
+  violationCount: number;
+  startedAt?: string;
+  submittedAt?: string;
+};
+
+export type StudentQuestion = {
+  id: string;
+  content: string;
+  options: Array<{ id: string; content: string }>;
+};
+
+export type ExamStateResponse = {
+  examId: string;
+  attemptId: string;
+  status: AttemptStatus;
+  startedAt?: string;
+  durationMins: number;
+  remainingSeconds: number;
+  violationCount: number;
+  answers: Record<string, string>;
+  questions: StudentQuestion[];
+};
+
 const getStoredToken = () => sessionStorage.getItem("accessToken") || "";
 
 const isJsonResponse = (res: Response) => res.headers.get("content-type")?.includes("application/json");
@@ -321,6 +430,9 @@ export const userApi = {
   },
   getById(id: string | number) {
     return apiRequest<UserProfile>(`/api/users/${id}`);
+  },
+  listStudentGroups() {
+    return apiRequest<StudentGroupResponse[]>("/api/users/student-groups");
   },
   async getByStudentId(studentId: string, options: { suppressToast?: boolean } = {}) {
     const cleanStudentId = studentId.trim();
@@ -705,6 +817,105 @@ export const activityApi = {
       headers: { "X-User-Code": checkerCode },
       body: JSON.stringify({ studentCode }),
     });
+  },
+};
+
+export const examApi = {
+  list() {
+    return apiRequest<ExamResponse[]>("/api/exams");
+  },
+  get(id: string) {
+    return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}`);
+  },
+  create(payload: ExamPayload) {
+    return apiRequest<ExamResponse>("/api/exams", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  update(id: string, payload: ExamPayload) {
+    return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateStatus(id: string, status: ExamStatus) {
+    return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+  remove(id: string) {
+    return apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+  listQuestions(examId: string) {
+    return apiRequest<QuestionResponse[]>(`/api/exams/${encodeURIComponent(examId)}/questions`);
+  },
+  createQuestion(examId: string, payload: QuestionPayload) {
+    return apiRequest<QuestionResponse>(`/api/exams/${encodeURIComponent(examId)}/questions`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateQuestion(examId: string, questionId: string, payload: QuestionPayload) {
+    return apiRequest<QuestionResponse>(`/api/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  removeQuestion(examId: string, questionId: string) {
+    return apiRequest<void>(`/api/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}`, {
+      method: "DELETE",
+    });
+  },
+  importQuestions(examId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<QuestionImportResult>(`/api/exams/${encodeURIComponent(examId)}/questions/import`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+  listAttempts(examId?: string) {
+    const path = examId ? `/api/exams/${encodeURIComponent(examId)}/attempts` : "/api/exams/attempts";
+    return apiRequest<AttemptResponse[]>(path);
+  },
+  listMine() {
+    return apiRequest<StudentExamSummary[]>("/api/exams/my");
+  },
+  start(id: string) {
+    return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/start`, {
+      method: "POST",
+      suppressToast: true,
+    });
+  },
+  getState(id: string) {
+    return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/state`, {
+      suppressToast: true,
+    });
+  },
+  saveAnswer(id: string, questionId: string, optionId: string) {
+    return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/answers`, {
+      method: "PUT",
+      suppressToast: true,
+      body: JSON.stringify({ questionId, optionId }),
+    });
+  },
+  recordViolation(id: string) {
+    return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/violations`, {
+      method: "POST",
+      suppressToast: true,
+    });
+  },
+  submit(id: string) {
+    return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/submit`, {
+      method: "POST",
+    });
+  },
+  result(id: string) {
+    return apiRequest<AttemptResponse>(`/api/exams/${encodeURIComponent(id)}/result`);
   },
 };
 

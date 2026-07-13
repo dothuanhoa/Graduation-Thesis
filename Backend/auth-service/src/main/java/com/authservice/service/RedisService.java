@@ -46,4 +46,8 @@ public class RedisService {
         redisTemplate.delete("lockout:" + username);
         redisTemplate.delete("jwt_blacklist:" + username);
     }
+
+    public void clearRevokedAccess(String username) {
+        redisTemplate.delete("jwt_blacklist:" + username);
+    }
 }

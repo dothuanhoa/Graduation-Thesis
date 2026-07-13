@@ -9,6 +9,10 @@ import ActivityCreatePage from "../pages/admin/activity/ActivityCreatePage";
 import ActivityDetailPage from "../pages/admin/activity/ActivityDetailPage";
 import AdminActivitiesPage from "../pages/admin/activity/AdminActivitiesPage";
 import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
+import AdminExamDetailPage from "../pages/admin/exam/AdminExamDetailPage";
+import AdminExamResultsPage from "../pages/admin/exam/AdminExamResultsPage";
+import AdminExamsPage from "../pages/admin/exam/AdminExamsPage";
+import AdminQuestionsPage from "../pages/admin/exam/AdminQuestionsPage";
 import AdminModulePage from "../pages/admin/shared/AdminModulePage";
 import AdminCertificatesPage from "../pages/admin/certificate/AdminCertificatesPage";
 import AdminCertificateDetailPage from "../pages/admin/certificate/AdminCertificateDetailPage";
@@ -30,6 +34,7 @@ import StudentActivitiesPage from "../pages/student/activity/StudentActivitiesPa
 import StudentActivityDetailPage from "../pages/student/activity/StudentActivityDetailPage";
 import StudentCertificateRequestPage from "../pages/student/certificate/StudentCertificateRequestPage";
 import StudentCertificatesPage from "../pages/student/certificate/StudentCertificatesPage";
+import ExamResultPage from "../pages/student/exam/ExamResultPage";
 import StudentExamsPage from "../pages/student/exam/StudentExamsPage";
 import ExamTakePage from "../pages/student/exam/ExamTakePage";
 import StudentDashboard from "../pages/student/dashboard/StudentDashboard";
@@ -40,7 +45,6 @@ import StudentProfilePage from "../pages/student/profile/StudentProfilePage";
 import {
   adminModuleMeta,
   certificates,
-  exams,
   studentModuleMeta,
 } from "../data/mockData";
 import { getDashboardPath, isAdminRole } from "../utils/authRouting";
@@ -131,19 +135,19 @@ function AppRoutes() {
         />
         <Route
           path="/admin/exams"
-          element={
-            <AdminModulePage meta={adminModuleMeta.exams} dataset={exams} />
-          }
+          element={<AdminExamsPage />}
+        />
+        <Route
+          path="/admin/exams/:id"
+          element={<AdminExamDetailPage />}
         />
         <Route
           path="/admin/questions"
-          element={
-            <AdminModulePage meta={adminModuleMeta.questions} dataset={exams} />
-          }
+          element={<AdminQuestionsPage />}
         />
         <Route
           path="/admin/exam-results"
-          element={<AdminModulePage meta={adminModuleMeta.examResults} />}
+          element={<AdminExamResultsPage />}
         />
         <Route path="/admin/activities" element={<AdminActivitiesPage />} />
         <Route path="/admin/activities/new" element={<ActivityCreatePage />} />
@@ -216,7 +220,7 @@ function AppRoutes() {
         <Route path="/student/exams/:id/take" element={<ExamTakePage />} />
         <Route
           path="/student/exams/:id/result"
-          element={<StudentModulePage meta={studentModuleMeta.examResult} />}
+          element={<ExamResultPage />}
         />
         <Route path="/student/activities" element={<StudentActivitiesPage />} />
         <Route

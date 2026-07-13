@@ -73,6 +73,8 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa bởi quản trị viên");
         }
 
+        redisService.clearRevokedAccess(user.getUsername());
+
         String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken();
 
@@ -96,6 +98,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setStatus(AuthUser.Status.ACTIVE);
         authUserRepository.save(user);
+
+        redisService.clearRevokedAccess(user.getUsername());
 
         String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken();

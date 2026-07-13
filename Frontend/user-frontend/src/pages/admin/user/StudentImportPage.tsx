@@ -102,7 +102,7 @@ function StudentImportPage() {
             <FileSpreadsheet className="h-12 w-12 text-primary" />
             <span className="mt-4 text-lg font-bold text-on-surface">{file ? file.name : "Chọn file Excel"}</span>
             <span className="mt-2 text-sm text-on-surface-variant">
-              Hỗ trợ .xlsx hoặc .xls, giữ nguyên dữ liệu tiếng Việt có dấu và đọc cột MSSV, họ tên, lớp, khoa, niên khóa.
+              Hỗ trợ .xlsx hoặc .xls, đọc cột MSSV, họ tên, lớp, khoa, niên khóa và Nhóm (1=Đầu khóa, 2=Giữa khóa, 3=Cuối khóa).
             </span>
             <input
               accept=".xlsx,.xls"

@@ -2,6 +2,7 @@ package com.userservice.service.impl;
 
 import com.userservice.client.AuthServiceClient;
 import com.userservice.domain.Clazz;
+import com.userservice.domain.StudentGroup;
 import com.userservice.domain.UserProfile;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.BulkRegisterMessage;
@@ -11,6 +12,7 @@ import com.userservice.dto.StudentImportRow;
 import com.userservice.exception.BadRequestException;
 import com.userservice.exception.ResourceNotFoundException;
 import com.userservice.repository.ClassRepository;
+import com.userservice.repository.StudentGroupRepository;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.OrganizationService;
 import com.userservice.service.UserService;
@@ -38,9 +40,11 @@ public class UserServiceImpl implements UserService {
     private static final int PROFILE_BATCH_SIZE = 250;
     private static final int AUTH_BATCH_SIZE = 100;
     private static final int MAX_STUDENTS_PER_CLASS = 120;
+    private static final String DEFAULT_STUDENT_GROUP_CODE = "1";
 
     private final UserProfileRepository userProfileRepository;
     private final ClassRepository classRepository;
+    private final StudentGroupRepository studentGroupRepository;
     private final AuthServiceClient authServiceClient;
     private final OrganizationService organizationService;
 
@@ -56,11 +60,17 @@ public class UserServiceImpl implements UserService {
         return userProfileRepository.findByStudentId(studentId);
     }
 
+    public List<StudentGroup> findAllStudentGroups() {
+        return studentGroupRepository.findAllByOrderByIdAsc();
+    }
+
     @Transactional
     public UserProfile save(UserProfile userProfile) {
         Clazz targetClazz = resolveClazz(userProfile);
+        StudentGroup targetGroup = resolveStudentGroupForCreate(userProfile);
         ensureClassHasRoom(null, targetClazz, 1);
         userProfile.setClazz(targetClazz);
+        userProfile.setStudentGroup(targetGroup);
         UserProfile savedProfile = userProfileRepository.save(userProfile);
         createAuthAccount(savedProfile);
         return savedProfile;
@@ -78,6 +88,7 @@ public class UserServiceImpl implements UserService {
         Set<String> seenStudentIds = new HashSet<>();
         Map<String, UserProfile> existingProfiles = loadExistingProfiles(rows);
         Map<String, Clazz> classCache = new HashMap<>();
+        Map<String, StudentGroup> studentGroupCache = loadStudentGroupCache();
 
         int totalRows = rows.size();
         int processedRows = 0;
@@ -106,16 +117,17 @@ public class UserServiceImpl implements UserService {
                     studentId + "@student.stu.edu.vn"
             ));
             Clazz clazz = resolveImportClass(row, organizationSummary, classCache);
+            StudentGroup studentGroup = resolveImportStudentGroup(row, studentGroupCache);
             Optional<UserProfile> existingProfile = Optional.ofNullable(existingProfiles.get(studentId));
 
             if (existingProfile.isPresent()) {
                 UserProfile profile = existingProfile.get();
-                applyImportRow(profile, row, clazz);
+                applyImportRow(profile, row, clazz, studentGroup);
                 updatedProfiles.add(profile);
             } else {
                 UserProfile profile = new UserProfile();
                 profile.setStudentStatus(UserProfile.StudentStatus.STUDYING);
-                applyImportRow(profile, row, clazz);
+                applyImportRow(profile, row, clazz, studentGroup);
                 newProfiles.add(profile);
             }
 
@@ -160,6 +172,7 @@ public class UserServiceImpl implements UserService {
     public UserProfile update(Long id, UserProfile userDetails) {
         return userProfileRepository.findById(id).map(user -> {
             Clazz targetClazz = resolveClazz(userDetails);
+            StudentGroup targetGroup = resolveStudentGroupForUpdate(user, userDetails);
             ensureClassHasRoom(user, targetClazz, 1);
             user.setFullName(userDetails.getFullName());
             user.setStudentId(userDetails.getStudentId());
@@ -167,6 +180,7 @@ public class UserServiceImpl implements UserService {
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
             user.setClazz(targetClazz);
+            user.setStudentGroup(targetGroup);
             user.setStudentStatus(userDetails.getStudentStatus());
             return userProfileRepository.save(user);
         }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
@@ -271,6 +285,25 @@ public class UserServiceImpl implements UserService {
         return classCache.computeIfAbsent(classCode, ignored -> organizationService.ensureClass(row, organizationSummary));
     }
 
+    private StudentGroup resolveImportStudentGroup(StudentImportRow row, Map<String, StudentGroup> studentGroupCache) {
+        String groupCode = clean(row.getStudentGroupCode());
+        if (groupCode.isBlank()) {
+            groupCode = DEFAULT_STUDENT_GROUP_CODE;
+        }
+
+        StudentGroup studentGroup = studentGroupCache.get(groupCode);
+        if (studentGroup == null) {
+            throw new BadRequestException("Mã nhóm sinh viên không hợp lệ: " + groupCode
+                    + ". Chỉ hỗ trợ 1=Đầu khóa, 2=Giữa khóa, 3=Cuối khóa.");
+        }
+        return studentGroup;
+    }
+
+    private Map<String, StudentGroup> loadStudentGroupCache() {
+        return studentGroupRepository.findAll().stream()
+                .collect(Collectors.toMap(StudentGroup::getCode, Function.identity()));
+    }
+
     private void createAuthAccount(UserProfile profile) {
         authServiceClient.registerAccount(new AuthServiceClient.RegisterRequest(
                 profile.getStudentId(),
@@ -285,6 +318,42 @@ public class UserServiceImpl implements UserService {
 
         return classRepository.findById(userProfile.getClazz().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + userProfile.getClazz().getId()));
+    }
+
+    private StudentGroup resolveStudentGroupForCreate(UserProfile userProfile) {
+        return resolveStudentGroup(userProfile == null ? null : userProfile.getStudentGroup())
+                .orElseGet(this::defaultStudentGroup);
+    }
+
+    private StudentGroup resolveStudentGroupForUpdate(UserProfile currentUser, UserProfile userDetails) {
+        if (userDetails.getStudentGroup() == null) {
+            return currentUser.getStudentGroup() == null ? defaultStudentGroup() : currentUser.getStudentGroup();
+        }
+        return resolveStudentGroup(userDetails.getStudentGroup()).orElseGet(this::defaultStudentGroup);
+    }
+
+    private Optional<StudentGroup> resolveStudentGroup(StudentGroup requestedGroup) {
+        if (requestedGroup == null) {
+            return Optional.empty();
+        }
+
+        if (requestedGroup.getId() != null) {
+            return Optional.of(studentGroupRepository.findById(requestedGroup.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm sinh viên với id: " + requestedGroup.getId())));
+        }
+
+        String code = clean(requestedGroup.getCode());
+        if (!code.isBlank()) {
+            return Optional.of(studentGroupRepository.findByCode(code)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm sinh viên với mã: " + code)));
+        }
+
+        return Optional.empty();
+    }
+
+    private StudentGroup defaultStudentGroup() {
+        return studentGroupRepository.findByCode(DEFAULT_STUDENT_GROUP_CODE)
+                .orElseThrow(() -> new ResourceNotFoundException("Chưa khởi tạo nhóm sinh viên mặc định."));
     }
 
     private List<UserProfile> loadStudentsByIds(List<Long> studentIds) {
@@ -340,7 +409,7 @@ public class UserServiceImpl implements UserService {
                 && Objects.equals(currentClazz.getId(), targetClazz.getId());
     }
 
-    private void applyImportRow(UserProfile profile, StudentImportRow row, Clazz clazz) {
+    private void applyImportRow(UserProfile profile, StudentImportRow row, Clazz clazz, StudentGroup studentGroup) {
         profile.setStudentId(clean(row.getStudentId()));
         profile.setFullName(clean(row.getFullName()));
 
@@ -356,6 +425,7 @@ public class UserServiceImpl implements UserService {
         if (clazz != null) {
             profile.setClazz(clazz);
         }
+        profile.setStudentGroup(studentGroup);
         if (profile.getStudentStatus() == null) {
             profile.setStudentStatus(UserProfile.StudentStatus.STUDYING);
         }
