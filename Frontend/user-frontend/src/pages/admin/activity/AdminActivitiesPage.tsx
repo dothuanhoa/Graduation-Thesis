@@ -6,12 +6,13 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { activityApi, type ActivityResponse } from "../../../services/api";
-import { activityCategoryLabels, formatActivityRange } from "../../../utils/activityUi";
+import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
 
 type ActivityRow = TableRow & {
   id: string;
   title: string;
   category: string;
+  participationType: string;
   time: string;
   capacity: string;
   status: StatusType;
@@ -21,14 +22,19 @@ const toRow = (activity: ActivityResponse): ActivityRow => ({
   id: activity.id,
   title: activity.title,
   category: activityCategoryLabels[activity.category],
+  participationType: activityParticipationLabels[activity.participationType || "LIMITED"],
   time: formatActivityRange(activity.startTime, activity.endTime),
-  capacity: `${activity.attendedCount ?? 0}/${activity.registrationCount ?? 0}${activity.capacity ? ` / ${activity.capacity}` : ""}`,
+  capacity:
+    (activity.participationType || "LIMITED") === "OPEN"
+      ? `${activity.attendedCount ?? 0} đã điểm danh`
+      : `${activity.attendedCount ?? 0}/${activity.registrationCount ?? 0}${activity.capacity ? ` / ${activity.capacity}` : ""}`,
   status: activity.status,
 });
 
 const columns: Column<ActivityRow>[] = [
   { header: "Tên hoạt động", key: "title" },
   { header: "Loại", key: "category" },
+  { header: "Hình thức", key: "participationType" },
   { header: "Thời gian", key: "time" },
   { header: "Điểm danh", key: "capacity" },
   { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.status} /> },

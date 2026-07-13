@@ -11,7 +11,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -112,23 +115,36 @@ public class AuthService {
     }
 
     public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
-        List<AuthUser> users = accounts.stream()
-                .filter(account -> authUserRepository.findByUsername(account.getUsername()).isEmpty())
+        Map<String, com.authservice.dto.BulkRegisterMessage.UserAccountDTO> uniqueAccounts = accounts.stream()
+                .filter(account -> account.getUsername() != null && !account.getUsername().isBlank())
+                .collect(Collectors.toMap(
+                        account -> account.getUsername().trim(),
+                        account -> account,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new
+                ));
+
+        Set<String> existingUsernames = authUserRepository.findByUsernameIn(uniqueAccounts.keySet())
+                .stream()
+                .map(AuthUser::getUsername)
+                .collect(Collectors.toSet());
+
+        List<AuthUser> users = uniqueAccounts.values().stream()
+                .filter(account -> !existingUsernames.contains(account.getUsername().trim()))
                 .map(account -> {
                     String randomPwd = UUID.randomUUID().toString().substring(0, 8);
                     AuthUser user = new AuthUser();
-                    user.setUsername(account.getUsername());
+                    user.setUsername(account.getUsername().trim());
                     user.setEmail(account.getEmail());
                     user.setPasswordHash(passwordEncoder.encode(randomPwd));
                     user.setRole(AuthUser.Role.STUDENT);
                     user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
-
-                    System.out.println("Created bulk account: " + account.getUsername() + " / Password: " + randomPwd);
                     return user;
                 })
                 .collect(Collectors.toList());
 
         authUserRepository.saveAll(users);
+        System.out.println("Created bulk accounts: " + users.size() + "/" + uniqueAccounts.size());
     }
 
     public void unlockUser(String username) {

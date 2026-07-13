@@ -3,11 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
-import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
-import { notificationApi, userApi, type NotificationResponse, type UserProfile } from "../../../services/api";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
+import { notificationApi, type NotificationResponse } from "../../../services/api";
 
 const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
@@ -35,9 +36,7 @@ const toNotice = (item: NotificationResponse): StudentNotice => ({
 });
 
 function StudentNotificationsPage() {
-  const { username } = useAuth();
   const [notices, setNotices] = useState<StudentNotice[]>([]);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -45,9 +44,7 @@ function StudentNotificationsPage() {
     setLoading(true);
     setMessage("");
     try {
-      const currentProfile = username ? await userApi.getByStudentId(username) : null;
-      const data = await notificationApi.listMineForProfile(currentProfile);
-      setProfile(currentProfile);
+      const data = await notificationApi.listMine();
       setNotices(data.map(toNotice));
     } catch (err) {
       setNotices([]);
@@ -55,7 +52,7 @@ function StudentNotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [username]);
+  }, []);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -81,6 +78,15 @@ function StudentNotificationsPage() {
     }
   };
 
+  const {
+    pageItems: paginatedNotices,
+    pageIndex,
+    pageSize,
+    totalItems,
+    setPageIndex,
+    setPageSize,
+  } = usePaginatedList(notices);
+
   return (
     <div className="space-y-gutter">
       <PageHeader
@@ -94,9 +100,7 @@ function StudentNotificationsPage() {
             <p className="text-sm font-semibold text-primary">{notices.filter((item) => !item.isRead).length} thông báo chưa đọc</p>
             <h2 className="text-xl font-bold text-on-surface">Hộp thư thông báo</h2>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Đang tải thông báo mới nhất
-              {profile?.clazz?.classCode ? ` · Lớp ${profile.clazz.classCode}` : ""}
-              {profile?.clazz?.faculty?.facultyCode ? ` · Khoa ${profile.clazz.faculty.facultyCode}` : ""}
+              Đang tải thông báo mới nhất dành cho tài khoản của bạn.
             </p>
           </div>
           <button
@@ -122,7 +126,7 @@ function StudentNotificationsPage() {
       )}
 
       <div className="space-y-4">
-        {notices.map((notice) => {
+        {paginatedNotices.map((notice) => {
           const preview = stripHtml(notice.content) || "Bấm xem chi tiết để đọc toàn bộ nội dung thông báo.";
 
           return (
@@ -164,6 +168,16 @@ function StudentNotificationsPage() {
           );
         })}
       </div>
+      {!loading && notices.length > 0 && (
+        <PaginationControls
+          itemLabel="thông báo"
+          onPageChange={setPageIndex}
+          onPageSizeChange={setPageSize}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          totalItems={totalItems}
+        />
+      )}
     </div>
   );
 }

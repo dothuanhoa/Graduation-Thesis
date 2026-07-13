@@ -2,10 +2,21 @@ import { Clock, FileText, PlayCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
 import { studentExams } from "../../../data/studentPortalData";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
 
 function StudentExamsPage() {
+  const {
+    pageItems: paginatedExams,
+    pageIndex,
+    pageSize,
+    totalItems,
+    setPageIndex,
+    setPageSize,
+  } = usePaginatedList(studentExams);
+
   return (
     <div className="space-y-gutter">
       <PageHeader
@@ -14,7 +25,7 @@ function StudentExamsPage() {
       />
 
       <div className="grid gap-gutter lg:grid-cols-3">
-        {studentExams.map((exam) => (
+        {paginatedExams.map((exam) => (
           <Card key={exam.id} className="flex flex-col">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div className="rounded-lg bg-primary-fixed p-3 text-primary">
@@ -54,6 +65,16 @@ function StudentExamsPage() {
           </Card>
         ))}
       </div>
+      {studentExams.length > 0 && (
+        <PaginationControls
+          itemLabel="kỳ thi"
+          onPageChange={setPageIndex}
+          onPageSizeChange={setPageSize}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          totalItems={totalItems}
+        />
+      )}
     </div>
   );
 }

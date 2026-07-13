@@ -53,6 +53,28 @@ export type UserProfile = {
 
 export type UserProfilePayload = Omit<UserProfile, "id">;
 
+export type BulkStudentUpdateResponse = {
+  updatedCount: number;
+  message: string;
+};
+
+export type StudentImportJobStatus = {
+  jobId: string;
+  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  totalRows: number;
+  processedRows: number;
+  createdStudents: number;
+  updatedStudents: number;
+  skippedStudents: number;
+  authProcessed: number;
+  authTotal: number;
+  progressPercent: number;
+  message?: string;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+};
+
 export type OrganizationStatus = "ACTIVE" | "INACTIVE";
 
 export type AcademicYearResponse = {
@@ -128,17 +150,19 @@ export type NotificationResponse = NotificationPayload & {
 };
 
 export type ActivityCategory = "ACADEMIC" | "MOVEMENT" | "FACULTY" | "UNIVERSITY" | "OTHER";
+export type ActivityParticipationType = "LIMITED" | "OPEN";
 export type ActivityStatus = "UPCOMING" | "ONGOING" | "COMPLETED";
 
 export type ActivityPayload = {
   title: string;
   category: ActivityCategory;
   reward: string;
-  googleFormUrl: string;
+  participationType: ActivityParticipationType;
+  googleFormUrl?: string;
   location: string;
   startTime: string;
   endTime: string;
-  capacity: number;
+  capacity?: number;
 };
 
 export type ActivityResponse = ActivityPayload & {
@@ -245,7 +269,7 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
       message = data;
     }
     const userMessage = toUserFacingMessage(errorMessage || message);
-    if (!suppressToast) {
+    if (!suppressToast && res.status !== 401) {
       emitToast({ variant: "error", message: userMessage });
     }
     throw new ApiError(res.status, userMessage, data);
@@ -298,7 +322,7 @@ export const userApi = {
   getById(id: string | number) {
     return apiRequest<UserProfile>(`/api/users/${id}`);
   },
-  async getByStudentId(studentId: string) {
+  async getByStudentId(studentId: string, options: { suppressToast?: boolean } = {}) {
     const cleanStudentId = studentId.trim();
     if (!cleanStudentId) return null;
 
@@ -308,6 +332,10 @@ export const userApi = {
       });
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
+        return null;
+      }
+
+      if (options.suppressToast) {
         return null;
       }
 
@@ -333,12 +361,44 @@ export const userApi = {
       method: "DELETE",
     });
   },
+  assignStudentsToClass(studentIds: Array<string | number>, classId: string | number) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/class", {
+      method: "PATCH",
+      body: JSON.stringify({
+        studentIds,
+        classId,
+      }),
+    });
+  },
+  updateStudentStatuses(studentIds: Array<string | number>, status: NonNullable<UserProfile["studentStatus"]>) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/status", {
+      method: "PATCH",
+      body: JSON.stringify({
+        studentIds,
+        status,
+      }),
+    });
+  },
   importExcel(file: File) {
     const formData = new FormData();
     formData.append("file", file);
     return apiRequest<string>("/api/users/import", {
       method: "POST",
       body: formData,
+    });
+  },
+  startImportJob(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<StudentImportJobStatus>("/api/users/import/jobs", {
+      method: "POST",
+      body: formData,
+      successMessage: "Đã bắt đầu import danh sách sinh viên.",
+    });
+  },
+  getImportJob(jobId: string) {
+    return apiRequest<StudentImportJobStatus>(`/api/users/import/jobs/${encodeURIComponent(jobId)}`, {
+      suppressToast: true,
     });
   },
   updateMyContact(contactPhone: string) {
@@ -352,6 +412,14 @@ export const userApi = {
 export const facultyApi = {
   list() {
     return apiRequest<FacultyResponse[]>("/api/users/faculties");
+  },
+  importExcel(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<string>("/api/users/faculties/import", {
+      method: "POST",
+      body: formData,
+    });
   },
   create(payload: FacultyPayload) {
     return apiRequest<FacultyResponse>("/api/users/faculties", {
@@ -376,6 +444,14 @@ export const academicYearApi = {
   list() {
     return apiRequest<AcademicYearResponse[]>("/api/users/academic-years");
   },
+  importExcel(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<string>("/api/users/academic-years/import", {
+      method: "POST",
+      body: formData,
+    });
+  },
   create(payload: AcademicYearPayload) {
     return apiRequest<AcademicYearResponse>("/api/users/academic-years", {
       method: "POST",
@@ -398,6 +474,14 @@ export const academicYearApi = {
 export const classApi = {
   list() {
     return apiRequest<ClassResponse[]>("/api/users/classes");
+  },
+  importExcel(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<string>("/api/users/classes/import", {
+      method: "POST",
+      body: formData,
+    });
   },
   create(payload: ClassPayload) {
     return apiRequest<ClassResponse>("/api/users/classes", {
@@ -439,12 +523,14 @@ export const notificationApi = {
       method: "DELETE",
     });
   },
-  listMine(params: { facultyId?: string; classId?: string } = {}) {
+  listMine(params: { facultyId?: string; classId?: string } = {}, options: { suppressToast?: boolean } = {}) {
     const search = new URLSearchParams();
     if (params.facultyId) search.set("facultyId", params.facultyId);
     if (params.classId) search.set("classId", params.classId);
     const query = search.toString();
-    return apiRequest<NotificationResponse[]>(`/api/notifications/my${query ? `?${query}` : ""}`);
+    return apiRequest<NotificationResponse[]>(`/api/notifications/my${query ? `?${query}` : ""}`, {
+      suppressToast: options.suppressToast,
+    });
   },
   async listMineForProfile(profile: UserProfile | null) {
     const unique = (values: Array<string | undefined>) => Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]));
@@ -541,11 +627,15 @@ export type PageResponse<T> = {
 // --- Certification Service APIs ---
 
 export const activityApi = {
-  list() {
-    return apiRequest<ActivityResponse[]>("/api/activities");
+  list(options: { suppressToast?: boolean } = {}) {
+    return apiRequest<ActivityResponse[]>("/api/activities", {
+      suppressToast: options.suppressToast,
+    });
   },
-  listMyCheckerActivities() {
-    return apiRequest<ActivityResponse[]>("/api/activities/checker/me");
+  listMyCheckerActivities(options: { suppressToast?: boolean } = {}) {
+    return apiRequest<ActivityResponse[]>("/api/activities/checker/me", {
+      suppressToast: options.suppressToast,
+    });
   },
   get(id: string) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`);

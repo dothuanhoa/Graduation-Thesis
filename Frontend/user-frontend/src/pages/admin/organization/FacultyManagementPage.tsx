@@ -1,9 +1,12 @@
 import { Edit3, PlusCircle, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Card from "../../../components/Card";
+import ExcelImportButton from "../../../components/ExcelImportButton";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { facultyApi, type FacultyPayload, type FacultyResponse, type OrganizationStatus } from "../../../services/api";
 import { facultySchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
@@ -22,6 +25,7 @@ function FacultyManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadFaculties = useCallback(async () => {
@@ -84,6 +88,21 @@ function FacultyManagementPage() {
     }
   };
 
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    setMessage("");
+
+    try {
+      const result = await facultyApi.importExcel(file);
+      await loadFaculties();
+      setMessage(result || "Đã import khoa từ Excel.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không import được danh sách khoa.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const startEdit = (faculty: FacultyResponse) => {
     setEditingId(faculty.id);
     setFormData({
@@ -107,11 +126,20 @@ function FacultyManagementPage() {
     }
   };
 
+  const {
+    pageItems: paginatedFaculties,
+    pageIndex,
+    pageSize,
+    totalItems,
+    setPageIndex,
+    setPageSize,
+  } = usePaginatedList(faculties);
+
   return (
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý khoa"
-        subtitle="Tạo và cập nhật danh mục khoa để phân lớp, lọc thông báo và quản lý hồ sơ sinh viên."
+        subtitle="Tạo, cập nhật và import danh mục khoa để phân lớp, lọc thông báo và quản lý hồ sơ sinh viên."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
@@ -122,10 +150,13 @@ function FacultyManagementPage() {
             <p className="text-sm font-semibold text-primary">{editingId ? "Cập nhật khoa" : "Thêm khoa mới"}</p>
             <h2 className="text-xl font-bold text-on-surface">Thông tin khoa</h2>
           </div>
-          <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadFaculties} type="button">
-            <RotateCcw className="h-5 w-5" />
-            Tải lại
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <ExcelImportButton loading={importing} onImport={handleImport} />
+            <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadFaculties} type="button">
+              <RotateCcw className="h-5 w-5" />
+              Tải lại
+            </button>
+          </div>
         </div>
 
         <form className="grid gap-4 md:grid-cols-[0.8fr_1.6fr_0.8fr_auto]" onSubmit={handleSubmit}>
@@ -169,7 +200,7 @@ function FacultyManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {faculties.map((faculty) => (
+              {paginatedFaculties.map((faculty) => (
                 <tr key={faculty.id} className="border-t border-outline-variant">
                   <td className="px-5 py-4 font-bold text-on-surface">{faculty.facultyCode}</td>
                   <td className="px-5 py-4 text-on-surface-variant">{faculty.facultyName}</td>
@@ -193,6 +224,16 @@ function FacultyManagementPage() {
           {!loading && faculties.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Chưa có khoa nào.</p>}
           {loading && <p className="px-5 py-6 text-sm text-on-surface-variant">Đang tải danh sách khoa...</p>}
         </div>
+        {!loading && faculties.length > 0 && (
+          <PaginationControls
+            itemLabel="khoa"
+            onPageChange={setPageIndex}
+            onPageSizeChange={setPageSize}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalItems={totalItems}
+          />
+        )}
       </Card>
     </div>
   );

@@ -10,13 +10,8 @@ import {
   GraduationCap,
   LayoutDashboard,
   ListChecks,
-  LogOut,
-  Medal,
   MessageSquare,
   NotebookTabs,
-  ScrollText,
-  Settings,
-  ShieldCheck,
   UserCog,
   Users,
 } from "lucide-react";
@@ -71,15 +66,6 @@ export const adminNav: NavItem[] = [
   { label: "Kỳ thi", path: "/admin/exams", icon: NotebookTabs },
   { label: "Hoạt động", path: "/admin/activities", icon: CalendarCheck },
   { label: "Đơn từ", path: "/admin/certificates", icon: FileCheck2 },
-  // { label: "Khen thưởng", path: "/admin/rewards", icon: Medal },
-  { label: "Cài đặt", path: "/admin/settings", icon: Settings },
-];
-
-export const adminUtilityNav: NavItem[] = [
-  { label: "Phân quyền", path: "/admin/roles", icon: ShieldCheck },
-  { label: "Người dùng", path: "/admin/users", icon: UserCog },
-  { label: "Nhật ký", path: "/admin/audit-logs", icon: ScrollText },
-  { label: "Đăng xuất", path: "/login", icon: LogOut },
 ];
 
 export const studentNav: NavItem[] = [

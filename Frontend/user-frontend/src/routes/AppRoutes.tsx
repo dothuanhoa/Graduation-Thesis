@@ -37,19 +37,12 @@ import StudentModulePage from "../pages/student/shared/StudentModulePage";
 import StudentNotificationDetailPage from "../pages/student/notification/StudentNotificationDetailPage";
 import StudentNotificationsPage from "../pages/student/notification/StudentNotificationsPage";
 import StudentProfilePage from "../pages/student/profile/StudentProfilePage";
-import StudentRecordsPage from "../pages/student/record/StudentRecordsPage";
-import StudentSettingsPage from "../pages/student/settings/StudentSettingsPage";
-import StudentSupportPage from "../pages/student/support/StudentSupportPage";
 import {
   adminModuleMeta,
-  auditLogs,
   certificates,
-  discipline,
   exams,
-  rewards,
   studentModuleMeta,
 } from "../data/mockData";
-import { studentDiscipline, studentRewards } from "../data/studentPortalData";
 import { getDashboardPath, isAdminRole } from "../utils/authRouting";
 
 function GuestOnlyRoute({ children }: { children: ReactNode }) {
@@ -194,53 +187,6 @@ function AppRoutes() {
           path="/admin/reports/activities"
           element={<AdminModulePage meta={adminModuleMeta.reportsActivities} />}
         />
-        <Route
-          path="/admin/settings"
-          element={<AdminModulePage meta={adminModuleMeta.settings} />}
-        />
-        <Route
-          path="/admin/roles"
-          element={
-            <AdminModulePage meta={adminModuleMeta.roles} dataset={auditLogs} />
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <AdminModulePage meta={adminModuleMeta.users} dataset={auditLogs} />
-          }
-        />
-        <Route
-          path="/admin/audit-logs"
-          element={
-            <AdminModulePage
-              meta={adminModuleMeta.auditLogs}
-              dataset={auditLogs}
-            />
-          }
-        />
-        {/* <Route path="/admin/rewards" element={<AdminModulePage meta={adminModuleMeta.rewards} dataset={rewards} />} /> */}
-        <Route
-          path="/admin/discipline"
-          element={
-            <AdminModulePage
-              meta={adminModuleMeta.discipline}
-              dataset={discipline}
-            />
-          }
-        />
-        <Route
-          path="/admin/reward-criteria"
-          element={<AdminModulePage meta={adminModuleMeta.rewardCriteria} />}
-        />
-        <Route
-          path="/admin/rewards/:id"
-          element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />}
-        />
-        <Route
-          path="/admin/discipline/:id"
-          element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />}
-        />
       </Route>
 
       <Route
@@ -285,30 +231,6 @@ function AppRoutes() {
           path="/student/certificates/new"
           element={<StudentCertificateRequestPage />}
         />
-        {/* <Route
-          path="/student/rewards"
-          element={
-            <StudentRecordsPage
-              records={studentRewards}
-              subtitle="Theo dõi danh hiệu, quyết định khen thưởng và hồ sơ minh chứng đã ghi nhận."
-              title="Khen thưởng của tôi"
-              variant="reward"
-            />
-          }
-        /> */}
-        <Route
-          path="/student/discipline"
-          element={
-            <StudentRecordsPage
-              records={studentDiscipline}
-              subtitle="Theo dõi trạng thái kỷ luật, nhắc nhở và các quyết định liên quan nếu có."
-              title="Kỷ luật sinh viên"
-              variant="discipline"
-            />
-          }
-        />
-        <Route path="/student/support" element={<StudentSupportPage />} />
-        <Route path="/student/settings" element={<StudentSettingsPage />} />
       </Route>
 
       <Route

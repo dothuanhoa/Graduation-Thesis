@@ -5,15 +5,9 @@ import {
   ClipboardCheck,
   FileCheck2,
   GraduationCap,
-  HelpCircle,
   LayoutDashboard,
-  LifeBuoy,
-  LogOut,
   NotebookTabs,
   QrCode,
-  Settings,
-  ShieldAlert,
-  Trophy,
   UserRound,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -64,15 +58,6 @@ export type StudentCertificate = {
   status: StatusType;
 };
 
-export type StudentRecord = {
-  id: string;
-  title: string;
-  date: string;
-  source: string;
-  note: string;
-  status: StatusType;
-};
-
 export type StudentNotice = {
   id: string;
   title: string;
@@ -94,17 +79,6 @@ export const studentMainNav: StudentNavItem[] = [
   { label: "Hoạt động", path: "/student/activities", icon: CalendarCheck },
   { label: "Điểm danh", path: "/checker/scan", icon: QrCode },
   { label: "Đơn xác nhận", path: "/student/certificates", icon: FileCheck2 },
-];
-
-export const studentSecondaryNav: StudentNavItem[] = [
-  // { label: "Khen thưởng", path: "/student/rewards", icon: Trophy },
-  // { label: "Kỷ luật", path: "/student/discipline", icon: ShieldAlert },
-  // { label: "Hỗ trợ", path: "/student/support", icon: LifeBuoy },
-];
-
-export const studentUtilityNav: StudentNavItem[] = [
-  { label: "Cài đặt", path: "/student/settings", icon: Settings },
-  { label: "Đăng xuất", path: "/login", icon: LogOut },
 ];
 
 export const studentBottomNav: StudentNavItem[] = [
@@ -300,36 +274,6 @@ export const studentCertificates: StudentCertificate[] = [
   },
 ];
 
-export const studentRewards: StudentRecord[] = [
-  {
-    id: "reward-001",
-    title: "Sinh viên 5 tốt cấp khoa",
-    date: "12/06/2026",
-    source: "Khoa Công nghệ thông tin",
-    note: "Đủ tiêu chí học tập, rèn luyện và tình nguyện.",
-    status: "APPROVED",
-  },
-  {
-    id: "reward-002",
-    title: "Thành tích nghiên cứu khoa học",
-    date: "08/06/2026",
-    source: "Phòng Công tác sinh viên",
-    note: "Hồ sơ đang chờ đối chiếu minh chứng.",
-    status: "PENDING",
-  },
-];
-
-export const studentDiscipline: StudentRecord[] = [
-  {
-    id: "discipline-001",
-    title: "Không có quyết định kỷ luật còn hiệu lực",
-    date: "Cập nhật 23/06/2026",
-    source: "Phòng Công tác sinh viên",
-    note: "Sinh viên đang ở trạng thái học tập bình thường.",
-    status: "COMPLETED",
-  },
-];
-
 export const profileTimeline = [
   {
     title: "Tạo hồ sơ sinh viên",
@@ -345,29 +289,6 @@ export const profileTimeline = [
     title: "Đối chiếu lớp và khoa",
     time: "Theo dữ liệu quản trị",
     status: "PENDING" as StatusType,
-  },
-];
-
-export const supportTopics = [
-  {
-    title: "Tài khoản và mật khẩu",
-    helper: "Hỗ trợ đăng nhập, đổi mật khẩu lần đầu",
-    icon: HelpCircle,
-  },
-  {
-    title: "Giấy xác nhận",
-    helper: "Tra cứu hồ sơ, lịch hẹn, trạng thái xử lý",
-    icon: FileCheck2,
-  },
-  {
-    title: "Hoạt động ngoại khóa",
-    helper: "Đăng ký, điểm danh và điểm rèn luyện",
-    icon: CalendarCheck,
-  },
-  {
-    title: "Kỳ thi trực tuyến",
-    helper: "Lỗi làm bài, kết quả và số lượt thi",
-    icon: NotebookTabs,
   },
 ];
 

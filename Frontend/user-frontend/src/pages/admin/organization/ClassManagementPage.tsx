@@ -1,9 +1,12 @@
 import { Edit3, PlusCircle, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Card from "../../../components/Card";
+import ExcelImportButton from "../../../components/ExcelImportButton";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import {
   academicYearApi,
   classApi,
@@ -45,6 +48,7 @@ function ClassManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadData = useCallback(async () => {
@@ -127,6 +131,21 @@ function ClassManagementPage() {
     }
   };
 
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    setMessage("");
+
+    try {
+      const result = await classApi.importExcel(file);
+      await loadData();
+      setMessage(result || "Đã import lớp từ Excel.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không import được danh sách lớp.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const startEdit = (clazz: ClassResponse) => {
     setEditingId(clazz.id);
     setFormData({
@@ -153,11 +172,20 @@ function ClassManagementPage() {
     }
   };
 
+  const {
+    pageItems: paginatedClasses,
+    pageIndex,
+    pageSize,
+    totalItems,
+    setPageIndex,
+    setPageSize,
+  } = usePaginatedList(classes);
+
   return (
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý lớp"
-        subtitle="Tạo lớp theo khoa và niên khóa để phân hồ sơ sinh viên, lọc thông báo và thống kê dữ liệu."
+        subtitle="Tạo, cập nhật và import lớp theo khoa, niên khóa để quản lý hồ sơ sinh viên chính xác hơn."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
@@ -168,10 +196,13 @@ function ClassManagementPage() {
             <p className="text-sm font-semibold text-primary">{editingId ? "Cập nhật lớp" : "Thêm lớp mới"}</p>
             <h2 className="text-xl font-bold text-on-surface">Thông tin lớp</h2>
           </div>
-          <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadData} type="button">
-            <RotateCcw className="h-5 w-5" />
-            Tải lại
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <ExcelImportButton loading={importing} onImport={handleImport} />
+            <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadData} type="button">
+              <RotateCcw className="h-5 w-5" />
+              Tải lại
+            </button>
+          </div>
         </div>
 
         <form className="grid gap-4 lg:grid-cols-[0.9fr_1.2fr_1.2fr_0.8fr_auto]" onSubmit={handleSubmit}>
@@ -266,7 +297,7 @@ function ClassManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {classes.map((clazz) => (
+              {paginatedClasses.map((clazz) => (
                 <tr key={clazz.id} className="border-t border-outline-variant">
                   <td className="px-5 py-4 font-bold text-on-surface">{clazz.classCode}</td>
                   <td className="px-5 py-4 text-on-surface-variant">
@@ -292,6 +323,16 @@ function ClassManagementPage() {
           {!loading && classes.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Chưa có lớp nào.</p>}
           {loading && <p className="px-5 py-6 text-sm text-on-surface-variant">Đang tải danh sách lớp...</p>}
         </div>
+        {!loading && classes.length > 0 && (
+          <PaginationControls
+            itemLabel="lớp"
+            onPageChange={setPageIndex}
+            onPageSizeChange={setPageSize}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalItems={totalItems}
+          />
+        )}
       </Card>
     </div>
   );

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
-import { activityApi, type ActivityCategory, type ActivityPayload } from "../../../services/api";
+import { activityApi, type ActivityCategory, type ActivityParticipationType, type ActivityPayload } from "../../../services/api";
 import { toApiDateTime } from "../../../utils/activityUi";
 import { activitySchema } from "../../../validation/activitySchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
@@ -12,6 +12,7 @@ import { getZodMessage } from "../../../validation/userSchemas";
 type ActivityFormState = {
   title: string;
   category: ActivityCategory;
+  participationType: ActivityParticipationType;
   reward: string;
   googleFormUrl: string;
   location: string;
@@ -23,6 +24,7 @@ type ActivityFormState = {
 const initialForm: ActivityFormState = {
   title: "",
   category: "UNIVERSITY",
+  participationType: "LIMITED",
   reward: "",
   googleFormUrl: "",
   location: "",
@@ -34,12 +36,13 @@ const initialForm: ActivityFormState = {
 const toPayload = (form: ActivityFormState): ActivityPayload => ({
   title: form.title.trim(),
   category: form.category,
+  participationType: form.participationType,
   reward: form.reward.trim(),
-  googleFormUrl: form.googleFormUrl.trim(),
+  googleFormUrl: form.participationType === "LIMITED" ? form.googleFormUrl.trim() : undefined,
   location: form.location.trim(),
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
-  capacity: Number(form.capacity),
+  capacity: form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
 });
 
 function ActivityCreatePage() {
@@ -49,7 +52,11 @@ function ActivityCreatePage() {
   const [message, setMessage] = useState("");
 
   const updateField = (field: keyof ActivityFormState, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "participationType" && value === "OPEN" ? { capacity: "", googleFormUrl: "" } : {}),
+    }));
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -93,12 +100,31 @@ function ActivityCreatePage() {
             options={["ACADEMIC", "MOVEMENT", "FACULTY", "UNIVERSITY", "OTHER"]}
             value={form.category}
           />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">Hình thức tham gia</span>
+            <select
+              className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+              onChange={(event) => updateField("participationType", event.target.value)}
+              value={form.participationType}
+            >
+              <option value="LIMITED">Giới hạn đăng ký</option>
+              <option value="OPEN">Tự do tham gia</option>
+            </select>
+          </label>
           <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} placeholder="Ví dụ: +5 điểm" required value={form.reward} />
-          <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+          {form.participationType === "LIMITED" && (
+            <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+          )}
           <FormField label="Thời gian bắt đầu" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
           <FormField label="Thời gian kết thúc" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
           <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
-          <FormField label="Google Form đăng ký" onChange={(event) => updateField("googleFormUrl", event.target.value)} placeholder="https://forms.gle/..." required value={form.googleFormUrl} />
+          {form.participationType === "LIMITED" ? (
+            <FormField label="Google Form đăng ký" onChange={(event) => updateField("googleFormUrl", event.target.value)} placeholder="https://forms.gle/..." required value={form.googleFormUrl} />
+          ) : (
+            <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
+              Hoạt động tự do không cần Google Form và không giới hạn số lượng. Khi điểm danh, hệ thống chỉ kiểm tra MSSV có tồn tại trong hồ sơ sinh viên.
+            </div>
+          )}
 
           <div className="md:col-span-2">
             <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={saving} type="submit">

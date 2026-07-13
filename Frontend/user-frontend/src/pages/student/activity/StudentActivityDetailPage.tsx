@@ -5,7 +5,7 @@ import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import { activityApi, type ActivityResponse } from "../../../services/api";
-import { activityCategoryLabels, formatActivityRange } from "../../../utils/activityUi";
+import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
 
 function StudentActivityDetailPage() {
   const { id = "" } = useParams();
@@ -51,6 +51,7 @@ function StudentActivityDetailPage() {
       </div>
     );
   }
+  const isLimitedActivity = (activity.participationType || "LIMITED") === "LIMITED";
 
   return (
     <div className="space-y-gutter">
@@ -88,12 +89,14 @@ function StudentActivityDetailPage() {
           <div className="rounded-lg bg-surface-container-low p-4">
             <p className="flex items-center gap-2 font-semibold text-on-surface">
               <TicketCheck className="h-5 w-5 text-primary" />
-              Đăng ký
+              {isLimitedActivity ? "Đăng ký" : "Tham gia"}
             </p>
             <p className="mt-2 text-sm text-on-surface-variant">
-              {activity.registrationCount ?? 0} sinh viên đã đăng ký
-              {activity.capacity ? ` / tối đa ${activity.capacity}` : ""}
+              {isLimitedActivity
+                ? `${activity.registrationCount ?? 0} sinh viên đã đăng ký${activity.capacity ? ` / tối đa ${activity.capacity}` : ""}`
+                : "Hoạt động tự do, sinh viên có thể tham gia và điểm danh trực tiếp tại chương trình."}
             </p>
+            <p className="mt-2 text-xs font-semibold text-primary">{activityParticipationLabels[activity.participationType || "LIMITED"]}</p>
           </div>
           <div className="rounded-lg bg-surface-container-low p-4">
             <p className="font-semibold text-on-surface">Điểm rèn luyện</p>
@@ -101,7 +104,7 @@ function StudentActivityDetailPage() {
           </div>
         </div>
 
-        {activity.googleFormUrl && activity.status !== "COMPLETED" && (
+        {isLimitedActivity && activity.googleFormUrl && activity.status !== "COMPLETED" && (
           <a className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-on-primary" href={activity.googleFormUrl} rel="noreferrer" target="_blank">
             <ExternalLink className="h-5 w-5" />
             Mở form đăng ký

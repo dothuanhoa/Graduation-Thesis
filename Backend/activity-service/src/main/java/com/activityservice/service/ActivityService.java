@@ -112,12 +112,14 @@ public class ActivityService {
     @Transactional
     public ImportResult importRegistrations(Long activityId, MultipartFile file) {
         Activity activity = getActivity(activityId);
+        requireLimitedActivity(activity);
         if (activity.getStatus() != Activity.Status.UPCOMING) {
             throw new BadRequestException("Chỉ được import danh sách đăng ký trước khi hoạt động ONGOING");
         }
 
         int imported = 0;
         int skipped = 0;
+        long currentRegistrationCount = registrationRepository.countByActivityId(activityId);
         List<String> errors = new ArrayList<>();
 
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = new XSSFWorkbook(inputStream)) {
@@ -152,6 +154,12 @@ public class ActivityService {
                         || registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
                     skipped++;
                     errors.add("Dòng " + rowNumber + ": MSSV " + studentCode + " đã tồn tại trong hoạt động");
+                    continue;
+                }
+
+                if (activity.getCapacity() != null && currentRegistrationCount + imported >= activity.getCapacity()) {
+                    skipped++;
+                    errors.add("Dòng " + rowNumber + ": Hoạt động đã đủ số lượng tối đa");
                     continue;
                 }
 
@@ -193,6 +201,8 @@ public class ActivityService {
 
     @Transactional
     public void removeRegistration(Long activityId, Long registrationId) {
+        Activity activity = getActivity(activityId);
+        requireLimitedActivity(activity);
         ActivityRegistration registration = registrationRepository.findById(registrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sinh viên đăng ký"));
 
@@ -209,6 +219,7 @@ public class ActivityService {
     @Transactional
     public RegistrationResponse addRegistration(Long activityId, RegistrationRequest request) {
         Activity activity = getActivity(activityId);
+        requireLimitedActivity(activity);
         if (activity.getStatus() != Activity.Status.UPCOMING) {
             throw new BadRequestException("Chỉ được thêm sinh viên đăng ký trước khi hoạt động ONGOING");
         }
@@ -222,6 +233,9 @@ public class ActivityService {
         }
         if (registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
             throw new BadRequestException("MSSV " + studentCode + " đã tồn tại trong hoạt động");
+        }
+        if (activity.getCapacity() != null && registrationRepository.countByActivityId(activityId) >= activity.getCapacity()) {
+            throw new BadRequestException("Hoạt động đã đủ số lượng tối đa");
         }
 
         UserProfileDTO studentProfile = requireMatchingStudent(studentCode, fullName, "sinh viên");
@@ -295,9 +309,7 @@ public class ActivityService {
             throw new ForbiddenException("Tài khoản hiện tại không được ủy quyền điểm danh hoạt động này");
         }
 
-        ActivityRegistration registration = registrationRepository
-                .findByActivityIdAndStudentCodeIgnoreCase(activityId, request.getStudentCode())
-                .orElseThrow(() -> new ResourceNotFoundException("MSSV không nằm trong danh sách đăng ký hợp lệ"));
+        ActivityRegistration registration = resolveCheckinRegistration(activity, request.getStudentCode());
 
         if (!registration.isAttended()) {
             registration.setAttended(true);
@@ -315,11 +327,56 @@ public class ActivityService {
         activity.setTitle(request.getTitle());
         activity.setCategory(request.getCategory());
         activity.setReward(request.getReward());
-        activity.setGoogleFormUrl(request.getGoogleFormUrl());
+        activity.setParticipationType(resolveParticipationType(request.getParticipationType()));
+        if (activity.getParticipationType() == Activity.ParticipationType.OPEN) {
+            activity.setGoogleFormUrl("");
+            activity.setCapacity(null);
+        } else {
+            activity.setGoogleFormUrl(request.getGoogleFormUrl() == null ? "" : request.getGoogleFormUrl().trim());
+            activity.setCapacity(request.getCapacity());
+        }
         activity.setLocation(request.getLocation());
         activity.setStartTime(request.getStartTime());
         activity.setEndTime(request.getEndTime());
-        activity.setCapacity(request.getCapacity());
+    }
+
+    private ActivityRegistration resolveCheckinRegistration(Activity activity, String studentCode) {
+        Long activityId = activity.getId();
+        String cleanStudentCode = studentCode.trim();
+        if (getParticipationType(activity) == Activity.ParticipationType.LIMITED) {
+            return registrationRepository
+                    .findByActivityIdAndStudentCodeIgnoreCase(activityId, cleanStudentCode)
+                    .orElseThrow(() -> new ResourceNotFoundException("MSSV không nằm trong danh sách đăng ký hợp lệ"));
+        }
+
+        ActivityRegistration registration = registrationRepository
+                .findByActivityIdAndStudentCodeIgnoreCase(activityId, cleanStudentCode)
+                .orElseGet(() -> createOpenActivityRegistration(activity, cleanStudentCode));
+        return registration;
+    }
+
+    private ActivityRegistration createOpenActivityRegistration(Activity activity, String studentCode) {
+        UserProfileDTO studentProfile = requireExistingStudent(studentCode, "sinh viên");
+        ActivityRegistration registration = new ActivityRegistration();
+        registration.setActivity(activity);
+        registration.setStudentCode(studentProfile.getStudentId().trim());
+        registration.setFullName(studentProfile.getFullName().trim());
+        registration.setUserTsid(studentProfile.getStudentId().trim());
+        return registrationRepository.save(registration);
+    }
+
+    private void requireLimitedActivity(Activity activity) {
+        if (getParticipationType(activity) == Activity.ParticipationType.OPEN) {
+            throw new BadRequestException("Hoạt động tự do không cần danh sách đăng ký");
+        }
+    }
+
+    private Activity.ParticipationType getParticipationType(Activity activity) {
+        return activity.getParticipationType() == null ? Activity.ParticipationType.LIMITED : activity.getParticipationType();
+    }
+
+    private Activity.ParticipationType resolveParticipationType(Activity.ParticipationType participationType) {
+        return participationType == null ? Activity.ParticipationType.LIMITED : participationType;
     }
 
     private void validateTimeWindow(LocalDateTime startTime, LocalDateTime endTime) {
@@ -356,6 +413,25 @@ public class ActivityService {
         return profile;
     }
 
+    private UserProfileDTO requireExistingStudent(String studentCode, String subjectLabel) {
+        UserProfileDTO profile;
+        try {
+            profile = userClient.getStudentProfile(studentCode);
+        } catch (FeignException.NotFound ex) {
+            throw new BadRequestException("Không tìm thấy " + subjectLabel + " có mã " + studentCode + " trong hệ thống");
+        } catch (FeignException ex) {
+            throw new BadRequestException("Chưa kiểm tra được thông tin " + subjectLabel + " " + studentCode + ", vui lòng thử lại");
+        }
+
+        if (profile == null || profile.getStudentId() == null || profile.getFullName() == null) {
+            throw new BadRequestException("Hồ sơ " + subjectLabel + " " + studentCode + " chưa đầy đủ thông tin");
+        }
+        if (!normalizeText(profile.getStudentId()).equals(normalizeText(studentCode))) {
+            throw new BadRequestException("Mã " + subjectLabel + " không khớp với hồ sơ");
+        }
+        return profile;
+    }
+
     private String normalizeText(String value) {
         if (value == null) {
             return "";
@@ -377,6 +453,7 @@ public class ActivityService {
                 .title(activity.getTitle())
                 .category(activity.getCategory())
                 .reward(activity.getReward())
+                .participationType(getParticipationType(activity))
                 .googleFormUrl(activity.getGoogleFormUrl())
                 .location(activity.getLocation())
                 .startTime(activity.getStartTime())
