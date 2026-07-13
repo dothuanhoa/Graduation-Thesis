@@ -5,7 +5,10 @@ import DataTable, { type Column } from "../../../components/DataTable";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
-import { certificationRequestApi, type ConfirmationRequest } from "../../../services/api";
+import {
+  certificationRequestApi,
+  type ConfirmationRequest,
+} from "../../../services/api";
 
 type RequestRow = TableRow & {
   id: string;
@@ -29,7 +32,11 @@ const columns: Column<RequestRow>[] = [
   { header: "ID", key: "id" },
   { header: "MSSV", key: "studentId" },
   { header: "Loại chứng nhận", key: "formTypeName" },
-  { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.originalStatus as StatusType} /> },
+  {
+    header: "Trạng thái",
+    key: "status",
+    render: (row) => <StatusBadge status={row.originalStatus as StatusType} />,
+  },
   { header: "Ngày tạo", key: "createdAt" },
 ];
 
@@ -42,21 +49,28 @@ function AdminCertificatesPage() {
   const [totalElements, setTotalElements] = useState(0);
   const navigate = useNavigate();
 
-  const loadRequests = useCallback(async (pageIndex: number, size = pageSize) => {
-    setLoading(true);
-    setMessage("");
-    try {
-      const data = await certificationRequestApi.listAll(pageIndex, size);
-      setRequests(data.content || []);
-      setTotalElements(data.totalElements || data.content?.length || 0);
-      setPage(pageIndex);
-    } catch (err) {
-      setRequests([]);
-      setMessage(err instanceof Error ? err.message : "Không tải được danh sách yêu cầu.");
-    } finally {
-      setLoading(false);
-    }
-  }, [pageSize]);
+  const loadRequests = useCallback(
+    async (pageIndex: number, size = pageSize) => {
+      setLoading(true);
+      setMessage("");
+      try {
+        const data = await certificationRequestApi.listAll(pageIndex, size);
+        setRequests(data.content || []);
+        setTotalElements(data.totalElements || data.content?.length || 0);
+        setPage(pageIndex);
+      } catch (err) {
+        setRequests([]);
+        setMessage(
+          err instanceof Error
+            ? err.message
+            : "Không tải được danh sách yêu cầu.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pageSize],
+  );
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -65,7 +79,9 @@ function AdminCertificatesPage() {
     return () => window.clearTimeout(timerId);
   }, [loadRequests]);
 
-  const rows = requests.map(toRow);
+  const rows = requests
+    .filter((item) => item.status !== "CANCELLED")
+    .map(toRow);
 
   return (
     <div className="space-y-gutter">
@@ -75,19 +91,32 @@ function AdminCertificatesPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Link className="inline-flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-3 font-semibold text-primary" to="/admin/form-types">
+        <Link
+          className="inline-flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-3 font-semibold text-primary"
+          to="/admin/form-types"
+        >
           Quản lý Loại biểu mẫu
         </Link>
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => loadRequests(page, pageSize)} type="button">
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+          onClick={() => loadRequests(page, pageSize)}
+          type="button"
+        >
           <RefreshCw className="h-5 w-5" />
           Tải lại
         </button>
       </div>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
       {loading ? (
-        <div className="panel p-6 text-on-surface-variant">Đang tải danh sách...</div>
+        <div className="panel p-6 text-on-surface-variant">
+          Đang tải danh sách...
+        </div>
       ) : (
         <DataTable
           actions={(row) => (

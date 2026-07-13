@@ -42,8 +42,8 @@ public class ConfirmationRequestServiceImpl implements ConfirmationRequestServic
         }
 
         if (dto.getSemester() != null && !dto.getSemester().isEmpty()) {
-            boolean exists = requestRepository.existsByStudentIdAndFormTypeIdAndSemester(
-                    studentId, dto.getFormTypeId(), dto.getSemester());
+            boolean exists = requestRepository.existsByStudentIdAndFormTypeIdAndSemesterAndStatusNot(
+                    studentId, dto.getFormTypeId(), dto.getSemester(), RequestStatus.CANCELLED);
             if (exists) {
                 throw new IllegalArgumentException("Bạn đã gửi yêu cầu này trong học kỳ " + dto.getSemester() + " rồi");
             }

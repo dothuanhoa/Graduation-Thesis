@@ -1,145 +1,215 @@
 import { Send, Upload } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../../components/Card";
-import FormField from "../../../components/FormField";
+import CertificateDocument, { normalizeCertificateCode } from "../../../components/certificates/CertificateDocument";
 import PageHeader from "../../../components/PageHeader";
+import { useAuth } from "../../../context/useAuth";
 import {
   certificationRequestApi,
   fileApi,
   formTypeApi,
+  userApi,
   type CreateConfirmationRequestPayload,
   type FormType,
+  type UserProfile,
 } from "../../../services/api";
 
 type CertificateMetadata = Record<string, string>;
 
 const getCurrentSemesterStr = () => {
   const now = new Date();
-  const month = now.getMonth() + 1; // 1-12
+  const month = now.getMonth() + 1;
   return month >= 9 || month === 1 ? "1" : "2";
 };
 
-function StudentCertificateRequestPage() {
-  const [formTypes, setFormTypes] = useState<FormType[]>([]);
-  const [formData, setFormData] = useState<CreateConfirmationRequestPayload>({
-    formTypeId: "",
-    reason: "",
-    contactPhone: "",
+const getCurrentSchoolYear = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const startYear = now.getMonth() + 1 >= 9 ? year : year - 1;
+  return `${startYear}-${startYear + 1}`;
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const isSupportedCertificateType = (type: FormType) => {
+  const raw = `${type.formCode || ""} ${type.name || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return raw.includes("NVQS")
+    || raw.includes("KHAC")
+    || raw.includes("QUAN SU")
+    || raw.includes("NGHIA VU")
+    || raw.includes("VAY")
+    || raw.includes("VON");
+};
+
+const getInitialMetadata = (profile: UserProfile | null, formType?: FormType): CertificateMetadata => {
+  const formCode = normalizeCertificateCode(formType?.formCode, formType?.name);
+  const common: CertificateMetadata = {
+    formCode,
+    fullName: profile?.fullName || "",
+    studentId: profile?.studentId || "",
+    dob: profile?.dob || "",
+    gender: profile?.gender === "FEMALE" ? "Nữ" : profile?.gender === "MALE" ? "Nam" : "",
+    contactPhone: profile?.contactPhone || "",
+    classCode: profile?.clazz?.classCode || "",
+    facultyName: profile?.clazz?.faculty?.facultyName || profile?.clazz?.faculty?.facultyCode || "",
+    educationLevel: "Đại học",
+    trainingType: "Chính quy",
     semester: getCurrentSemesterStr(),
-  });
+    schoolYear: getCurrentSchoolYear(),
+    requestSchoolYear: getCurrentSchoolYear(),
+    requestDate: todayIso(),
+    principalName: "PGS. TS. Cao Hào Thi",
+  };
+
+  if (formCode === "NVQS") {
+    return {
+      ...common,
+      reason: "Bổ sung hồ sơ xin tạm hoãn nghĩa vụ quân sự tại địa phương",
+    };
+  }
+
+  if (formCode === "VAY_VON") {
+    return {
+      ...common,
+      schoolCode: "DSG",
+      schoolName: "Trường Đại học Công nghệ Sài Gòn",
+      bankAccount: "8770199, tại ngân hàng Á Châu (ACB)",
+      tuitionSupportType: "Không miễn giảm",
+      orphanStatus: "Không mồ côi",
+    };
+  }
+
+  return {
+    ...common,
+    deductionType: "Không",
+  };
+};
+
+function StudentCertificateRequestPage() {
+  const { username } = useAuth();
+  const navigate = useNavigate();
+  const [formTypes, setFormTypes] = useState<FormType[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [formTypeId, setFormTypeId] = useState("");
   const [metadata, setMetadata] = useState<CertificateMetadata>({});
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const navigate = useNavigate();
 
-  const loadFormTypes = async () => {
+  const selectedFormType = useMemo(
+    () => formTypes.find((type) => String(type.id) === String(formTypeId)),
+    [formTypeId, formTypes],
+  );
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setMessage("");
+
     try {
-      const types = await formTypeApi.listAll();
-      const activeTypes = types.filter((t) => t.isActive);
-      setFormTypes(activeTypes);
-      if (activeTypes.length > 0) {
-        setFormData((curr) => ({ ...curr, formTypeId: activeTypes[0].id }));
-      }
-    } catch {
-      setMessage("Không tải được danh sách loại biểu mẫu.");
+      const [types, currentProfile] = await Promise.all([
+        formTypeApi.listAll(),
+        username ? userApi.getByStudentId(username, { suppressToast: true }) : Promise.resolve(null),
+      ]);
+      const activeTypes = types.filter((type) => type.isActive);
+      const supportedTypes = activeTypes.filter(isSupportedCertificateType);
+      const nextTypes = supportedTypes.length > 0 ? supportedTypes : activeTypes;
+      const firstType = nextTypes[0];
+
+      setProfile(currentProfile);
+      setFormTypes(nextTypes);
+      setFormTypeId(firstType?.id || "");
+      setMetadata(getInitialMetadata(currentProfile, firstType));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tải được dữ liệu tạo đơn xác nhận.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [username]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
-      void loadFormTypes();
+      void loadData();
     }, 0);
     return () => window.clearTimeout(timerId);
-  }, []);
+  }, [loadData]);
 
-  const updateField = (
-    field: keyof CreateConfirmationRequestPayload,
-    value: string,
-  ) => {
-    setFormData((current) => ({ ...current, [field]: value }));
+  const handleFormTypeChange = (value: string) => {
+    const nextType = formTypes.find((type) => String(type.id) === String(value));
+    setFormTypeId(value);
+    setMetadata(getInitialMetadata(profile, nextType));
   };
 
   const updateMetadata = (key: string, value: string) => {
-    setMetadata((curr) => ({ ...curr, [key]: value }));
+    setMetadata((current) => ({ ...current, [key]: value }));
   };
 
-  const handleFormTypeChange = (value: string) => {
-    updateField("formTypeId", value);
-    setMetadata({});
-    const type = formTypes.find((t) => String(t.id) === String(value));
-    if (type?.formCode === "NVQS") {
-      updateField(
-        "reason",
-        "Bổ sung hồ sơ xin tạm hoãn nghĩa vụ quân sự tại địa phương",
-      );
-    } else if (type?.formCode === "KHAC") {
-      updateField("reason", "");
-      setMetadata({ deductionType: "Khác" });
-    } else {
-      updateField("reason", "");
-    }
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setFile(event.target.files?.[0] ?? null);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!formData.formTypeId) {
-      setMessage("Vui lòng chọn loại giấy xác nhận.");
+    if (!selectedFormType) {
+      setMessage("Vui lòng chọn loại đơn xác nhận.");
+      return;
+    }
+
+    if (!metadata.contactPhone?.trim()) {
+      setMessage("Vui lòng nhập số điện thoại liên hệ trên đơn.");
+      return;
+    }
+
+    if (!metadata.reason?.trim()) {
+      setMessage("Vui lòng nhập lý do/yêu cầu xác nhận trên đơn.");
       return;
     }
 
     setSubmitting(true);
     setMessage("");
-    try {
-      let proofFileUrl = undefined;
 
+    try {
+      let proofFileUrl: string | undefined;
       if (file) {
-        setMessage("Đang tải file lên...");
+        setMessage("Đang tải file minh chứng lên...");
         const uploadRes = await fileApi.upload(file);
         proofFileUrl = uploadRes.fileUrl;
       }
 
-      setMessage("Đang gửi yêu cầu...");
-      await certificationRequestApi.create({
-        ...formData,
+      const payload: CreateConfirmationRequestPayload = {
+        formTypeId: selectedFormType.id,
+        reason: metadata.reason,
+        contactPhone: metadata.contactPhone,
+        semester: metadata.semester || getCurrentSemesterStr(),
         proofFileUrl,
-        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-      });
+        metadata: {
+          ...metadata,
+          formTypeName: selectedFormType.name,
+          formCode: normalizeCertificateCode(selectedFormType.formCode, selectedFormType.name),
+        },
+      };
 
+      await certificationRequestApi.create(payload);
       navigate("/student/certificates");
     } catch (err) {
-      setMessage(
-        err instanceof Error
-          ? err.message
-          : "Đã có lỗi xảy ra khi tạo yêu cầu.",
-      );
+      setMessage(err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tạo yêu cầu.");
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="p-6">Đang tải dữ liệu...</div>;
+    return <div className="p-6 text-on-surface-variant">Đang tải dữ liệu tạo đơn...</div>;
   }
-
-  const selectedFormCode =
-    formTypes.find((t) => String(t.id) === String(formData.formTypeId))
-      ?.formCode || "";
 
   return (
     <div className="space-y-gutter">
       <PageHeader
-        title="Tạo yêu cầu giấy xác nhận"
-        subtitle="Chọn loại giấy, nhập mục đích sử dụng và thông tin liên hệ để Phòng CTSV xử lý."
+        title="Tạo đơn xin xác nhận"
+        subtitle="Chọn đúng mẫu đơn và điền trực tiếp vào các ô trống trên tờ đơn như mẫu giấy thực tế của trường."
       />
 
       {message && (
@@ -149,193 +219,55 @@ function StudentCertificateRequestPage() {
       )}
 
       <Card>
-        <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <label className="text-sm font-semibold text-on-surface-variant">
-              Loại giấy xác nhận <span className="text-error">*</span>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-on-surface">Loại đơn xác nhận</span>
+              <select
+                className="h-12 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-on-surface focus-ring"
+                onChange={(event) => handleFormTypeChange(event.target.value)}
+                required
+                value={formTypeId}
+              >
+                <option value="" disabled>Chọn loại đơn</option>
+                {formTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
             </label>
-            <select
-              className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              value={formData.formTypeId}
-              onChange={(e) => handleFormTypeChange(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                -- Chọn loại giấy --
-              </option>
-              {formTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          <FormField
-            label="Số điện thoại liên hệ"
-            placeholder="090..."
-            value={formData.contactPhone || ""}
-            onChange={(e) => updateField("contactPhone", e.target.value)}
-            required
-          />
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-on-surface-variant">
-              Học kỳ / Năm học
+            <label className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 font-semibold text-primary hover:bg-surface-container-low">
+              <Upload className="h-5 w-5" />
+              <span>{file ? file.name : "File minh chứng"}</span>
+              <input className="hidden" onChange={handleFileChange} type="file" />
             </label>
-            <div className="w-full rounded-lg border border-outline-variant bg-surface-container px-4 py-3 text-on-surface-variant cursor-not-allowed">
-              {formData.semester}
-            </div>
-            <p className="text-xs text-on-surface-variant">
-              Hệ thống tự động tính toán.
-            </p>
           </div>
 
-          <div className="flex flex-col gap-2 md:col-span-2">
-            <div className="flex flex-col">
-              <label className="text-sm font-semibold text-on-surface-variant">
-                Tệp minh chứng (Không bắt buộc)
-              </label>
-              <span className="text-xs text-on-surface-variant">
-                Lưu ý: Nếu có hồ sơ bổ sung do CTSV yêu cầu, bạn có thể nộp trực
-                tiếp tại phòng CTSV.
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 py-3 text-primary hover:bg-surface-container">
-                <Upload className="h-5 w-5" />
-                <span>{file ? file.name : "Chọn file đính kèm"}</span>
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </label>
-              {file && (
-                <button
-                  type="button"
-                  className="text-sm text-error hover:underline"
-                  onClick={() => setFile(null)}
-                >
-                  Xóa
-                </button>
-              )}
-            </div>
-          </div>
-
-          {selectedFormCode === "KHAC" ? (
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <label className="text-sm font-semibold text-on-surface-variant">
-                Lý do xác nhận <span className="text-error">*</span>
-              </label>
-              <div className="flex items-center gap-4 mb-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deductionType"
-                    checked={metadata.deductionType === "Giảm trừ gia cảnh"}
-                    onChange={() => {
-                      updateMetadata("deductionType", "Giảm trừ gia cảnh");
-                      updateField("reason", "Giảm trừ gia cảnh");
-                    }}
-                  />
-                  Xác nhận giảm trừ gia cảnh
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deductionType"
-                    checked={metadata.deductionType === "Khác"}
-                    onChange={() => {
-                      updateMetadata("deductionType", "Khác");
-                      updateField("reason", "");
-                    }}
-                  />
-                  Xác nhận khác
-                </label>
-              </div>
-              {metadata.deductionType === "Khác" && (
-                <FormField
-                  as="textarea"
-                  label="Ghi chú chi tiết"
-                  placeholder="Ghi rõ yêu cầu cần xác nhận..."
-                  value={formData.reason || ""}
-                  onChange={(e) => updateField("reason", e.target.value)}
-                  required
-                />
-              )}
-            </div>
-          ) : selectedFormCode === "VAY_VON" ? (
-            <>
-              <FormField
-                label="Số CMND/CCCD"
-                required
-                value={metadata.cmnd || ""}
-                onChange={(e) => updateMetadata("cmnd", e.target.value)}
-              />
-              <FormField
-                label="Ngày cấp"
-                type="date"
-                required
-                value={metadata.ngayCap || ""}
-                onChange={(e) => updateMetadata("ngayCap", e.target.value)}
-              />
-              <FormField
-                label="Nơi cấp"
-                required
-                value={metadata.noiCap || ""}
-                onChange={(e) => updateMetadata("noiCap", e.target.value)}
-              />
-              <div className="flex flex-col gap-2 md:col-span-2 mb-2">
-                <label className="text-sm font-semibold text-on-surface-variant">
-                  Thuộc đối tượng <span className="text-error">*</span>
-                </label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="doiTuong"
-                      checked={metadata.doiTuong === "Mồ côi"}
-                      onChange={() => updateMetadata("doiTuong", "Mồ côi")}
-                      required
-                    />
-                    Mồ côi
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="doiTuong"
-                      checked={metadata.doiTuong === "Không mồ côi"}
-                      onChange={() =>
-                        updateMetadata("doiTuong", "Không mồ côi")
-                      }
-                    />
-                    Không mồ côi
-                  </label>
-                </div>
-              </div>
-            </>
-          ) : (
-            <FormField
-              as="textarea"
-              className="md:col-span-2"
-              label="Mục đích / Lý do xin cấp"
-              placeholder="Nhập lý do chi tiết..."
-              value={formData.reason || ""}
-              onChange={(e) => updateField("reason", e.target.value)}
-              required={!selectedFormCode || selectedFormCode === "NVQS"}
-              disabled={selectedFormCode === "NVQS"}
+          <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
+            <CertificateDocument
+              editable
+              formCode={selectedFormType?.formCode}
+              formTypeName={selectedFormType?.name}
+              metadata={metadata}
+              onChange={updateMetadata}
+              profile={profile}
             />
-          )}
+          </div>
 
-          <div className="md:col-span-2">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
+              disabled={submitting || !selectedFormType}
               type="submit"
-              disabled={submitting || formTypes.length === 0}
             >
               <Send className="h-5 w-5" />
-              {submitting ? "Đang xử lý..." : "Gửi yêu cầu"}
+              {submitting ? "Đang gửi đơn..." : "Gửi đơn xác nhận"}
             </button>
+            <p className="text-sm text-on-surface-variant">
+              Sau khi gửi, Phòng CTSV sẽ kiểm tra thông tin, yêu cầu bổ sung nếu thiếu hoặc hẹn ngày nhận giấy khi hoàn tất.
+            </p>
           </div>
         </form>
       </Card>

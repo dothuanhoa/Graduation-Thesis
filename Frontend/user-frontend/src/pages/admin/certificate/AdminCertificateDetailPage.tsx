@@ -1,14 +1,25 @@
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, ExternalLink, Printer, Save } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import Card from "../../../components/Card";
+import CertificateDocument, {
+  normalizeCertificateCode,
+} from "../../../components/certificates/CertificateDocument";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType } from "../../../data/mockData";
-import { certificationRequestApi, type ConfirmationRequest, type RequestStatus, type UpdateStatusPayload } from "../../../services/api";
+import {
+  certificationRequestApi,
+  type ConfirmationRequest,
+  type RequestStatus,
+  type UpdateStatusPayload,
+} from "../../../services/api";
 
-const getMetadataText = (metadata: Record<string, unknown> | undefined, key: string) => {
+const getMetadataText = (
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+) => {
   const value = metadata?.[key];
   if (value === null || value === undefined) return "";
   return String(value);
@@ -20,7 +31,6 @@ function AdminCertificateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  
   const [formData, setFormData] = useState<UpdateStatusPayload>({
     status: "PENDING",
     adminNote: "",
@@ -42,7 +52,11 @@ function AdminCertificateDetailPage() {
         metadata: data.metadata || {},
       });
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không tải được thông tin yêu cầu.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được thông tin yêu cầu.",
+      );
     } finally {
       setLoading(false);
     }
@@ -74,28 +88,33 @@ function AdminCertificateDetailPage() {
     setMessage("");
     try {
       const payload: UpdateStatusPayload = { ...formData };
-      if (!payload.appointmentDate) {
-        delete payload.appointmentDate;
-      }
+      if (!payload.appointmentDate) delete payload.appointmentDate;
 
       const updated = await certificationRequestApi.updateStatus(id, payload);
       setRequest(updated);
-      setMessage("Đã cập nhật trạng thái thành công.");
+      setMessage("Đã cập nhật xử lý yêu cầu.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Cập nhật trạng thái thất bại.");
+      setMessage(
+        err instanceof Error ? err.message : "Cập nhật trạng thái thất bại.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="p-6 text-on-surface-variant">Đang tải chi tiết...</div>;
+    return (
+      <div className="p-6 text-on-surface-variant">Đang tải chi tiết...</div>
+    );
   }
 
   if (!request) {
     return (
       <div className="p-6">
-        <Link className="mb-4 inline-flex items-center gap-2 text-primary hover:underline" to="/admin/certificates">
+        <Link
+          className="mb-4 inline-flex items-center gap-2 text-primary hover:underline"
+          to="/admin/certificates"
+        >
           <ArrowLeft className="h-4 w-4" /> Quay lại
         </Link>
         <p className="text-error">{message || "Không tìm thấy yêu cầu này."}</p>
@@ -103,131 +122,256 @@ function AdminCertificateDetailPage() {
     );
   }
 
+  const printMetadata = {
+    ...(request.metadata || {}),
+    ...(formData.metadata || {}),
+    reason: request.reason || getMetadataText(request.metadata, "reason"),
+    contactPhone:
+      request.contactPhone || getMetadataText(request.metadata, "contactPhone"),
+    studentId: request.studentId,
+  };
+  const documentCode = normalizeCertificateCode(
+    request.formCode,
+    request.formTypeName,
+  );
+
   return (
     <div className="space-y-gutter">
-      <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/admin/certificates">
+      <Link
+        className="no-print inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
+        to="/admin/certificates"
+      >
         <ArrowLeft className="h-4 w-4" />
         Quay lại danh sách
       </Link>
 
-      <PageHeader
-        title={`Chi tiết yêu cầu #${request.id}`}
-        subtitle={`Được tạo vào: ${request.createdAt ? new Date(request.createdAt).toLocaleString() : "N/A"}`}
-      />
+      <div className="no-print flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <PageHeader
+          title={`Chi tiết yêu cầu #${request.id}`}
+          subtitle={`Được tạo vào: ${request.createdAt ? new Date(request.createdAt).toLocaleString("vi-VN") : "N/A"}`}
+        />
+        <button
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary"
+          onClick={() => window.print()}
+          type="button"
+        >
+          <Printer className="h-5 w-5" />
+          In đơn
+        </button>
+      </div>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="no-print rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
-      <div className="grid gap-gutter lg:grid-cols-2">
+      <div className="print-area">
+        <CertificateDocument
+          adminMode
+          editable
+          editScope="school"
+          formCode={request.formCode}
+          formTypeName={request.formTypeName}
+          metadata={printMetadata}
+          onChange={updateMetadata}
+          profile={request.studentProfile || null}
+        />
+      </div>
+
+      <div className="no-print grid gap-gutter lg:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-lg font-bold text-on-surface">Thông tin Sinh viên</h2>
+          <h2 className="mb-4 text-lg font-bold text-on-surface">
+            Thông tin sinh viên
+          </h2>
           <div className="space-y-3 text-sm text-on-surface">
-            <p><span className="font-semibold">Họ tên:</span> {request.studentProfile?.fullName || "N/A"}</p>
-            <p><span className="font-semibold">MSSV:</span> {request.studentProfile?.studentId || request.studentId}</p>
-            <p><span className="font-semibold">Lớp:</span> {request.studentProfile?.clazz?.classCode || "N/A"}</p>
-            <p><span className="font-semibold">SĐT liên hệ:</span> {request.contactPhone || "N/A"}</p>
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className="mb-4 text-lg font-bold text-on-surface">Thông tin Yêu cầu</h2>
-          <div className="space-y-3 text-sm text-on-surface">
-            <p><span className="font-semibold">Loại giấy:</span> {request.formTypeName}</p>
-            <p><span className="font-semibold">Học kỳ:</span> {request.semester || "N/A"}</p>
-            <p><span className="font-semibold">Lý do:</span> {request.reason || "N/A"}</p>
-            <div>
-              <span className="font-semibold">File minh chứng: </span>
-              {request.proofFileUrl ? (
-                <a href={request.proofFileUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                  Xem file đính kèm
-                </a>
-              ) : (
-                "Không có"
-              )}
-            </div>
-            {request.metadata && Object.keys(request.metadata).length > 0 && (
-              <div className="mt-2 rounded-lg bg-surface-container-low p-3">
-                <span className="font-semibold block mb-2">Thông tin bổ sung (từ Sinh viên):</span>
-                {getMetadataText(request.metadata, "deductionType") && <p>- Loại giảm trừ: {getMetadataText(request.metadata, "deductionType")}</p>}
-                {getMetadataText(request.metadata, "cmnd") && <p>- CMND/CCCD: {getMetadataText(request.metadata, "cmnd")}</p>}
-                {getMetadataText(request.metadata, "ngayCap") && <p>- Ngày cấp: {getMetadataText(request.metadata, "ngayCap")}</p>}
-                {getMetadataText(request.metadata, "noiCap") && <p>- Nơi cấp: {getMetadataText(request.metadata, "noiCap")}</p>}
-                {getMetadataText(request.metadata, "doiTuong") && <p>- Đối tượng: {getMetadataText(request.metadata, "doiTuong")}</p>}
-              </div>
-            )}
-            <p className="flex items-center gap-2">
-              <span className="font-semibold">Trạng thái hiện tại:</span>
-              <StatusBadge status={request.status as StatusType} />
+            <p>
+              <span className="font-semibold">Họ tên:</span>{" "}
+              {getMetadataText(printMetadata, "fullName") ||
+                request.studentProfile?.fullName ||
+                "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">MSSV:</span> {request.studentId}
+            </p>
+            <p>
+              <span className="font-semibold">Lớp:</span>{" "}
+              {getMetadataText(printMetadata, "classCode") ||
+                request.studentProfile?.clazz?.classCode ||
+                "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Khoa:</span>{" "}
+              {getMetadataText(printMetadata, "facultyName") || "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">SĐT liên hệ:</span>{" "}
+              {request.contactPhone ||
+                getMetadataText(printMetadata, "contactPhone") ||
+                "N/A"}
             </p>
           </div>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <h2 className="mb-4 text-lg font-bold text-on-surface">Xử lý yêu cầu</h2>
-          <form className="grid gap-5 md:grid-cols-2" onSubmit={handleUpdateStatus}>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-on-surface-variant">Cập nhật trạng thái</label>
-              <select 
-                className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                value={formData.status}
-                onChange={(event) => updateField("status", event.target.value as RequestStatus)}
+        <Card>
+          <h2 className="mb-4 text-lg font-bold text-on-surface">
+            Thông tin yêu cầu
+          </h2>
+          <div className="space-y-3 text-sm text-on-surface">
+            <p>
+              <span className="font-semibold">Loại giấy:</span>{" "}
+              {request.formTypeName}
+            </p>
+            <p>
+              <span className="font-semibold">Mã mẫu:</span> {documentCode}
+            </p>
+            <p>
+              <span className="font-semibold">Học kỳ:</span>{" "}
+              {request.semester ||
+                getMetadataText(printMetadata, "semester") ||
+                "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Lý do:</span>{" "}
+              {request.reason ||
+                getMetadataText(printMetadata, "reason") ||
+                "N/A"}
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="font-semibold">Trạng thái:</span>
+              <StatusBadge status={request.status as StatusType} />
+            </p>
+            {request.proofFileUrl && (
+              <a
+                className="inline-flex items-center gap-2 font-semibold text-primary hover:underline"
+                href={request.proofFileUrl}
+                rel="noreferrer"
+                target="_blank"
               >
-                <option value="PENDING">Chờ xử lý (PENDING)</option>
-                <option value="PROCESSING">Đang xử lý (PROCESSING)</option>
-                <option value="NEEDS_INFO">Cần bổ sung thông tin (NEEDS_INFO)</option>
-                <option value="COMPLETED">Đã hoàn thành (COMPLETED)</option>
-                <option value="REJECTED">Từ chối (REJECTED)</option>
-                <option value="CANCELLED">Đã hủy (CANCELLED)</option>
-              </select>
-            </div>
+                Xem file minh chứng
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
+          </div>
+        </Card>
 
-            <FormField 
-              label="Ngày hẹn lấy giấy (Nếu có)" 
-              onChange={(event) => updateField("appointmentDate", event.target.value)} 
-              type="date" 
-              value={formData.appointmentDate || ""} 
+        <Card className="lg:col-span-2">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-on-surface">Xử lý yêu cầu</h2>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Có thể chỉnh trực tiếp các ô trong phần xác nhận của nhà trường
+              trên bản đơn phía trên trước khi bấm in.
+            </p>
+          </div>
+          <form
+            className="grid gap-5 md:grid-cols-2"
+            onSubmit={handleUpdateStatus}
+          >
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-on-surface-variant">
+                Cập nhật trạng thái
+              </span>
+              <select
+                className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus-ring"
+                onChange={(event) =>
+                  updateField("status", event.target.value as RequestStatus)
+                }
+                value={formData.status}
+              >
+                <option value="PENDING">Chờ xử lý</option>
+                <option value="PROCESSING">Đang xử lý</option>
+                <option value="NEEDS_INFO">Cần bổ sung thông tin</option>
+                <option value="COMPLETED">Đã hoàn thành</option>
+                <option value="REJECTED">Từ chối</option>
+                <option value="CANCELLED">Đã hủy</option>
+              </select>
+            </label>
+
+            <FormField
+              label="Ngày hẹn lấy giấy"
+              onChange={(event) =>
+                updateField("appointmentDate", event.target.value)
+              }
+              type="date"
+              value={formData.appointmentDate || ""}
             />
 
-            {(request.formCode === "GIAY_VAY_VON" || request.formCode === "GIAY_XAC_NHAN_VAY_VON") && (
-              <div className="md:col-span-2 grid gap-5 md:grid-cols-2 rounded-lg border border-outline-variant p-4">
-                <h3 className="md:col-span-2 font-bold text-primary">Thông tin xác nhận từ Nhà trường (Điền trước khi in)</h3>
-                
-                <FormField label="Ngày nhập học" type="date" value={getMetadataText(formData.metadata, "ngayNhapHoc")} onChange={(e) => updateMetadata("ngayNhapHoc", e.target.value)} />
-                <FormField label="Thời gian ra trường (dự kiến)" type="date" value={getMetadataText(formData.metadata, "ngayRaTruong")} onChange={(e) => updateMetadata("ngayRaTruong", e.target.value)} />
-                <FormField label="Thời gian học tại trường (tháng)" type="number" value={getMetadataText(formData.metadata, "thoiGianHoc")} onChange={(e) => updateMetadata("thoiGianHoc", e.target.value)} />
-                <FormField label="Số tiền học phí hàng tháng (VNĐ)" type="number" value={getMetadataText(formData.metadata, "hocPhi")} onChange={(e) => updateMetadata("hocPhi", e.target.value)} />
-                
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold text-on-surface-variant">Thuộc diện</label>
-                  <select className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-on-surface focus:border-primary" value={getMetadataText(formData.metadata, "thuocDien")} onChange={(e) => updateMetadata("thuocDien", e.target.value)}>
-                    <option value="">-- Chọn diện --</option>
-                    <option value="Không miễn giảm">Không miễn giảm</option>
-                    <option value="Giảm học phí">Giảm học phí</option>
-                    <option value="Miễn học phí">Miễn học phí</option>
-                  </select>
-                </div>
-                
-                <FormField label="Kỷ luật hành chính (Nếu có)" value={getMetadataText(formData.metadata, "kyLuat")} onChange={(e) => updateMetadata("kyLuat", e.target.value)} placeholder="VD: Không bị xử phạt hành chính..." />
+            {documentCode === "VAY_VON" && (
+              <div className="grid gap-5 rounded-lg border border-outline-variant p-4 md:col-span-2 md:grid-cols-2">
+                <h3 className="md:col-span-2 font-bold text-primary">
+                  Thông tin nhà trường bổ sung trước khi in
+                </h3>
+                <FormField
+                  label="Ngày nhập học"
+                  type="date"
+                  value={getMetadataText(formData.metadata, "enrollmentDate")}
+                  onChange={(event) =>
+                    updateMetadata("enrollmentDate", event.target.value)
+                  }
+                />
+                <FormField
+                  label="Thời gian ra trường dự kiến - tháng"
+                  value={getMetadataText(formData.metadata, "graduationMonth")}
+                  onChange={(event) =>
+                    updateMetadata("graduationMonth", event.target.value)
+                  }
+                />
+                <FormField
+                  label="Thời gian ra trường dự kiến - năm"
+                  value={getMetadataText(formData.metadata, "graduationYear")}
+                  onChange={(event) =>
+                    updateMetadata("graduationYear", event.target.value)
+                  }
+                />
+                <FormField
+                  label="Thời gian học tại trường (tháng)"
+                  type="number"
+                  value={getMetadataText(
+                    formData.metadata,
+                    "studyDurationMonths",
+                  )}
+                  onChange={(event) =>
+                    updateMetadata("studyDurationMonths", event.target.value)
+                  }
+                />
+                <FormField
+                  label="Học phí hằng tháng (VNĐ)"
+                  type="number"
+                  value={getMetadataText(formData.metadata, "monthlyTuition")}
+                  onChange={(event) =>
+                    updateMetadata("monthlyTuition", event.target.value)
+                  }
+                />
+                <FormField
+                  label="Ngành học"
+                  value={getMetadataText(formData.metadata, "major")}
+                  onChange={(event) =>
+                    updateMetadata("major", event.target.value)
+                  }
+                />
               </div>
             )}
-            
+
             <div className="md:col-span-2">
-              <FormField 
-                as="textarea" 
-                label="Ghi chú của Admin" 
-                onChange={(event) => updateField("adminNote", event.target.value)} 
-                value={formData.adminNote || ""} 
-                placeholder="Nhập ghi chú hoặc lý do nếu từ chối / cần bổ sung thông tin..."
+              <FormField
+                as="textarea"
+                label="Ghi chú của Phòng CTSV"
+                onChange={(event) =>
+                  updateField("adminNote", event.target.value)
+                }
+                placeholder="Nhập ghi chú nếu cần bổ sung thông tin, từ chối hoặc hẹn sinh viên..."
+                value={formData.adminNote || ""}
               />
             </div>
 
             <div className="md:col-span-2">
-              <button 
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" 
-                disabled={saving} 
+              <button
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
+                disabled={saving}
                 type="submit"
               >
                 <Save className="h-5 w-5" />
-                {saving ? "Đang cập nhật" : "Cập nhật trạng thái"}
+                {saving ? "Đang cập nhật" : "Cập nhật xử lý"}
               </button>
             </div>
           </form>
