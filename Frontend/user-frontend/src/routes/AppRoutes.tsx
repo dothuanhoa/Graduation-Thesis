@@ -52,8 +52,6 @@ import {
 import { studentDiscipline, studentRewards } from "../data/studentPortalData";
 import { getDashboardPath, isAdminRole } from "../utils/authRouting";
 
-
-
 function GuestOnlyRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, role } = useAuth();
 
@@ -64,7 +62,13 @@ function GuestOnlyRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
-function RequireRole({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
+function RequireRole({
+  children,
+  adminOnly = false,
+}: {
+  children: ReactNode;
+  adminOnly?: boolean;
+}) {
   const { isAuthenticated, role } = useAuth();
 
   if (!isAuthenticated) {
@@ -80,7 +84,12 @@ function RequireRole({ children, adminOnly = false }: { children: ReactNode; adm
 
 function RootRedirect() {
   const { isAuthenticated, role } = useAuth();
-  return <Navigate to={isAuthenticated ? getDashboardPath(role) : "/login"} replace />;
+  return (
+    <Navigate
+      to={isAuthenticated ? getDashboardPath(role) : "/login"}
+      replace
+    />
+  );
 }
 
 function AppRoutes() {
@@ -105,41 +114,133 @@ function AppRoutes() {
         }
       >
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/statistics" element={<AdminModulePage meta={adminModuleMeta.statistics} />} />
+        <Route
+          path="/admin/statistics"
+          element={<AdminModulePage meta={adminModuleMeta.statistics} />}
+        />
         <Route path="/admin/faculties" element={<FacultyManagementPage />} />
-        <Route path="/admin/academic-years" element={<AcademicYearManagementPage />} />
+        <Route
+          path="/admin/academic-years"
+          element={<AcademicYearManagementPage />}
+        />
         <Route path="/admin/classes" element={<ClassManagementPage />} />
         <Route path="/admin/students" element={<StudentListPage />} />
         <Route path="/admin/students/new" element={<StudentCreatePage />} />
         <Route path="/admin/students/import" element={<StudentImportPage />} />
         <Route path="/admin/students/:id" element={<StudentDetailPage />} />
-        <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
-        <Route path="/admin/notifications/new" element={<NotificationCreatePage />} />
-        <Route path="/admin/exams" element={<AdminModulePage meta={adminModuleMeta.exams} dataset={exams} />} />
-        <Route path="/admin/questions" element={<AdminModulePage meta={adminModuleMeta.questions} dataset={exams} />} />
-        <Route path="/admin/exam-results" element={<AdminModulePage meta={adminModuleMeta.examResults} />} />
+        <Route
+          path="/admin/notifications"
+          element={<AdminNotificationsPage />}
+        />
+        <Route
+          path="/admin/notifications/new"
+          element={<NotificationCreatePage />}
+        />
+        <Route
+          path="/admin/exams"
+          element={
+            <AdminModulePage meta={adminModuleMeta.exams} dataset={exams} />
+          }
+        />
+        <Route
+          path="/admin/questions"
+          element={
+            <AdminModulePage meta={adminModuleMeta.questions} dataset={exams} />
+          }
+        />
+        <Route
+          path="/admin/exam-results"
+          element={<AdminModulePage meta={adminModuleMeta.examResults} />}
+        />
         <Route path="/admin/activities" element={<AdminActivitiesPage />} />
         <Route path="/admin/activities/new" element={<ActivityCreatePage />} />
         <Route path="/admin/activities/:id" element={<ActivityDetailPage />} />
-        <Route path="/admin/attendance" element={<AdminModulePage meta={adminModuleMeta.attendance} />} />
-        <Route path="/admin/activity-summary" element={<AdminModulePage meta={adminModuleMeta.activitySummary} />} />
+        <Route
+          path="/admin/attendance"
+          element={<AdminModulePage meta={adminModuleMeta.attendance} />}
+        />
+        <Route
+          path="/admin/activity-summary"
+          element={<AdminModulePage meta={adminModuleMeta.activitySummary} />}
+        />
         <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
-        <Route path="/admin/certificates/handover" element={<AdminModulePage meta={adminModuleMeta.handover} />} />
-        <Route path="/admin/certificates/:id" element={<AdminCertificateDetailPage />} />
+        <Route
+          path="/admin/certificates/handover"
+          element={<AdminModulePage meta={adminModuleMeta.handover} />}
+        />
+        <Route
+          path="/admin/certificates/:id"
+          element={<AdminCertificateDetailPage />}
+        />
         <Route path="/admin/form-types" element={<AdminFormTypesPage />} />
-        <Route path="/admin/appointments" element={<AdminModulePage meta={adminModuleMeta.appointments} dataset={certificates} />} />
-        <Route path="/admin/reports/students" element={<AdminModulePage meta={adminModuleMeta.reportsStudents} />} />
-        <Route path="/admin/reports/exams" element={<AdminModulePage meta={adminModuleMeta.reportsExams} />} />
-        <Route path="/admin/reports/activities" element={<AdminModulePage meta={adminModuleMeta.reportsActivities} />} />
-        <Route path="/admin/settings" element={<AdminModulePage meta={adminModuleMeta.settings} />} />
-        <Route path="/admin/roles" element={<AdminModulePage meta={adminModuleMeta.roles} dataset={auditLogs} />} />
-        <Route path="/admin/users" element={<AdminModulePage meta={adminModuleMeta.users} dataset={auditLogs} />} />
-        <Route path="/admin/audit-logs" element={<AdminModulePage meta={adminModuleMeta.auditLogs} dataset={auditLogs} />} />
-        <Route path="/admin/rewards" element={<AdminModulePage meta={adminModuleMeta.rewards} dataset={rewards} />} />
-        <Route path="/admin/discipline" element={<AdminModulePage meta={adminModuleMeta.discipline} dataset={discipline} />} />
-        <Route path="/admin/reward-criteria" element={<AdminModulePage meta={adminModuleMeta.rewardCriteria} />} />
-        <Route path="/admin/rewards/:id" element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />} />
-        <Route path="/admin/discipline/:id" element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />} />
+        <Route
+          path="/admin/appointments"
+          element={
+            <AdminModulePage
+              meta={adminModuleMeta.appointments}
+              dataset={certificates}
+            />
+          }
+        />
+        <Route
+          path="/admin/reports/students"
+          element={<AdminModulePage meta={adminModuleMeta.reportsStudents} />}
+        />
+        <Route
+          path="/admin/reports/exams"
+          element={<AdminModulePage meta={adminModuleMeta.reportsExams} />}
+        />
+        <Route
+          path="/admin/reports/activities"
+          element={<AdminModulePage meta={adminModuleMeta.reportsActivities} />}
+        />
+        <Route
+          path="/admin/settings"
+          element={<AdminModulePage meta={adminModuleMeta.settings} />}
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <AdminModulePage meta={adminModuleMeta.roles} dataset={auditLogs} />
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminModulePage meta={adminModuleMeta.users} dataset={auditLogs} />
+          }
+        />
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <AdminModulePage
+              meta={adminModuleMeta.auditLogs}
+              dataset={auditLogs}
+            />
+          }
+        />
+        {/* <Route path="/admin/rewards" element={<AdminModulePage meta={adminModuleMeta.rewards} dataset={rewards} />} /> */}
+        <Route
+          path="/admin/discipline"
+          element={
+            <AdminModulePage
+              meta={adminModuleMeta.discipline}
+              dataset={discipline}
+            />
+          }
+        />
+        <Route
+          path="/admin/reward-criteria"
+          element={<AdminModulePage meta={adminModuleMeta.rewardCriteria} />}
+        />
+        <Route
+          path="/admin/rewards/:id"
+          element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />}
+        />
+        <Route
+          path="/admin/discipline/:id"
+          element={<AdminModulePage meta={adminModuleMeta.rewardDetail} />}
+        />
       </Route>
 
       <Route
@@ -151,17 +252,40 @@ function AppRoutes() {
       >
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="/student/profile" element={<StudentProfilePage />} />
-        <Route path="/student/notifications" element={<StudentNotificationsPage />} />
-        <Route path="/student/notifications/:id" element={<StudentNotificationDetailPage />} />
-        <Route path="/student/exams" element={<StudentExamsPage />} />
-        <Route path="/student/exams/:id/instruction" element={<StudentModulePage meta={studentModuleMeta.examInstruction} />} />
-        <Route path="/student/exams/:id/take" element={<ExamTakePage />} />
-        <Route path="/student/exams/:id/result" element={<StudentModulePage meta={studentModuleMeta.examResult} />} />
-        <Route path="/student/activities" element={<StudentActivitiesPage />} />
-        <Route path="/student/activities/:id" element={<StudentActivityDetailPage />} />
-        <Route path="/student/certificates" element={<StudentCertificatesPage />} />
-        <Route path="/student/certificates/new" element={<StudentCertificateRequestPage />} />
         <Route
+          path="/student/notifications"
+          element={<StudentNotificationsPage />}
+        />
+        <Route
+          path="/student/notifications/:id"
+          element={<StudentNotificationDetailPage />}
+        />
+        <Route path="/student/exams" element={<StudentExamsPage />} />
+        <Route
+          path="/student/exams/:id/instruction"
+          element={
+            <StudentModulePage meta={studentModuleMeta.examInstruction} />
+          }
+        />
+        <Route path="/student/exams/:id/take" element={<ExamTakePage />} />
+        <Route
+          path="/student/exams/:id/result"
+          element={<StudentModulePage meta={studentModuleMeta.examResult} />}
+        />
+        <Route path="/student/activities" element={<StudentActivitiesPage />} />
+        <Route
+          path="/student/activities/:id"
+          element={<StudentActivityDetailPage />}
+        />
+        <Route
+          path="/student/certificates"
+          element={<StudentCertificatesPage />}
+        />
+        <Route
+          path="/student/certificates/new"
+          element={<StudentCertificateRequestPage />}
+        />
+        {/* <Route
           path="/student/rewards"
           element={
             <StudentRecordsPage
@@ -171,7 +295,7 @@ function AppRoutes() {
               variant="reward"
             />
           }
-        />
+        /> */}
         <Route
           path="/student/discipline"
           element={

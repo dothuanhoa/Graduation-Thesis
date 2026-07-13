@@ -97,9 +97,9 @@ export const studentMainNav: StudentNavItem[] = [
 ];
 
 export const studentSecondaryNav: StudentNavItem[] = [
-  { label: "Khen thưởng", path: "/student/rewards", icon: Trophy },
-  { label: "Kỷ luật", path: "/student/discipline", icon: ShieldAlert },
-  { label: "Hỗ trợ", path: "/student/support", icon: LifeBuoy },
+  // { label: "Khen thưởng", path: "/student/rewards", icon: Trophy },
+  // { label: "Kỷ luật", path: "/student/discipline", icon: ShieldAlert },
+  // { label: "Hỗ trợ", path: "/student/support", icon: LifeBuoy },
 ];
 
 export const studentUtilityNav: StudentNavItem[] = [
@@ -116,17 +116,61 @@ export const studentBottomNav: StudentNavItem[] = [
 ];
 
 export const studentMetrics: StudentMetric[] = [
-  { label: "Điểm rèn luyện", value: "82", helper: "Học kỳ hiện tại", icon: Award, tone: "primary" },
-  { label: "Kỳ thi mở", value: "2", helper: "Cần hoàn thành", icon: NotebookTabs, tone: "warning" },
-  { label: "Hoạt động đã đăng ký", value: "5", helper: "3 hoạt động sắp diễn ra", icon: CalendarCheck, tone: "success" },
-  { label: "Đơn đang xử lý", value: "1", helper: "Có lịch hẹn nhận giấy", icon: ClipboardCheck, tone: "danger" },
+  {
+    label: "Điểm rèn luyện",
+    value: "82",
+    helper: "Học kỳ hiện tại",
+    icon: Award,
+    tone: "primary",
+  },
+  {
+    label: "Kỳ thi mở",
+    value: "2",
+    helper: "Cần hoàn thành",
+    icon: NotebookTabs,
+    tone: "warning",
+  },
+  {
+    label: "Hoạt động đã đăng ký",
+    value: "5",
+    helper: "3 hoạt động sắp diễn ra",
+    icon: CalendarCheck,
+    tone: "success",
+  },
+  {
+    label: "Đơn đang xử lý",
+    value: "1",
+    helper: "Có lịch hẹn nhận giấy",
+    icon: ClipboardCheck,
+    tone: "danger",
+  },
 ];
 
 export const studentQuickActions = [
-  { title: "Cập nhật hồ sơ", helper: "Số điện thoại và thông tin liên hệ", icon: UserRound, path: "/student/profile" },
-  { title: "Làm bài thi", helper: "Xem các kỳ thi đang mở", icon: GraduationCap, path: "/student/exams" },
-  { title: "Đăng ký hoạt động", helper: "Tích lũy điểm rèn luyện", icon: CalendarCheck, path: "/student/activities" },
-  { title: "Gửi đơn xác nhận", helper: "Tạo yêu cầu giấy tờ", icon: FileCheck2, path: "/student/certificates/new" },
+  {
+    title: "Cập nhật hồ sơ",
+    helper: "Số điện thoại và thông tin liên hệ",
+    icon: UserRound,
+    path: "/student/profile",
+  },
+  {
+    title: "Làm bài thi",
+    helper: "Xem các kỳ thi đang mở",
+    icon: GraduationCap,
+    path: "/student/exams",
+  },
+  {
+    title: "Đăng ký hoạt động",
+    helper: "Tích lũy điểm rèn luyện",
+    icon: CalendarCheck,
+    path: "/student/activities",
+  },
+  {
+    title: "Gửi đơn xác nhận",
+    helper: "Tạo yêu cầu giấy tờ",
+    icon: FileCheck2,
+    path: "/student/certificates/new",
+  },
 ];
 
 export const studentNoticeFallback: StudentNotice[] = [
@@ -287,16 +331,44 @@ export const studentDiscipline: StudentRecord[] = [
 ];
 
 export const profileTimeline = [
-  { title: "Tạo hồ sơ sinh viên", time: "Khi import/tạo hồ sơ", status: "COMPLETED" as StatusType },
-  { title: "Cập nhật số điện thoại", time: "Sinh viên tự cập nhật", status: "PROCESSING" as StatusType },
-  { title: "Đối chiếu lớp và khoa", time: "Theo dữ liệu quản trị", status: "PENDING" as StatusType },
+  {
+    title: "Tạo hồ sơ sinh viên",
+    time: "Khi import/tạo hồ sơ",
+    status: "COMPLETED" as StatusType,
+  },
+  {
+    title: "Cập nhật số điện thoại",
+    time: "Sinh viên tự cập nhật",
+    status: "PROCESSING" as StatusType,
+  },
+  {
+    title: "Đối chiếu lớp và khoa",
+    time: "Theo dữ liệu quản trị",
+    status: "PENDING" as StatusType,
+  },
 ];
 
 export const supportTopics = [
-  { title: "Tài khoản và mật khẩu", helper: "Hỗ trợ đăng nhập, đổi mật khẩu lần đầu", icon: HelpCircle },
-  { title: "Giấy xác nhận", helper: "Tra cứu hồ sơ, lịch hẹn, trạng thái xử lý", icon: FileCheck2 },
-  { title: "Hoạt động ngoại khóa", helper: "Đăng ký, điểm danh và điểm rèn luyện", icon: CalendarCheck },
-  { title: "Kỳ thi trực tuyến", helper: "Lỗi làm bài, kết quả và số lượt thi", icon: NotebookTabs },
+  {
+    title: "Tài khoản và mật khẩu",
+    helper: "Hỗ trợ đăng nhập, đổi mật khẩu lần đầu",
+    icon: HelpCircle,
+  },
+  {
+    title: "Giấy xác nhận",
+    helper: "Tra cứu hồ sơ, lịch hẹn, trạng thái xử lý",
+    icon: FileCheck2,
+  },
+  {
+    title: "Hoạt động ngoại khóa",
+    helper: "Đăng ký, điểm danh và điểm rèn luyện",
+    icon: CalendarCheck,
+  },
+  {
+    title: "Kỳ thi trực tuyến",
+    helper: "Lỗi làm bài, kết quả và số lượt thi",
+    icon: NotebookTabs,
+  },
 ];
 
 export const toneClass: Record<StudentMetric["tone"], string> = {
