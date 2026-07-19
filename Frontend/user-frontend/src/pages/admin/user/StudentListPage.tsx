@@ -1,4 +1,4 @@
-import { CheckCircle2, Filter, RefreshCw, Search, Trash2, Users, X } from "lucide-react";
+import { CheckCircle2, Download, Filter, RefreshCw, Search, Trash2, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Card from "../../../components/Card";
@@ -7,13 +7,24 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import type { StatusType, TableRow } from "../../../data/mockData";
-import { ApiError, classApi, userApi, type ClassResponse, type UserProfile } from "../../../services/api";
-import { studentGroupName } from "../../../utils/studentGroups";
+import {
+  academicYearApi,
+  ApiError,
+  classApi,
+  userApi,
+  type AcademicYearResponse,
+  type ClassResponse,
+  type StudentGroupResponse,
+  type StudentGroupScope,
+  type UserProfile,
+} from "../../../services/api";
+import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
 
 type StudentRow = TableRow & {
   id: string;
   studentCode: string;
   name: string;
+  email: string;
   className: string;
   faculty: string;
   studentGroup: string;
@@ -27,7 +38,7 @@ type StudentFilterState = {
   status: string;
 };
 
-type BulkMode = "class" | "status" | null;
+type BulkMode = "class" | "status" | "group" | null;
 
 type SuggestionInputProps = {
   id: string;
@@ -39,6 +50,7 @@ type SuggestionInputProps = {
 };
 
 const MAX_STUDENTS_PER_CLASS = 120;
+const IMPORT_TEMPLATE_FILENAME = "mau-import-sinh-vien.xlsx";
 
 const emptyFilters: StudentFilterState = {
   keyword: "",
@@ -52,6 +64,24 @@ const statusOptions: Array<{ value: StatusType; label: string }> = [
   { value: "RESERVED", label: "Bảo lưu" },
   { value: "SUSPENDED", label: "Đình chỉ" },
   { value: "GRADUATED", label: "Đã tốt nghiệp" },
+];
+
+const groupScopeOptions: Array<{ value: StudentGroupScope; label: string; helper: string }> = [
+  {
+    value: "SELECTED_STUDENTS",
+    label: "Sinh viên đã chọn",
+    helper: "Tick một hoặc nhiều sinh viên trong bảng.",
+  },
+  {
+    value: "CLASS",
+    label: "Theo lớp",
+    helper: "Chuyển toàn bộ sinh viên trong một lớp.",
+  },
+  {
+    value: "ACADEMIC_YEAR",
+    label: "Theo niên khóa",
+    helper: "Chuyển toàn bộ sinh viên thuộc niên khóa.",
+  },
 ];
 
 const normalizeSearch = (value: string) =>
@@ -68,6 +98,7 @@ const toStudentRow = (profile: UserProfile): StudentRow => ({
   id: profile.id,
   studentCode: profile.studentId,
   name: profile.fullName,
+  email: profile.email || `${profile.studentId}@student.edu.vn`,
   className: profile.clazz?.classCode || "Chưa phân lớp",
   faculty: profile.clazz?.faculty?.facultyName || profile.clazz?.faculty?.facultyCode || "Chưa có khoa",
   studentGroup: profile.studentGroup?.name || studentGroupName(profile.studentGroup?.code),
@@ -92,11 +123,23 @@ const columns: Column<StudentRow>[] = [
       </div>
     ),
   },
+  { header: "Email", key: "email" },
   { header: "Lớp", key: "className" },
   { header: "Khoa", key: "faculty" },
   { header: "Nhóm", key: "studentGroup" },
   { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.status} /> },
 ];
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 
 function SuggestionInput({ id, label, value, options, placeholder, onChange }: SuggestionInputProps) {
   return (
@@ -123,13 +166,20 @@ function StudentListPage() {
   const { logout } = useAuth();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearResponse[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [bulkMode, setBulkMode] = useState<BulkMode>(null);
   const [filters, setFilters] = useState<StudentFilterState>(emptyFilters);
   const [bulkClassId, setBulkClassId] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
+  const [groupScope, setGroupScope] = useState<StudentGroupScope>("SELECTED_STUDENTS");
+  const [bulkGroupId, setBulkGroupId] = useState("");
+  const [groupClassId, setGroupClassId] = useState("");
+  const [groupAcademicYearId, setGroupAcademicYearId] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingBulk, setSavingBulk] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -138,10 +188,17 @@ function StudentListPage() {
     setError("");
 
     try {
-      const [profileData, classData] = await Promise.all([userApi.list(), classApi.list()]);
+      const [profileData, classData, academicYearData, groupData] = await Promise.all([
+        userApi.list(),
+        classApi.list(),
+        academicYearApi.list(),
+        userApi.listStudentGroups(),
+      ]);
       const nextStudents = profileData.map(toStudentRow);
       setStudents(nextStudents);
       setClasses(classData);
+      setAcademicYears(academicYearData);
+      setStudentGroups(groupData.length > 0 ? groupData : defaultStudentGroups);
       setSelectedStudentIds((current) => current.filter((id) => nextStudents.some((student) => student.id === id)));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -152,6 +209,8 @@ function StudentListPage() {
       setError(err instanceof Error ? err.message : "Không tải được danh sách sinh viên.");
       setStudents([]);
       setClasses([]);
+      setAcademicYears([]);
+      setStudentGroups(defaultStudentGroups);
     } finally {
       setLoading(false);
     }
@@ -175,6 +234,22 @@ function StudentListPage() {
       setMessage("Đã xóa sinh viên.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không xóa được sinh viên.");
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const blob = await userApi.downloadImportTemplate();
+      downloadBlob(blob, IMPORT_TEMPLATE_FILENAME);
+      setMessage("Đã tải file mẫu Excel.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tải được file mẫu Excel.");
+    } finally {
+      setDownloadingTemplate(false);
     }
   };
 
@@ -209,7 +284,7 @@ function StudentListPage() {
     return students.filter((student) => {
       const matchesKeyword =
         !keyword ||
-        [student.studentCode, student.name, student.className, student.faculty, student.studentGroup]
+        [student.studentCode, student.name, student.email, student.className, student.faculty, student.studentGroup]
           .map(normalizeSearch)
           .some((value) => value.includes(keyword));
       const matchesFaculty = !facultyKeyword || normalizeSearch(student.faculty).includes(facultyKeyword);
@@ -220,9 +295,11 @@ function StudentListPage() {
     });
   }, [filters, students]);
 
-  const selectedClass = useMemo(
-    () => classes.find((clazz) => clazz.id === bulkClassId),
-    [bulkClassId, classes],
+  const selectedClass = useMemo(() => classes.find((clazz) => clazz.id === bulkClassId), [bulkClassId, classes]);
+  const selectedGroupClass = useMemo(() => classes.find((clazz) => clazz.id === groupClassId), [groupClassId, classes]);
+  const selectedAcademicYear = useMemo(
+    () => academicYears.find((academicYear) => academicYear.id === groupAcademicYearId),
+    [academicYears, groupAcademicYearId],
   );
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
@@ -243,6 +320,10 @@ function StudentListPage() {
     setSelectedStudentIds([]);
     setBulkClassId("");
     setBulkStatus("");
+    setBulkGroupId("");
+    setGroupClassId("");
+    setGroupAcademicYearId("");
+    setGroupScope("SELECTED_STUDENTS");
   };
 
   const cancelBulkMode = () => {
@@ -304,10 +385,7 @@ function StudentListPage() {
     setMessage("");
     try {
       const selectedCount = selectedStudentIds.length;
-      await userApi.updateStudentStatuses(
-        selectedStudentIds,
-        bulkStatus as NonNullable<UserProfile["studentStatus"]>,
-      );
+      await userApi.updateStudentStatuses(selectedStudentIds, bulkStatus as NonNullable<UserProfile["studentStatus"]>);
       setMessage(`Đã cập nhật trạng thái cho ${selectedCount} sinh viên.`);
       cancelBulkMode();
       await loadStudents();
@@ -318,12 +396,54 @@ function StudentListPage() {
     }
   };
 
+  const updateSelectedGroup = async () => {
+    if (!bulkGroupId) {
+      setError("Vui lòng chọn nhóm sinh viên cần chuyển đến.");
+      return;
+    }
+    if (groupScope === "SELECTED_STUDENTS" && selectedStudentIds.length === 0) {
+      setError("Vui lòng tick ít nhất một sinh viên trên bảng.");
+      return;
+    }
+    if (groupScope === "CLASS" && !groupClassId) {
+      setError("Vui lòng chọn lớp cần chuyển nhóm.");
+      return;
+    }
+    if (groupScope === "ACADEMIC_YEAR" && !groupAcademicYearId) {
+      setError("Vui lòng chọn niên khóa cần chuyển nhóm.");
+      return;
+    }
+
+    setSavingBulk(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await userApi.updateStudentGroups({
+        scope: groupScope,
+        studentGroupId: bulkGroupId,
+        studentIds: groupScope === "SELECTED_STUDENTS" ? selectedStudentIds : undefined,
+        classId: groupScope === "CLASS" ? groupClassId : undefined,
+        academicYearId: groupScope === "ACADEMIC_YEAR" ? groupAcademicYearId : undefined,
+      });
+      setMessage(response.message || "Đã chuyển nhóm sinh viên.");
+      cancelBulkMode();
+      await loadStudents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không chuyển nhóm được cho sinh viên.");
+    } finally {
+      setSavingBulk(false);
+    }
+  };
+
+  const canSubmitGroup =
+    Boolean(bulkGroupId) &&
+    ((groupScope === "SELECTED_STUDENTS" && selectedStudentIds.length > 0) ||
+      (groupScope === "CLASS" && Boolean(groupClassId)) ||
+      (groupScope === "ACADEMIC_YEAR" && Boolean(groupAcademicYearId)));
+
   return (
     <>
-      <PageHeader
-        title="Danh sách sinh viên"
-        subtitle="Tìm kiếm, lọc, thêm mới và quản lý hồ sơ sinh viên."
-      />
+      <PageHeader title="Danh sách sinh viên" subtitle="Tìm kiếm, lọc, thêm mới và quản lý hồ sơ sinh viên." />
       <div className="flex flex-wrap gap-3">
         <Link
           className="rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
@@ -331,6 +451,15 @@ function StudentListPage() {
         >
           Import Excel
         </Link>
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:opacity-60"
+          disabled={downloadingTemplate}
+          onClick={handleDownloadTemplate}
+          type="button"
+        >
+          <Download className="h-5 w-5" />
+          {downloadingTemplate ? "Đang tải..." : "Tải file mẫu"}
+        </button>
         <Link className="rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" to="/admin/students/new">
           Thêm sinh viên
         </Link>
@@ -344,9 +473,7 @@ function StudentListPage() {
         </button>
         <button
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold ${
-            bulkMode === "class"
-              ? "bg-primary text-on-primary"
-              : "border border-outline-variant text-primary hover:bg-surface-container"
+            bulkMode === "class" ? "bg-primary text-on-primary" : "border border-outline-variant text-primary hover:bg-surface-container"
           }`}
           onClick={() => startBulkMode("class")}
           type="button"
@@ -356,9 +483,17 @@ function StudentListPage() {
         </button>
         <button
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold ${
-            bulkMode === "status"
-              ? "bg-primary text-on-primary"
-              : "border border-outline-variant text-primary hover:bg-surface-container"
+            bulkMode === "group" ? "bg-primary text-on-primary" : "border border-outline-variant text-primary hover:bg-surface-container"
+          }`}
+          onClick={() => startBulkMode("group")}
+          type="button"
+        >
+          <Users className="h-5 w-5" />
+          Chuyển nhóm
+        </button>
+        <button
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold ${
+            bulkMode === "status" ? "bg-primary text-on-primary" : "border border-outline-variant text-primary hover:bg-surface-container"
           }`}
           onClick={() => startBulkMode("status")}
           type="button"
@@ -438,10 +573,7 @@ function StudentListPage() {
           </label>
 
           <div className="flex items-end">
-            <button
-              className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 font-semibold text-on-primary xl:w-auto"
-              type="button"
-            >
+            <button className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 font-semibold text-on-primary xl:w-auto" type="button">
               <Filter className="h-5 w-5" />
               Lọc
             </button>
@@ -454,12 +586,16 @@ function StudentListPage() {
           <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               <div className="rounded-lg bg-primary-fixed p-3 text-primary">
-                {bulkMode === "class" ? <Users className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+                {bulkMode === "status" ? <CheckCircle2 className="h-5 w-5" /> : <Users className="h-5 w-5" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-primary">Chọn sinh viên trên bảng bên dưới</p>
+                <p className="text-sm font-semibold text-primary">Thao tác hàng loạt</p>
                 <h2 className="text-xl font-bold text-on-surface">
-                  {bulkMode === "class" ? "Chuyển nhiều sinh viên vào lớp" : "Cập nhật trạng thái sinh viên"}
+                  {bulkMode === "class"
+                    ? "Chuyển nhiều sinh viên vào lớp"
+                    : bulkMode === "group"
+                      ? "Chuyển nhóm sinh viên"
+                      : "Cập nhật trạng thái sinh viên"}
                 </h2>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
                   <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-sm font-bold text-on-primary">
@@ -479,7 +615,7 @@ function StudentListPage() {
             </button>
           </div>
 
-          {bulkMode === "class" ? (
+          {bulkMode === "class" && (
             <div className="grid gap-4 xl:grid-cols-[1fr_auto]">
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold text-on-surface">Chuyển vào lớp</span>
@@ -515,7 +651,123 @@ function StudentListPage() {
                 </button>
               </div>
             </div>
-          ) : (
+          )}
+
+          {bulkMode === "group" && (
+            <div className="space-y-5">
+              <div className="grid gap-3 lg:grid-cols-3">
+                {groupScopeOptions.map((option) => {
+                  const active = groupScope === option.value;
+                  return (
+                    <button
+                      className={`rounded-lg border px-4 py-3 text-left transition ${
+                        active ? "border-primary bg-primary-fixed text-primary" : "border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container"
+                      }`}
+                      key={option.value}
+                      onClick={() => {
+                        setGroupScope(option.value);
+                        setGroupClassId("");
+                        setGroupAcademicYearId("");
+                      }}
+                      type="button"
+                    >
+                      <span className="font-bold">{option.label}</span>
+                      <span className="mt-1 block text-sm text-on-surface-variant">{option.helper}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-start">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-on-surface">Nhóm mới</span>
+                  <select
+                    className="h-[46px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface focus-ring"
+                    onChange={(event) => setBulkGroupId(event.target.value)}
+                    value={bulkGroupId}
+                  >
+                    <option value="">Chọn nhóm</option>
+                    {studentGroups.map((group) => (
+                      <option key={String(group.id ?? group.code)} value={group.id ?? group.code}>
+                        {group.name || studentGroupName(group.code)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {groupScope === "CLASS" && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-on-surface">Lớp áp dụng</span>
+                    <select
+                      className="h-[46px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface focus-ring"
+                      onChange={(event) => setGroupClassId(event.target.value)}
+                      value={groupClassId}
+                    >
+                      <option value="">Chọn lớp</option>
+                      {classes.map((clazz) => (
+                        <option key={clazz.id} value={clazz.id}>
+                          {clazz.classCode}
+                          {clazz.academicYear?.yearName ? ` - ${clazz.academicYear.yearName}` : ""}
+                          {` (${clazz.studentCount ?? 0} sinh viên)`}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedGroupClass && (
+                      <span className="text-xs text-on-surface-variant">
+                        Sẽ chuyển {selectedGroupClass.studentCount ?? 0} sinh viên trong lớp {selectedGroupClass.classCode}.
+                      </span>
+                    )}
+                  </label>
+                )}
+
+                {groupScope === "ACADEMIC_YEAR" && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-on-surface">Niên khóa áp dụng</span>
+                    <select
+                      className="h-[46px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface focus-ring"
+                      onChange={(event) => setGroupAcademicYearId(event.target.value)}
+                      value={groupAcademicYearId}
+                    >
+                      <option value="">Chọn niên khóa</option>
+                      {academicYears.map((academicYear) => (
+                        <option key={academicYear.id} value={academicYear.id}>
+                          {academicYear.yearName}
+                          {academicYear.classCount != null ? ` (${academicYear.classCount} lớp)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedAcademicYear && (
+                      <span className="text-xs text-on-surface-variant">
+                        Áp dụng cho sinh viên thuộc niên khóa {selectedAcademicYear.yearName}.
+                      </span>
+                    )}
+                  </label>
+                )}
+
+                {groupScope === "SELECTED_STUDENTS" && (
+                  <div className="xl:pt-[26px]">
+                    <div className="flex min-h-[46px] items-center rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 text-sm text-on-surface-variant">
+                      Hãy tick sinh viên trong bảng bên dưới. Hệ thống chỉ chuyển nhóm cho sinh viên đã chọn.
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex pt-0 xl:pt-[26px]">
+                  <button
+                    className="inline-flex h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 font-semibold text-on-primary disabled:opacity-60 xl:w-auto"
+                    disabled={savingBulk || !canSubmitGroup}
+                    onClick={updateSelectedGroup}
+                    type="button"
+                  >
+                    <CheckCircle2 className="h-5 w-5" />
+                    Chuyển nhóm
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {bulkMode === "status" && (
             <div className="grid gap-4 xl:grid-cols-[1fr_auto]">
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold text-on-surface">Trạng thái mới</span>
@@ -548,26 +800,15 @@ function StudentListPage() {
         </Card>
       )}
 
-      {message && (
-        <div className="rounded-lg border border-primary-fixed bg-primary-fixed px-4 py-3 text-sm font-semibold text-primary">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error">
-          {error}
-        </div>
-      )}
+      {message && <div className="rounded-lg border border-primary-fixed bg-primary-fixed px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {error && <div className="rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error">{error}</div>}
       {loading ? (
         <div className="panel p-6 text-on-surface-variant">Đang tải danh sách sinh viên...</div>
       ) : (
         <DataTable
           actions={(row) => (
             <div className="flex justify-end gap-2">
-              <Link
-                className="rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container"
-                to={`/admin/students/${row.id}`}
-              >
+              <Link className="rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container" to={`/admin/students/${row.id}`}>
                 Xem
               </Link>
               <button

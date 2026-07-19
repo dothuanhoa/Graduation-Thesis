@@ -156,6 +156,90 @@
   .certificate-principal .certificate-line {
     border-bottom-color: transparent;
   }
+
+  .bulk-print-area {
+    display: none;
+  }
+
+  .rich-html-content {
+    @apply text-sm leading-7 text-on-surface;
+  }
+
+  .rich-html-content > * + * {
+    margin-top: 0.85rem;
+  }
+
+  .rich-html-content h1,
+  .rich-html-content h2,
+  .rich-html-content h3 {
+    @apply font-bold text-on-surface;
+    line-height: 1.3;
+  }
+
+  .rich-html-content h1 {
+    font-size: 1.55rem;
+  }
+
+  .rich-html-content h2 {
+    font-size: 1.25rem;
+  }
+
+  .rich-html-content h3 {
+    font-size: 1.1rem;
+  }
+
+  .rich-html-content ul,
+  .rich-html-content ol {
+    margin-left: 1.25rem;
+    padding-left: 1rem;
+  }
+
+  .rich-html-content ul {
+    list-style: disc;
+  }
+
+  .rich-html-content ol {
+    list-style: decimal;
+  }
+
+  .rich-html-content a {
+    @apply font-semibold text-primary underline underline-offset-2;
+  }
+
+  .rich-html-content blockquote {
+    @apply border-l-4 border-outline-variant pl-4 text-on-surface-variant;
+  }
+
+  .rich-html-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+
+  .rich-html-content figure {
+    margin: 0;
+  }
+
+  .rich-html-content figcaption {
+    @apply mt-2 text-center text-xs text-on-surface-variant;
+  }
+  .rich-html-content table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 0.5rem;
+  }
+
+  .rich-html-content th,
+  .rich-html-content td {
+    @apply border border-outline-variant px-3 py-2 text-left align-top;
+  }
+
+  .rich-html-content th {
+    @apply bg-surface-container font-bold;
+  }
+
 }
 
 @media print {
@@ -173,6 +257,20 @@
     inset: 0 auto auto 0;
     width: 100%;
     background: white;
+  }
+
+  .bulk-print-area {
+    display: block;
+  }
+
+  .print-area .certificate-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-area .certificate-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   .certificate-page {

@@ -19,6 +19,24 @@ public class RedisService {
         redisTemplate.expire("user_refresh_tokens:" + userId, 7, TimeUnit.DAYS);
     }
 
+    public String findUserIdByRefreshToken(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        return redisTemplate.opsForValue().get("refresh_token:" + token);
+    }
+
+    public void deleteRefreshToken(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        String userId = findUserIdByRefreshToken(token);
+        redisTemplate.delete("refresh_token:" + token);
+        if (userId != null && !userId.isBlank()) {
+            redisTemplate.opsForSet().remove("user_refresh_tokens:" + userId, token);
+        }
+    }
+
     public void lockoutUser(String username) {
         redisTemplate.opsForValue().set("lockout:" + username, "locked", 15, TimeUnit.MINUTES);
     }
@@ -40,6 +58,10 @@ public class RedisService {
 
         // 2. Lưu jwt_blacklist (TTL 15 phút bằng với thời gian sống của JWT)
         redisTemplate.opsForValue().set("jwt_blacklist:" + userId, "banned", 15, TimeUnit.MINUTES);
+    }
+
+    public boolean isAccessRevoked(String username) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey("jwt_blacklist:" + username));
     }
 
     public void unlockUser(String username) {

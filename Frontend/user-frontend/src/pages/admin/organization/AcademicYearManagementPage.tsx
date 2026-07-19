@@ -1,12 +1,14 @@
 import { Edit3, PlusCircle, RotateCcw, Save, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Card from "../../../components/Card";
 import ExcelImportButton from "../../../components/ExcelImportButton";
+import FilterBar from "../../../components/FilterBar";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { academicYearApi, type AcademicYearPayload, type AcademicYearResponse } from "../../../services/api";
+import { includesSearch } from "../../../utils/search";
 import { academicYearSchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -28,6 +30,8 @@ function AcademicYearManagementPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [startYearFilter, setStartYearFilter] = useState("");
 
   const loadAcademicYears = useCallback(async () => {
     setLoading(true);
@@ -127,6 +131,21 @@ function AcademicYearManagementPage() {
     }
   };
 
+  const startYearOptions = useMemo(
+    () =>
+      Array.from(new Set(academicYears.map((year) => year.startYear).filter(Boolean) as number[]))
+        .sort((a, b) => b - a)
+        .map((year) => ({ value: String(year), label: String(year) })),
+    [academicYears],
+  );
+
+  const filteredAcademicYears = useMemo(() => {
+    return academicYears.filter((academicYear) => (
+      includesSearch(`${academicYear.yearName} ${academicYear.startYear ?? ""}`, keyword)
+      && (!startYearFilter || String(academicYear.startYear ?? "") === startYearFilter)
+    ));
+  }, [academicYears, keyword, startYearFilter]);
+
   const {
     pageItems: paginatedAcademicYears,
     pageIndex,
@@ -134,7 +153,7 @@ function AcademicYearManagementPage() {
     totalItems,
     setPageIndex,
     setPageSize,
-  } = usePaginatedList(academicYears);
+  } = usePaginatedList(filteredAcademicYears);
 
   return (
     <div className="space-y-gutter">
@@ -144,6 +163,30 @@ function AcademicYearManagementPage() {
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+
+      <FilterBar
+        filters={[
+          {
+            id: "startYear",
+            label: "Năm bắt đầu",
+            value: startYearFilter,
+            onChange: setStartYearFilter,
+            options: [
+              { value: "", label: "Tất cả năm" },
+              ...startYearOptions,
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setStartYearFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredAcademicYears.length} / ${academicYears.length} niên khóa`}
+        searchPlaceholder="Nhập tên niên khóa hoặc năm bắt đầu"
+        searchValue={keyword}
+        title="Lọc danh sách niên khóa"
+      />
 
       <Card>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -225,10 +268,10 @@ function AcademicYearManagementPage() {
               ))}
             </tbody>
           </table>
-          {!loading && academicYears.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Chưa có niên khóa nào.</p>}
+          {!loading && filteredAcademicYears.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Không tìm thấy niên khóa phù hợp.</p>}
           {loading && <p className="px-5 py-6 text-sm text-on-surface-variant">Đang tải danh sách niên khóa...</p>}
         </div>
-        {!loading && academicYears.length > 0 && (
+        {!loading && filteredAcademicYears.length > 0 && (
           <PaginationControls
             itemLabel="niên khóa"
             onPageChange={setPageIndex}

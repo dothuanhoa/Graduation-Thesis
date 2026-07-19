@@ -1,8 +1,10 @@
 import { Send } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
+import RichTextEditor from "../../../components/RichTextEditor";
 import { notificationApi, type NotificationPayload } from "../../../services/api";
 import { notificationSchema } from "../../../validation/notificationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
@@ -58,6 +60,8 @@ function NotificationCreatePage() {
 
   return (
     <>
+      <BackButton to="/admin/notifications">Quay lại danh sách</BackButton>
+
       <PageHeader
         title="Tạo thông báo mới"
         subtitle="Soạn nội dung, chọn nhóm nhận và thời gian hiển thị thông báo."
@@ -108,11 +112,11 @@ function NotificationCreatePage() {
             options={["DRAFT", "PUBLISHED"]}
             value={formData.status}
           />
-          <FormField
-            as="textarea"
+          <RichTextEditor
             className="md:col-span-2"
-            label="Nội dung HTML"
-            onChange={(event) => updateField("content", event.target.value)}
+            hint="Có thể định dạng chữ, chèn link, danh sách và bảng."
+            label="Nội dung thông báo"
+            onChange={(value) => updateField("content", value)}
             required
             value={formData.content}
           />

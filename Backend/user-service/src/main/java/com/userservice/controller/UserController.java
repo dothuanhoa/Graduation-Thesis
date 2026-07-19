@@ -3,6 +3,7 @@ package com.userservice.controller;
 import com.userservice.domain.UserProfile;
 import com.userservice.domain.StudentGroup;
 import com.userservice.dto.BulkStudentClassRequest;
+import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentStatusRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.StudentImportProgress;
@@ -12,6 +13,8 @@ import com.userservice.service.StudentImportJobService;
 import com.userservice.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -110,6 +113,18 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PatchMapping("/bulk/group")
+    public ResponseEntity<Object> updateStudentGroups(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @Valid @RequestBody BulkStudentGroupRequest request
+    ) {
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        }
+        BulkStudentUpdateResponse response = userService.updateStudentGroups(request);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> deleteUser(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
@@ -137,6 +152,21 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadImportTemplate(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role
+    ) {
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        byte[] content = excelService.createStudentImportTemplate();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau-import-sinh-vien.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(content);
     }
 
     @PostMapping("/import/jobs")

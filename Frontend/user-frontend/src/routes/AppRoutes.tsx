@@ -19,6 +19,7 @@ import AdminCertificateDetailPage from "../pages/admin/certificate/AdminCertific
 import AdminFormTypesPage from "../pages/admin/certificate/AdminFormTypesPage";
 import AdminNotificationsPage from "../pages/admin/notification/AdminNotificationsPage";
 import NotificationCreatePage from "../pages/admin/notification/NotificationCreatePage";
+import NotificationEditPage from "../pages/admin/notification/NotificationEditPage";
 import AcademicYearManagementPage from "../pages/admin/organization/AcademicYearManagementPage";
 import ClassManagementPage from "../pages/admin/organization/ClassManagementPage";
 import FacultyManagementPage from "../pages/admin/organization/FacultyManagementPage";
@@ -28,8 +29,10 @@ import StudentImportPage from "../pages/admin/user/StudentImportPage";
 import StudentListPage from "../pages/admin/user/StudentListPage";
 import CheckerScanPage from "../pages/checker/CheckerScanPage";
 import ForbiddenPage from "../pages/ForbiddenPage";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
 import LoginPage from "../pages/auth/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
+import ResetPasswordPage from "../pages/auth/ResetPasswordPage";
 import StudentActivitiesPage from "../pages/student/activity/StudentActivitiesPage";
 import StudentActivityDetailPage from "../pages/student/activity/StudentActivityDetailPage";
 import StudentCertificateRequestPage from "../pages/student/certificate/StudentCertificateRequestPage";
@@ -49,8 +52,20 @@ import {
 } from "../data/mockData";
 import { getDashboardPath, isAdminRole } from "../utils/authRouting";
 
+function AuthLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center text-sm font-semibold text-on-surface-variant">
+      Đang kiểm tra phiên đăng nhập...
+    </div>
+  );
+}
+
 function GuestOnlyRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, isInitializing, role } = useAuth();
+
+  if (isInitializing) {
+    return <AuthLoading />;
+  }
 
   if (isAuthenticated) {
     return <Navigate to={getDashboardPath(role)} replace />;
@@ -66,7 +81,11 @@ function RequireRole({
   children: ReactNode;
   adminOnly?: boolean;
 }) {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, isInitializing, role } = useAuth();
+
+  if (isInitializing) {
+    return <AuthLoading />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -80,7 +99,11 @@ function RequireRole({
 }
 
 function RootRedirect() {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, isInitializing, role } = useAuth();
+  if (isInitializing) {
+    return <AuthLoading />;
+  }
+
   return (
     <Navigate
       to={isAuthenticated ? getDashboardPath(role) : "/login"}
@@ -101,6 +124,8 @@ function AppRoutes() {
             </GuestOnlyRoute>
           }
         />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
 
       <Route
@@ -132,6 +157,10 @@ function AppRoutes() {
         <Route
           path="/admin/notifications/new"
           element={<NotificationCreatePage />}
+        />
+        <Route
+          path="/admin/notifications/:id/edit"
+          element={<NotificationEditPage />}
         />
         <Route
           path="/admin/exams"

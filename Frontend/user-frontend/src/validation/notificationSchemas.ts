@@ -1,5 +1,6 @@
 import * as yup from "yup";
 import { z } from "zod";
+import { stripHtmlToText } from "../utils/html";
 
 const notificationTargetTypes = ["ALL", "FACULTY", "CLASS", "USER"] as const;
 const notificationPriorities = ["NORMAL", "URGENT"] as const;
@@ -8,36 +9,36 @@ const notificationStatuses = ["DRAFT", "PUBLISHED", "EXPIRED", "REVOKED"] as con
 const dateTimeSchema = z
   .string()
   .trim()
-  .min(1, "Vui long chon thoi gian")
-  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Thoi gian khong hop le");
+  .min(1, "Vui lòng chọn thời gian")
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Thời gian không hợp lệ");
 
 export const notificationSchema = z
   .object({
-    title: z.string().trim().min(5, "Tieu de can it nhat 5 ky tu").max(150, "Tieu de toi da 150 ky tu"),
-    content: z.string().trim().min(10, "Noi dung can it nhat 10 ky tu"),
+    title: z.string().trim().min(5, "Tiêu đề cần ít nhất 5 ký tự").max(150, "Tiêu đề tối đa 150 ký tự"),
+    content: z.string().trim().refine((value) => stripHtmlToText(value).length >= 10, "Nội dung cần ít nhất 10 ký tự"),
     attachmentUrl: z
       .string()
       .trim()
       .optional()
-      .refine((value) => !value || /^https?:\/\/.+/i.test(value), "URL tep dinh kem phai bat dau bang http:// hoac https://"),
+      .refine((value) => !value || /^https?:\/\/.+/i.test(value), "URL tệp đính kèm phải bắt đầu bằng http:// hoặc https://"),
     priority: z.enum(notificationPriorities, {
-      message: "Do uu tien khong hop le",
+      message: "Độ ưu tiên không hợp lệ",
     }),
     targetType: z.enum(notificationTargetTypes, {
-      message: "Doi tuong nhan khong hop le",
+      message: "Đối tượng nhận không hợp lệ",
     }),
     targetId: z.string().trim().optional(),
     startDate: dateTimeSchema,
     endDate: dateTimeSchema,
     status: z.enum(notificationStatuses, {
-      message: "Trang thai thong bao khong hop le",
+      message: "Trạng thái thông báo không hợp lệ",
     }),
   })
   .superRefine((data, ctx) => {
     if (data.targetType !== "ALL" && !data.targetId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Vui long nhap Target ID khi gui theo khoa, lop hoac MSSV",
+        message: "Vui lòng nhập Target ID khi gửi theo khoa, lớp hoặc MSSV",
         path: ["targetId"],
       });
     }
@@ -45,18 +46,18 @@ export const notificationSchema = z
     if (new Date(data.endDate).getTime() <= new Date(data.startDate).getTime()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Thoi gian het han phai sau thoi gian bat dau",
+        message: "Thời gian hết hạn phải sau thời gian bắt đầu",
         path: ["endDate"],
       });
     }
   });
 
 export const notificationScheduleSchema = yup.object({
-  startDate: yup.string().required("Vui long chon thoi gian bat dau"),
+  startDate: yup.string().required("Vui lòng chọn thời gian bắt đầu"),
   endDate: yup
     .string()
-    .required("Vui long chon thoi gian het han")
-    .test("afterStart", "Thoi gian het han phai sau thoi gian bat dau", function (value) {
+    .required("Vui lòng chọn thời gian hết hạn")
+    .test("afterStart", "Thời gian hết hạn phải sau thời gian bắt đầu", function (value) {
       const { startDate } = this.parent as { startDate?: string };
       if (!value || !startDate) return false;
       return new Date(value).getTime() > new Date(startDate).getTime();

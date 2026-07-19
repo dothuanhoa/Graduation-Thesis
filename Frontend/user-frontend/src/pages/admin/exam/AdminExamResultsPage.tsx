@@ -1,5 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import { examApi, type AttemptResponse } from "../../../services/api";
@@ -31,7 +32,8 @@ function AdminExamResultsPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   const submitted = attempts.filter((attempt) => attempt.status === "SUBMITTED");
@@ -39,6 +41,8 @@ function AdminExamResultsPage() {
 
   return (
     <div className="space-y-gutter">
+      <BackButton to="/admin/exams">Quay lại danh sách kỳ thi</BackButton>
+
       <PageHeader title="Kết quả kỳ thi" subtitle="Theo dõi điểm số, lượt nộp bài và số lần vi phạm của sinh viên." />
       <div className="flex flex-wrap gap-3">
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={load} type="button">

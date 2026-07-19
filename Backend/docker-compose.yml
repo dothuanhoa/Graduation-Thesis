@@ -136,6 +136,24 @@ services:
       - DB_PASS=root
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - MAIL_ENABLED=${MAIL_ENABLED:-false}
+      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_FROM=${MAIL_FROM:-no-reply@stu.edu.vn}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Cong sinh vien STU}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
+      - MAIL_STARTTLS_ENABLE=${MAIL_STARTTLS_ENABLE:-true}
+      - MAIL_QUEUE_CAPACITY=${MAIL_QUEUE_CAPACITY:-20000}
+      - MAIL_WORKER_COUNT=${MAIL_WORKER_COUNT:-1}
+      - MAIL_SEND_DELAY_MS=${MAIL_SEND_DELAY_MS:-1000}
+      - MAIL_MAX_RETRIES=${MAIL_MAX_RETRIES:-2}
+      - MAIL_RETRY_DELAY_MS=${MAIL_RETRY_DELAY_MS:-5000}
+      - STUDENT_EMAIL_DOMAIN=${STUDENT_EMAIL_DOMAIN:-student.edu.vn}
+      - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
+      - PASSWORD_RESET_TOKEN_TTL_MINUTES=${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
+      - PASSWORD_RESET_MONTHLY_LIMIT=${PASSWORD_RESET_MONTHLY_LIMIT:-2}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - auth-db
@@ -157,6 +175,7 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=root
       - AUTH_SERVICE_URL=http://auth-service:8083
+      - STUDENT_EMAIL_DOMAIN=${STUDENT_EMAIL_DOMAIN:-student.edu.vn}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - user-db
@@ -176,10 +195,15 @@ services:
       - DB_NAME=notification_db
       - DB_USER=postgres
       - DB_PASS=root
+      - NOTIFICATION_UPLOAD_DIR=/app/frontend-public/notification
+      - NOTIFICATION_UPLOAD_PUBLIC_URL_PREFIX=/notification
+      - NOTIFICATION_IMAGE_MAX_SIZE_BYTES=5242880
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - notification-db
       - discovery-server
+    volumes:
+      - ../Frontend/user-frontend/public/notification:/app/frontend-public/notification
     networks:
       - micro_network
 
@@ -195,10 +219,14 @@ services:
       - DB_NAME=certification_db
       - DB_USER=postgres
       - DB_PASS=root
+      - APP_UPLOAD_DIR=/app/frontend-public/certification
+      - APP_UPLOAD_PUBLIC_URL_PREFIX=/certification
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - certification-db
       - discovery-server
+    volumes:
+      - ../Frontend/user-frontend/public/certification:/app/frontend-public/certification
     networks:
       - micro_network
 

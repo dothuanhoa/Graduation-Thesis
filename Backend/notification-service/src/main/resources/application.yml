@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: notification-service
+  servlet:
+    multipart:
+      max-file-size: ${NOTIFICATION_IMAGE_MAX_FILE_SIZE:5MB}
+      max-request-size: ${NOTIFICATION_IMAGE_MAX_REQUEST_SIZE:6MB}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:notification_db}
     username: ${DB_USER:postgres}
@@ -16,6 +20,13 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+app:
+  notification:
+    upload:
+      dir: ${NOTIFICATION_UPLOAD_DIR:../../Frontend/user-frontend/public/notification}
+      public-url-prefix: ${NOTIFICATION_UPLOAD_PUBLIC_URL_PREFIX:/notification}
+      max-size-bytes: ${NOTIFICATION_IMAGE_MAX_SIZE_BYTES:5242880}
 
 eureka:
   client:

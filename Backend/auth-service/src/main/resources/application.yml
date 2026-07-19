@@ -20,6 +20,35 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLE:true}
+
+app:
+  auth:
+    password-reset:
+      url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
+      token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+      monthly-limit: ${PASSWORD_RESET_MONTHLY_LIMIT:2}
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:no-reply@stu.edu.vn}
+    from-name: ${MAIL_FROM_NAME:Cong sinh vien STU}
+    queue-capacity: ${MAIL_QUEUE_CAPACITY:20000}
+    worker-count: ${MAIL_WORKER_COUNT:1}
+    send-delay-ms: ${MAIL_SEND_DELAY_MS:1000}
+    max-retries: ${MAIL_MAX_RETRIES:2}
+    retry-delay-ms: ${MAIL_RETRY_DELAY_MS:5000}
+  student:
+    email-domain: ${STUDENT_EMAIL_DOMAIN:student.edu.vn}
 
 server:
   port: 8083

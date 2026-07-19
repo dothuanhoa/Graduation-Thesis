@@ -1,10 +1,16 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AuthContext, type AuthContextValue } from "./authStore";
-import { authApi, type ChangePasswordPayload, type LoginPayload, type TokenResponse } from "../services/api";
-
-const ACCESS_TOKEN_KEY = "accessToken";
-const REFRESH_TOKEN_KEY = "refreshToken";
-const LEGACY_TOKEN_KEY = "token";
+import {
+  authApi,
+  clearClientAuthTokens,
+  getStoredAccessToken,
+  isAccessTokenExpired,
+  registerAuthSessionHandlers,
+  setStoredAccessToken,
+  type ChangePasswordPayload,
+  type LoginPayload,
+  type TokenResponse,
+} from "../services/api";
 
 type JwtPayload = {
   sub?: string;
@@ -29,37 +35,24 @@ const decodeJwt = (token: string): JwtPayload => {
   }
 };
 
-const saveTokens = ({ accessToken, refreshToken }: TokenResponse) => {
-  sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(LEGACY_TOKEN_KEY);
-};
-
-const clearStoredTokens = () => {
-  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(LEGACY_TOKEN_KEY);
-};
-
 const isExpired = (payload: JwtPayload) => {
   if (!payload.exp) return true;
   return payload.exp * 1000 <= Date.now();
 };
 
-const getInitialAccessToken = () => {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(LEGACY_TOKEN_KEY);
+const clearStoredTokens = () => {
+  clearClientAuthTokens(false);
+};
 
-  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY) || "";
+const saveTokens = ({ accessToken }: TokenResponse) => {
+  setStoredAccessToken(accessToken, false);
+};
+
+const getInitialAccessToken = () => {
+  const token = getStoredAccessToken();
   if (!token) return "";
 
-  const payload = decodeJwt(token);
-  if (!payload.sub || isExpired(payload)) {
+  if (isAccessTokenExpired(token, 0)) {
     clearStoredTokens();
     return "";
   }
@@ -73,45 +66,104 @@ type AuthProviderProps = {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState(getInitialAccessToken);
-  const [refreshToken, setRefreshToken] = useState(() => sessionStorage.getItem(REFRESH_TOKEN_KEY) || "");
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const payload = useMemo(() => decodeJwt(accessToken), [accessToken]);
   const isAuthenticated = Boolean(accessToken && payload.sub && !isExpired(payload));
 
+  useEffect(
+    () =>
+      registerAuthSessionHandlers({
+        onAccessTokenChange: (nextAccessToken) => {
+          setAccessToken(nextAccessToken);
+          setIsInitializing(false);
+        },
+        onSessionExpired: () => {
+          setAccessToken("");
+          setIsInitializing(false);
+        },
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    const bootstrapSession = async () => {
+      const currentAccessToken = getInitialAccessToken();
+      if (currentAccessToken) {
+        if (active) {
+          setAccessToken(currentAccessToken);
+          setIsInitializing(false);
+        }
+        return;
+      }
+
+      try {
+        const tokens = await authApi.refresh();
+        if (!active) return;
+        saveTokens(tokens);
+        setAccessToken(tokens.accessToken);
+      } catch {
+        clearStoredTokens();
+        if (active) {
+          setAccessToken("");
+        }
+      } finally {
+        if (active) {
+          setIsInitializing(false);
+        }
+      }
+    };
+
+    void bootstrapSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const applyTokenResponse = useCallback((tokens: TokenResponse) => {
     saveTokens(tokens);
     setAccessToken(tokens.accessToken);
-    setRefreshToken(tokens.refreshToken);
+    setIsInitializing(false);
   }, []);
 
-  const login = useCallback(async (loginPayload: LoginPayload) => {
-    const tokens = await authApi.login(loginPayload);
-    applyTokenResponse(tokens);
-  }, [applyTokenResponse]);
+  const login = useCallback(
+    async (loginPayload: LoginPayload) => {
+      const tokens = await authApi.login(loginPayload);
+      applyTokenResponse(tokens);
+    },
+    [applyTokenResponse],
+  );
 
-  const firstChangePassword = useCallback(async (changePayload: ChangePasswordPayload) => {
-    const tokens = await authApi.firstChangePassword(changePayload);
-    applyTokenResponse(tokens);
-  }, [applyTokenResponse]);
+  const firstChangePassword = useCallback(
+    async (changePayload: ChangePasswordPayload) => {
+      const tokens = await authApi.firstChangePassword(changePayload);
+      applyTokenResponse(tokens);
+    },
+    [applyTokenResponse],
+  );
 
   const logout = useCallback(() => {
+    void authApi.logout().catch(() => undefined);
     clearStoredTokens();
     setAccessToken("");
-    setRefreshToken("");
+    setIsInitializing(false);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       accessToken,
-      refreshToken,
       username: payload.sub || "",
       role: payload.role || "STUDENT",
       isAuthenticated,
+      isInitializing,
       login,
       firstChangePassword,
       logout,
     }),
-    [accessToken, firstChangePassword, isAuthenticated, login, logout, payload.role, payload.sub, refreshToken],
+    [accessToken, firstChangePassword, isAuthenticated, isInitializing, login, logout, payload.role, payload.sub],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,17 +2,23 @@ import { CalendarDays, ExternalLink, MapPin, RefreshCw, TicketCheck } from "luci
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
+import FilterBar from "../../../components/FilterBar";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { activityApi, type ActivityResponse } from "../../../services/api";
 import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
+import { includesSearch } from "../../../utils/search";
 
 function StudentActivitiesPage() {
   const [activities, setActivities] = useState<ActivityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [participationFilter, setParticipationFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const loadActivities = useCallback(async () => {
     setLoading(true);
@@ -36,15 +42,27 @@ function StudentActivitiesPage() {
     return () => window.clearTimeout(timerId);
   }, [loadActivities]);
 
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter((activity) => {
+        const matchesKeyword = includesSearch(`${activity.title} ${activity.location} ${activity.reward}`, keyword);
+        const matchesCategory = !categoryFilter || activity.category === categoryFilter;
+        const matchesParticipation = !participationFilter || (activity.participationType || "LIMITED") === participationFilter;
+        const matchesStatus = !statusFilter || activity.status === statusFilter;
+        return matchesKeyword && matchesCategory && matchesParticipation && matchesStatus;
+      }),
+    [activities, categoryFilter, keyword, participationFilter, statusFilter],
+  );
+
   const sortedActivities = useMemo(
     () =>
-      [...activities].sort((a, b) => {
+      [...filteredActivities].sort((a, b) => {
         const statusOrder = { ONGOING: 0, UPCOMING: 1, COMPLETED: 2 };
         const statusDiff = statusOrder[a.status] - statusOrder[b.status];
         if (statusDiff !== 0) return statusDiff;
         return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
       }),
-    [activities],
+    [filteredActivities],
   );
 
   const {
@@ -71,10 +89,60 @@ function StudentActivitiesPage() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
+      <FilterBar
+        filters={[
+          {
+            id: "category",
+            label: "Loại hoạt động",
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+            options: [
+              { value: "", label: "Tất cả loại" },
+              ...Object.entries(activityCategoryLabels).map(([value, label]) => ({ value, label })),
+            ],
+          },
+          {
+            id: "participation",
+            label: "Hình thức",
+            value: participationFilter,
+            onChange: setParticipationFilter,
+            options: [
+              { value: "", label: "Tất cả hình thức" },
+              ...Object.entries(activityParticipationLabels).map(([value, label]) => ({ value, label })),
+            ],
+          },
+          {
+            id: "status",
+            label: "Trạng thái",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "UPCOMING", label: "Sắp diễn ra" },
+              { value: "ONGOING", label: "Đang diễn ra" },
+              { value: "COMPLETED", label: "Đã kết thúc" },
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setCategoryFilter("");
+          setParticipationFilter("");
+          setStatusFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredActivities.length} / ${activities.length} hoạt động`}
+        searchPlaceholder="Nhập tên, địa điểm hoặc điểm rèn luyện"
+        searchValue={keyword}
+        title="Lọc hoạt động"
+      />
+
       {loading ? (
         <div className="panel p-6 text-on-surface-variant">Đang tải danh sách hoạt động...</div>
       ) : sortedActivities.length === 0 ? (
-        <div className="panel p-6 text-on-surface-variant">Hiện chưa có hoạt động nào đang mở.</div>
+        <div className="panel p-6 text-on-surface-variant">
+          {activities.length === 0 ? "Hiện chưa có hoạt động nào." : "Không tìm thấy hoạt động phù hợp với bộ lọc hiện tại."}
+        </div>
       ) : (
         <>
         <div className="grid gap-gutter lg:grid-cols-3">

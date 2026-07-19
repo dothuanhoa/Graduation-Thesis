@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
     Optional<UserProfile> findByStudentId(String studentId);
     List<UserProfile> findByStudentIdIn(Collection<String> studentIds);
+    List<UserProfile> findByClazzId(Long clazzId);
+    List<UserProfile> findByClazzAcademicYearId(Long academicYearId);
     long countByClazzId(Long clazzId);
     long countByClazzFacultyId(Long facultyId);
     boolean existsByClazzId(Long clazzId);

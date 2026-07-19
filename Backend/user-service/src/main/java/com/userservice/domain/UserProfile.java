@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import lombok.Data;
 import java.time.LocalDate;
 
@@ -27,6 +28,10 @@ public class UserProfile {
 
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
+
+    @Email(message = "Email sinh viên không hợp lệ")
+    @Column(length = 100)
+    private String email;
 
     @Column(name = "dob")
     private LocalDate dob;

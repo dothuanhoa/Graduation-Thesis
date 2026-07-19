@@ -1,8 +1,9 @@
 import { Send, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
-import CertificateDocument, { normalizeCertificateCode } from "../../../components/certificates/CertificateDocument";
+import CertificateDocument from "../../../components/certificates/CertificateDocument";
 import PageHeader from "../../../components/PageHeader";
 import { useAuth } from "../../../context/useAuth";
 import {
@@ -14,6 +15,7 @@ import {
   type FormType,
   type UserProfile,
 } from "../../../services/api";
+import { normalizeCertificateCode } from "../../../utils/certificateUtils";
 
 type CertificateMetadata = Record<string, string>;
 
@@ -75,6 +77,9 @@ const getInitialMetadata = (profile: UserProfile | null, formType?: FormType): C
   if (formCode === "VAY_VON") {
     return {
       ...common,
+      reason: "Vay vốn sinh viên",
+      graduationMonth: "",
+      graduationYear: "",
       schoolCode: "DSG",
       schoolName: "Trường Đại học Công nghệ Sài Gòn",
       bankAccount: "8770199, tại ngân hàng Á Châu (ACB)",
@@ -164,7 +169,10 @@ function StudentCertificateRequestPage() {
       return;
     }
 
-    if (!metadata.reason?.trim()) {
+    const formCode = normalizeCertificateCode(selectedFormType.formCode, selectedFormType.name);
+    const requestReason = metadata.reason?.trim() || (formCode === "VAY_VON" ? "Vay vốn sinh viên" : "");
+
+    if (!requestReason) {
       setMessage("Vui lòng nhập lý do/yêu cầu xác nhận trên đơn.");
       return;
     }
@@ -182,14 +190,15 @@ function StudentCertificateRequestPage() {
 
       const payload: CreateConfirmationRequestPayload = {
         formTypeId: selectedFormType.id,
-        reason: metadata.reason,
+        reason: requestReason,
         contactPhone: metadata.contactPhone,
         semester: metadata.semester || getCurrentSemesterStr(),
         proofFileUrl,
         metadata: {
           ...metadata,
+          reason: requestReason,
           formTypeName: selectedFormType.name,
-          formCode: normalizeCertificateCode(selectedFormType.formCode, selectedFormType.name),
+          formCode,
         },
       };
 
@@ -207,6 +216,8 @@ function StudentCertificateRequestPage() {
 
   return (
     <div className="space-y-gutter">
+      <BackButton to="/student/certificates">Quay lại danh sách đơn</BackButton>
+
       <PageHeader
         title="Tạo đơn xin xác nhận"
         subtitle="Chọn đúng mẫu đơn và điền trực tiếp vào các ô trống trên tờ đơn như mẫu giấy thực tế của trường."

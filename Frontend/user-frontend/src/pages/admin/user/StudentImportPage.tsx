@@ -1,16 +1,30 @@
-import { CheckCircle2, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import { userApi, type StudentImportJobStatus } from "../../../services/api";
 import { excelImportSchema, getYupMessage } from "../../../validation/userSchemas";
 
 const runningStatuses: StudentImportJobStatus["status"][] = ["QUEUED", "PROCESSING"];
+const IMPORT_TEMPLATE_FILENAME = "mau-import-sinh-vien.xlsx";
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 
 function StudentImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [job, setJob] = useState<StudentImportJobStatus | null>(null);
 
   const isRunning = Boolean(job && runningStatuses.includes(job.status));
@@ -85,8 +99,24 @@ function StudentImportPage() {
     setJob(null);
   };
 
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    setMessage("");
+    try {
+      const blob = await userApi.downloadImportTemplate();
+      downloadBlob(blob, IMPORT_TEMPLATE_FILENAME);
+      setMessage("Đã tải file mẫu Excel.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tải được file mẫu Excel.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   return (
     <>
+      <BackButton to="/admin/students">Quay lại danh sách</BackButton>
+
       <PageHeader
         title="Import sinh viên từ Excel"
         subtitle="Nạp file danh sách đầu khóa hoặc giữa/cuối khóa, tự tạo khoa, lớp và niên khóa còn thiếu trước khi lưu hồ sơ sinh viên."
@@ -94,6 +124,22 @@ function StudentImportPage() {
 
       <Card>
         <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3">
+            <div>
+              <p className="font-bold text-on-surface">File mẫu import sinh viên</p>
+              <p className="mt-1 text-sm text-on-surface-variant">Tải file mẫu có sẵn cột email, ví dụ dữ liệu và từ điển khoa/nhóm.</p>
+            </div>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:opacity-60"
+              disabled={downloadingTemplate}
+              onClick={handleDownloadTemplate}
+              type="button"
+            >
+              <Download className="h-5 w-5" />
+              {downloadingTemplate ? "Đang tải..." : "Tải file mẫu"}
+            </button>
+          </div>
+
           <label
             className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-lowest px-6 py-10 text-center transition ${
               uploading || isRunning ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:border-primary hover:bg-primary-fixed"
@@ -102,7 +148,7 @@ function StudentImportPage() {
             <FileSpreadsheet className="h-12 w-12 text-primary" />
             <span className="mt-4 text-lg font-bold text-on-surface">{file ? file.name : "Chọn file Excel"}</span>
             <span className="mt-2 text-sm text-on-surface-variant">
-              Hỗ trợ .xlsx hoặc .xls, đọc cột MSSV, họ tên, lớp, khoa, niên khóa và Nhóm (1=Đầu khóa, 2=Giữa khóa, 3=Cuối khóa).
+              Hỗ trợ .xlsx hoặc .xls, đọc cột MSSV, họ tên, email, lớp, khoa, niên khóa và Nhóm (1=Đầu khóa, 2=Giữa khóa, 3=Cuối khóa).
             </span>
             <input
               accept=".xlsx,.xls"

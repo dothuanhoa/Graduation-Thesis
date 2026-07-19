@@ -11,6 +11,7 @@ import java.time.LocalDate;
 public class StudentImportRow {
     private String studentId;
     private String fullName;
+    private String email;
     private LocalDate dob;
     private UserProfile.Gender gender;
     private String contactPhone;

@@ -1,6 +1,7 @@
 import { Eye, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import DataTable, { type Column } from "../../../components/DataTable";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
@@ -42,7 +43,8 @@ function AdminQuestionsPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   const rows = useMemo<Row[]>(
@@ -59,6 +61,8 @@ function AdminQuestionsPage() {
 
   return (
     <div className="space-y-gutter">
+      <BackButton to="/admin/exams">Quay lại danh sách kỳ thi</BackButton>
+
       <PageHeader title="Ngân hàng câu hỏi" subtitle="Chọn một kỳ thi để thêm câu hỏi thủ công hoặc import Excel ngân hàng câu hỏi." />
       <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={load} type="button">
         <RefreshCw className="h-5 w-5" />

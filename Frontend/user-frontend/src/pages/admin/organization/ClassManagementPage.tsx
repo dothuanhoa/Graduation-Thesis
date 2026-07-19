@@ -1,7 +1,8 @@
 import { Edit3, PlusCircle, RotateCcw, Save, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Card from "../../../components/Card";
 import ExcelImportButton from "../../../components/ExcelImportButton";
+import FilterBar from "../../../components/FilterBar";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
@@ -17,6 +18,7 @@ import {
   type FacultyResponse,
   type OrganizationStatus,
 } from "../../../services/api";
+import { includesSearch } from "../../../utils/search";
 import { classSchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -50,6 +52,10 @@ function ClassManagementPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [facultyFilter, setFacultyFilter] = useState("");
+  const [academicYearFilter, setAcademicYearFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -172,6 +178,20 @@ function ClassManagementPage() {
     }
   };
 
+  const filteredClasses = useMemo(() => {
+    const status = statusFilter as OrganizationStatus | "";
+    return classes.filter((clazz) => {
+      const matchesKeyword = includesSearch(
+        `${clazz.classCode} ${clazz.faculty?.facultyCode ?? ""} ${clazz.faculty?.facultyName ?? ""} ${clazz.academicYear?.yearName ?? ""}`,
+        keyword,
+      );
+      const matchesFaculty = !facultyFilter || clazz.faculty?.id === facultyFilter;
+      const matchesAcademicYear = !academicYearFilter || clazz.academicYear?.id === academicYearFilter;
+      const matchesStatus = !status || clazz.status === status;
+      return matchesKeyword && matchesFaculty && matchesAcademicYear && matchesStatus;
+    });
+  }, [academicYearFilter, classes, facultyFilter, keyword, statusFilter]);
+
   const {
     pageItems: paginatedClasses,
     pageIndex,
@@ -179,7 +199,7 @@ function ClassManagementPage() {
     totalItems,
     setPageIndex,
     setPageSize,
-  } = usePaginatedList(classes);
+  } = usePaginatedList(filteredClasses);
 
   return (
     <div className="space-y-gutter">
@@ -189,6 +209,56 @@ function ClassManagementPage() {
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+
+      <FilterBar
+        filters={[
+          {
+            id: "faculty",
+            label: "Khoa",
+            value: facultyFilter,
+            onChange: setFacultyFilter,
+            options: [
+              { value: "", label: "Tất cả khoa" },
+              ...faculties.map((faculty) => ({
+                value: faculty.id,
+                label: `${faculty.facultyCode} - ${faculty.facultyName}`,
+              })),
+            ],
+          },
+          {
+            id: "academicYear",
+            label: "Niên khóa",
+            value: academicYearFilter,
+            onChange: setAcademicYearFilter,
+            options: [
+              { value: "", label: "Tất cả niên khóa" },
+              ...academicYears.map((year) => ({ value: year.id, label: year.yearName })),
+            ],
+          },
+          {
+            id: "status",
+            label: "Trạng thái",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "ACTIVE", label: "Hoạt động" },
+              { value: "INACTIVE", label: "Ngưng hoạt động" },
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setFacultyFilter("");
+          setAcademicYearFilter("");
+          setStatusFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredClasses.length} / ${classes.length} lớp`}
+        searchPlaceholder="Nhập mã lớp, khoa hoặc niên khóa"
+        searchValue={keyword}
+        title="Lọc danh sách lớp"
+      />
 
       <Card>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -320,10 +390,10 @@ function ClassManagementPage() {
               ))}
             </tbody>
           </table>
-          {!loading && classes.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Chưa có lớp nào.</p>}
+          {!loading && filteredClasses.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Không tìm thấy lớp phù hợp.</p>}
           {loading && <p className="px-5 py-6 text-sm text-on-surface-variant">Đang tải danh sách lớp...</p>}
         </div>
-        {!loading && classes.length > 0 && (
+        {!loading && filteredClasses.length > 0 && (
           <PaginationControls
             itemLabel="lớp"
             onPageChange={setPageIndex}

@@ -1,12 +1,12 @@
-import { Mail, Phone, RefreshCw, Save, UserRound } from "lucide-react";
+import { KeyRound, Lock, Mail, Phone, RefreshCw, Save, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { z } from "zod";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
-import { profileTimeline } from "../../../data/studentPortalData";
-import { userApi, type UserProfile } from "../../../services/api";
+import { authApi, userApi, type UserProfile } from "../../../services/api";
 import { contactPhoneSchema } from "../../../validation/userSchemas";
 
 const genderLabel: Record<string, string> = {
@@ -21,6 +21,21 @@ const statusText: Record<string, string> = {
   SUSPENDED: "Đình chỉ",
   GRADUATED: "Đã tốt nghiệp",
 };
+
+const passwordSchema = z
+  .object({
+    oldPassword: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại."),
+    newPassword: z.string().min(6, "Mật khẩu mới cần tối thiểu 6 ký tự."),
+    confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu mới."),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Xác nhận mật khẩu mới chưa khớp.",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.oldPassword !== data.newPassword, {
+    message: "Mật khẩu mới không được trùng với mật khẩu hiện tại.",
+    path: ["newPassword"],
+  });
 
 const formatDate = (value?: string) => {
   if (!value) return "Chưa cập nhật";
@@ -39,17 +54,25 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
 }
 
 function StudentProfilePage() {
-  const { username } = useAuth();
+  const auth = useAuth();
+  const { username } = auth;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [contactPhone, setContactPhone] = useState("");
   const [message, setMessage] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const studentEmail = useMemo(() => {
+    if (profile?.email) return profile.email;
     const studentId = profile?.studentId || username;
-    return studentId ? `${studentId}@student.stu.edu.vn` : "Chưa cập nhật";
-  }, [profile?.studentId, username]);
+    return studentId ? `${studentId}@student.edu.vn` : "Chưa cập nhật";
+  }, [profile?.email, profile?.studentId, username]);
 
   const loadProfile = useCallback(async () => {
     if (!username) {
@@ -102,11 +125,40 @@ function StudentProfilePage() {
     }
   };
 
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordMessage("");
+    setPasswordError("");
+
+    const parsed = passwordSchema.safeParse({ oldPassword, newPassword, confirmPassword });
+    if (!parsed.success) {
+      setPasswordError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại mật khẩu.");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const response = await authApi.changePassword({
+        oldPassword: parsed.data.oldPassword,
+        newPassword: parsed.data.newPassword,
+      });
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage(response.message || "Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.");
+      window.setTimeout(() => auth.logout(), 1800);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Không đổi được mật khẩu. Vui lòng thử lại.");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div className="space-y-gutter">
       <PageHeader
         title="Hồ sơ sinh viên"
-        subtitle="Xem thông tin cá nhân, lớp, khoa, trạng thái học tập và cập nhật số điện thoại liên hệ."
+        subtitle="Xem thông tin cá nhân, lớp, khoa, trạng thái học tập và cập nhật thông tin tài khoản."
       />
 
       {message && (
@@ -206,26 +258,75 @@ function StudentProfilePage() {
               </button>
             </form>
           </Card>
+
+          <Card>
+            <div className="mb-5 flex items-center gap-3">
+              <div className="rounded-lg bg-primary-fixed p-3 text-primary">
+                <KeyRound className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-primary">Bảo mật tài khoản</p>
+                <h2 className="text-xl font-bold text-on-surface">Đổi mật khẩu đăng nhập</h2>
+              </div>
+            </div>
+
+            {passwordMessage && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                {passwordMessage}
+              </div>
+            )}
+
+            {passwordError && (
+              <div className="mb-4 rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error">
+                {passwordError}
+              </div>
+            )}
+
+            <form autoComplete="off" className="grid gap-4" onSubmit={handlePasswordSubmit}>
+              <FormField
+                autoComplete="current-password"
+                icon={<Lock className="h-5 w-5" />}
+                label="Mật khẩu hiện tại"
+                onChange={(event) => setOldPassword(event.target.value)}
+                placeholder="Nhập mật khẩu hiện tại"
+                required
+                type="password"
+                value={oldPassword}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  autoComplete="new-password"
+                  icon={<Lock className="h-5 w-5" />}
+                  label="Mật khẩu mới"
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="Tối thiểu 6 ký tự"
+                  required
+                  type="password"
+                  value={newPassword}
+                />
+                <FormField
+                  autoComplete="new-password"
+                  icon={<Lock className="h-5 w-5" />}
+                  label="Xác nhận mật khẩu mới"
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Nhập lại mật khẩu mới"
+                  required
+                  type="password"
+                  value={confirmPassword}
+                />
+              </div>
+              <button
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:justify-self-start"
+                disabled={changingPassword}
+                type="submit"
+              >
+                <Save className="h-5 w-5" />
+                {changingPassword ? "Đang đổi mật khẩu" : "Đổi mật khẩu"}
+              </button>
+            </form>
+          </Card>
         </div>
       </section>
-
-      <Card>
-        <div className="mb-5">
-          <p className="text-sm font-semibold text-primary">Tiến trình hồ sơ</p>
-          <h2 className="text-xl font-bold text-on-surface">Các bước xử lý dữ liệu sinh viên</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {profileTimeline.map((item) => (
-            <div key={item.title} className="rounded-lg border border-outline-variant p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="font-bold text-on-surface">{item.title}</p>
-                <StatusBadge status={item.status} />
-              </div>
-              <p className="text-sm text-on-surface-variant">{item.time}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

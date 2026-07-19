@@ -3,6 +3,9 @@ package com.examservice.service;
 import com.examservice.client.UserClient;
 import com.examservice.domain.Exam;
 import com.examservice.domain.ExamAttempt;
+import com.examservice.domain.ExamTarget;
+import com.examservice.domain.ExamTargetClass;
+import com.examservice.domain.ExamTargetStudent;
 import com.examservice.domain.Question;
 import com.examservice.domain.QuestionOption;
 import com.examservice.dto.*;
@@ -49,10 +52,12 @@ public class ExamService {
     private final ObjectMapper objectMapper;
     private final UserClient userClient;
 
+    @Transactional(readOnly = true)
     public List<ExamResponse> findAll() {
         return examRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toExamResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public ExamResponse findById(Long id) {
         return toExamResponse(getExam(id));
     }
@@ -73,8 +78,8 @@ public class ExamService {
         if (attemptRepository.countByExamId(id) > 0 && !Objects.equals(exam.getDurationMins(), request.getDurationMins())) {
             throw new BadRequestException("Kỳ thi đã có lượt làm bài nên không được đổi thời lượng");
         }
-        applyExamRequest(exam, request);
-        return toExamResponse(examRepository.save(exam));
+        applyExamRequest(exam, request, true);
+        return toExamResponse(examRepository.saveAndFlush(exam));
     }
 
     @Transactional
@@ -220,23 +225,35 @@ public class ExamService {
         return attemptRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toAttemptResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public List<StudentExamSummary> listForStudent(String userCode) {
-        String studentGroupCode = resolveStudentGroupCode(userCode);
+        UserProfileDTO profile = resolveStudentProfile(userCode);
         Map<Long, ExamAttempt> attempts = attemptRepository.findByUserTsidOrderByCreatedAtDesc(userCode).stream()
                 .collect(Collectors.toMap(attempt -> attempt.getExam().getId(), Function.identity(), (first, second) -> first));
 
         return examRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(exam -> Objects.equals(examGroupCode(exam), studentGroupCode))
-                .filter(exam -> exam.getStatus() == Exam.Status.ACTIVE || attempts.containsKey(exam.getId()))
-                .map(exam -> toStudentSummary(exam, attempts.get(exam.getId())))
+                .map(exam -> {
+                    ExamTarget matchedTarget = findMatchingTarget(exam, profile).orElse(null);
+                    ExamAttempt attempt = attempts.get(exam.getId());
+                    if (matchedTarget == null && attempt == null) {
+                        return null;
+                    }
+                    if (exam.getStatus() != Exam.Status.ACTIVE && attempt == null) {
+                        return null;
+                    }
+                    return toStudentSummary(exam, matchedTarget == null ? primaryTarget(exam) : matchedTarget, attempt);
+                })
+                .filter(Objects::nonNull)
                 .toList();
     }
 
     @Transactional
     public ExamStateResponse startExam(Long examId, String userCode, String remoteAddress) {
         Exam exam = getExam(examId);
-        validateStudentBelongsToExamGroup(exam, userCode);
-        validateExamOpen(exam);
+        UserProfileDTO profile = resolveStudentProfile(userCode);
+        ExamTarget target = findMatchingTarget(exam, profile)
+                .orElseThrow(() -> new BadRequestException("Kỳ thi này không thuộc đối tượng thi của bạn."));
+        validateExamOpen(exam, target);
 
         ExamAttempt attempt = attemptRepository.findByExamIdAndUserTsid(examId, userCode).orElse(null);
         if (attempt != null && attempt.getStatus() == ExamAttempt.Status.SUBMITTED) {
@@ -322,6 +339,7 @@ public class ExamService {
         if (attempt.getStatus() == ExamAttempt.Status.SUBMITTED || attempt.getStatus() == ExamAttempt.Status.LOCKED) {
             return toExamStateResponse(exam, attempt, new RedisExamState());
         }
+        requireAllQuestionsAnswered(exam, attempt);
         return submitWithReason(exam, attempt, null);
     }
 
@@ -329,6 +347,20 @@ public class ExamService {
         return toAttemptResponse(getAttempt(examId, userCode));
     }
 
+    private void requireAllQuestionsAnswered(Exam exam, ExamAttempt attempt) {
+        RedisExamState state = readState(exam.getId(), attempt.getUserTsid())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy tiến độ làm bài. Vui lòng vào lại bài thi."));
+
+        long unansweredCount = state.getQuestionIds().stream()
+                .filter(questionId -> !state.getAnswers().containsKey(questionId)
+                        || state.getAnswers().get(questionId) == null
+                        || state.getAnswers().get(questionId).isBlank())
+                .count();
+
+        if (unansweredCount > 0) {
+            throw new BadRequestException("Vui lòng trả lời đầy đủ câu hỏi trước khi nộp bài. Còn thiếu " + unansweredCount + " câu.");
+        }
+    }
     private ExamStateResponse submitWithReason(Exam exam, ExamAttempt attempt, String reason) {
         RedisExamState state = readState(exam.getId(), attempt.getUserTsid()).orElse(new RedisExamState());
         gradeAttempt(attempt, state);
@@ -502,14 +534,53 @@ public class ExamService {
     }
 
     private void applyExamRequest(Exam exam, ExamRequest request) {
+        applyExamRequest(exam, request, false);
+    }
+
+    private void applyExamRequest(Exam exam, ExamRequest request, boolean flushExistingTargets) {
         exam.setTitle(request.getTitle().trim());
         exam.setDescription(blankToNull(request.getDescription()));
-        exam.setStartTime(request.getStartTime());
-        exam.setEndTime(request.getEndTime());
         exam.setDurationMins(request.getDurationMins());
         exam.setQuestionCount(request.getQuestionCount());
-        exam.setTargetGroupCode(normalizeGroupCode(request.getTargetGroupCode()));
         exam.setStatus(request.getStatus() == null ? Exam.Status.INACTIVE : request.getStatus());
+
+        List<ExamTargetRequest> targetRequests = normalizedTargetRequests(request);
+        LocalDateTime firstStart = targetRequests.stream()
+                .map(ExamTargetRequest::getStartTime)
+                .filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(request.getStartTime());
+        LocalDateTime lastEnd = targetRequests.stream()
+                .map(ExamTargetRequest::getEndTime)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(request.getEndTime());
+        String primaryGroupCode = targetRequests.isEmpty()
+                ? normalizeGroupCode(request.getTargetGroupCode())
+                : normalizeGroupCode(targetRequests.get(0).getTargetGroupCode());
+
+        exam.setStartTime(firstStart);
+        exam.setEndTime(lastEnd);
+        exam.setTargetGroupCode(primaryGroupCode.isBlank() ? "1" : primaryGroupCode);
+
+        exam.getTargets().clear();
+        if (flushExistingTargets) {
+            examRepository.flush();
+        }
+        for (ExamTargetRequest targetRequest : targetRequests) {
+            ExamTarget target = new ExamTarget();
+            target.setExam(exam);
+            target.setStudentGroupCode(normalizeGroupCode(targetRequest.getTargetGroupCode()));
+            target.setFacultyId(blankToNull(targetRequest.getFacultyId()));
+            target.setFacultyCode(blankToNull(targetRequest.getFacultyCode()));
+            target.setFacultyName(blankToNull(targetRequest.getFacultyName()));
+            target.setTargetMode(targetRequest.getTargetMode() == null ? ExamTarget.TargetMode.CLASS : targetRequest.getTargetMode());
+            target.setStartTime(targetRequest.getStartTime());
+            target.setEndTime(targetRequest.getEndTime());
+            addTargetClasses(target, preferredIdentifiers(targetRequest.getClassIds(), targetRequest.getClassCodes()));
+            addTargetStudents(target, preferredIdentifiers(targetRequest.getStudentIds(), targetRequest.getStudentCodes()));
+            exam.getTargets().add(target);
+        }
     }
 
     private void applyQuestionRequest(Question question, QuestionRequest request) {
@@ -524,11 +595,57 @@ public class ExamService {
     }
 
     private void validateExamRequest(ExamRequest request) {
-        if (!request.getStartTime().isBefore(request.getEndTime())) {
-            throw new BadRequestException("Thời gian mở đề phải trước thời gian đóng đề");
+        List<ExamTargetRequest> targetRequests = normalizedTargetRequests(request);
+        if (targetRequests.isEmpty()) {
+            if (!request.getStartTime().isBefore(request.getEndTime())) {
+                throw new BadRequestException("Thời gian mở đề phải trước thời gian đóng đề");
+            }
+            if (!STUDENT_GROUP_NAMES.containsKey(normalizeGroupCode(request.getTargetGroupCode()))) {
+                throw new BadRequestException("Đối tượng thi không hợp lệ. Chỉ hỗ trợ Đầu khóa, Giữa khóa hoặc Cuối khóa.");
+            }
+            return;
         }
-        if (!STUDENT_GROUP_NAMES.containsKey(normalizeGroupCode(request.getTargetGroupCode()))) {
-            throw new BadRequestException("Đối tượng thi không hợp lệ. Chỉ hỗ trợ Đầu khóa, Giữa khóa hoặc Cuối khóa.");
+
+        Set<String> usedClassKeys = new LinkedHashSet<>();
+        Set<String> usedStudentKeys = new LinkedHashSet<>();
+        for (int index = 0; index < targetRequests.size(); index++) {
+            ExamTargetRequest target = targetRequests.get(index);
+            String groupCode = normalizeGroupCode(target.getTargetGroupCode());
+            if (!STUDENT_GROUP_NAMES.containsKey(groupCode)) {
+                throw new BadRequestException("Đối tượng thi ở dòng " + (index + 1) + " không hợp lệ.");
+            }
+            if (target.getStartTime() == null || target.getEndTime() == null) {
+                throw new BadRequestException("Vui lòng nhập đủ giờ mở và giờ đóng cho dòng đối tượng " + (index + 1));
+            }
+            if (!target.getStartTime().isBefore(target.getEndTime())) {
+                throw new BadRequestException("Giờ đóng phải sau giờ mở ở dòng đối tượng " + (index + 1));
+            }
+            ExamTarget.TargetMode mode = target.getTargetMode() == null ? ExamTarget.TargetMode.CLASS : target.getTargetMode();
+            boolean hasClassSelection = hasAnyText(target.getClassIds()) || hasAnyText(target.getClassCodes());
+            boolean hasStudentSelection = hasAnyText(target.getStudentIds()) || hasAnyText(target.getStudentCodes());
+            if (mode == ExamTarget.TargetMode.CLASS && !hasClassSelection) {
+                throw new BadRequestException("Vui lòng chọn ít nhất một lớp ở dòng đối tượng " + (index + 1));
+            }
+            if (mode == ExamTarget.TargetMode.STUDENT && !hasStudentSelection) {
+                throw new BadRequestException("Vui lòng chọn ít nhất một sinh viên ở dòng đối tượng " + (index + 1));
+            }
+            if (mode == ExamTarget.TargetMode.BOTH && !hasClassSelection && !hasStudentSelection) {
+                throw new BadRequestException("Vui lòng chọn lớp hoặc sinh viên ở dòng đối tượng " + (index + 1));
+            }
+            if (mode != ExamTarget.TargetMode.STUDENT) {
+                ensureNoDuplicateTargets(
+                        usedClassKeys,
+                        targetKeys(target.getClassIds(), target.getClassCodes()),
+                        "Lớp đã được áp dụng ở khung giờ khác. Vui lòng bỏ chọn lớp trùng ở dòng đối tượng " + (index + 1)
+                );
+            }
+            if (hasStudentSelection) {
+                ensureNoDuplicateTargets(
+                        usedStudentKeys,
+                        targetKeys(target.getStudentIds(), target.getStudentCodes()),
+                        "Sinh viên đã được áp dụng ở khung giờ khác. Vui lòng bỏ chọn sinh viên trùng ở dòng đối tượng " + (index + 1)
+                );
+            }
         }
     }
 
@@ -539,46 +656,143 @@ public class ExamService {
         }
     }
 
-    private void validateExamOpen(Exam exam) {
+    private void validateExamOpen(Exam exam, ExamTarget target) {
         LocalDateTime now = LocalDateTime.now();
         if (exam.getStatus() != Exam.Status.ACTIVE) {
             throw new BadRequestException("Kỳ thi chưa được mở");
         }
-        if (now.isBefore(exam.getStartTime())) {
+        if (now.isBefore(target.getStartTime())) {
             throw new BadRequestException("Chưa đến thời gian làm bài");
         }
-        if (now.isAfter(exam.getEndTime())) {
+        if (now.isAfter(target.getEndTime())) {
             throw new BadRequestException("Kỳ thi đã đóng");
         }
     }
 
-    private void validateStudentBelongsToExamGroup(Exam exam, String userCode) {
-        String studentGroupCode = resolveStudentGroupCode(userCode);
-        if (!Objects.equals(examGroupCode(exam), studentGroupCode)) {
-            throw new BadRequestException("Kỳ thi này không thuộc đối tượng thi của bạn.");
-        }
+    private String resolveStudentGroupCode(String userCode) {
+        return studentGroupCode(resolveStudentProfile(userCode));
     }
 
-    private String resolveStudentGroupCode(String userCode) {
+    private UserProfileDTO resolveStudentProfile(String userCode) {
         try {
             UserProfileDTO profile = userClient.getProfileByStudentId(userCode);
-            if (profile == null || profile.getStudentGroup() == null) {
-                throw new BadRequestException("Không xác định được nhóm thi của sinh viên.");
+            if (profile == null) {
+                throw new BadRequestException("Không tìm thấy hồ sơ sinh viên.");
             }
-
-            String groupCode = normalizeGroupCode(profile.getStudentGroup().getCode());
-            if (groupCode.isBlank() && profile.getStudentGroup().getId() != null) {
-                groupCode = String.valueOf(profile.getStudentGroup().getId());
-            }
+            String groupCode = studentGroupCode(profile);
             if (!STUDENT_GROUP_NAMES.containsKey(groupCode)) {
                 throw new BadRequestException("Nhóm thi của sinh viên không hợp lệ.");
             }
-            return groupCode;
+            return profile;
         } catch (BadRequestException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new BadRequestException("Không xác định được nhóm thi của sinh viên. Vui lòng liên hệ Phòng CTSV.");
+            throw new BadRequestException("Không xác định được hồ sơ sinh viên. Vui lòng liên hệ Phòng CTSV.");
         }
+    }
+
+    private String studentGroupCode(UserProfileDTO profile) {
+        if (profile == null || profile.getStudentGroup() == null) {
+            throw new BadRequestException("Không xác định được nhóm thi của sinh viên.");
+        }
+
+        String groupCode = normalizeGroupCode(profile.getStudentGroup().getCode());
+        if (groupCode.isBlank() && profile.getStudentGroup().getId() != null) {
+            groupCode = String.valueOf(profile.getStudentGroup().getId());
+        }
+        return groupCode;
+    }
+
+    private Optional<ExamTarget> findMatchingTarget(Exam exam, UserProfileDTO profile) {
+        List<ExamTarget> matchedTargets = targetsForExam(exam).stream()
+                .filter(target -> targetMatchesProfile(target, profile))
+                .toList();
+        if (matchedTargets.isEmpty()) {
+            return Optional.empty();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        return matchedTargets.stream()
+                .filter(target -> !now.isBefore(target.getStartTime()) && !now.isAfter(target.getEndTime()))
+                .min(Comparator.comparing(ExamTarget::getStartTime))
+                .or(() -> matchedTargets.stream()
+                        .filter(target -> now.isBefore(target.getStartTime()))
+                        .min(Comparator.comparing(ExamTarget::getStartTime)))
+                .or(() -> matchedTargets.stream()
+                        .max(Comparator.comparing(ExamTarget::getEndTime)));
+    }
+
+    private boolean targetMatchesProfile(ExamTarget target, UserProfileDTO profile) {
+        if (!Objects.equals(normalizeGroupCode(target.getStudentGroupCode()), studentGroupCode(profile))) {
+            return false;
+        }
+
+        UserProfileDTO.ClazzDTO clazz = profile.getClazz();
+        UserProfileDTO.FacultyDTO faculty = clazz == null ? null : clazz.getFaculty();
+        if (hasText(target.getFacultyId()) || hasText(target.getFacultyCode())) {
+            if (faculty == null) {
+                return false;
+            }
+            boolean facultyIdMatches = !hasText(target.getFacultyId()) || textEquals(target.getFacultyId(), faculty.getId());
+            boolean facultyCodeMatches = !hasText(target.getFacultyCode()) || textEquals(target.getFacultyCode(), faculty.getFacultyCode());
+            if (!facultyIdMatches || !facultyCodeMatches) {
+                return false;
+            }
+        }
+
+        Set<String> classIdentifiers = targetClassIdentifiers(target);
+        Set<String> studentIdentifiers = targetStudentIdentifiers(target);
+        ExamTarget.TargetMode mode = target.getTargetMode() == null ? ExamTarget.TargetMode.CLASS : target.getTargetMode();
+
+        boolean hasClassSelection = !classIdentifiers.isEmpty();
+        boolean hasStudentSelection = !studentIdentifiers.isEmpty();
+        boolean classMatches = false;
+        if (hasClassSelection) {
+            if (clazz == null) {
+                classMatches = false;
+            } else {
+                classMatches = classIdentifiers.contains(normalizeKey(clazz.getId()))
+                        || classIdentifiers.contains(normalizeKey(clazz.getClassCode()));
+            }
+        }
+
+        boolean studentMatches = false;
+        if (hasStudentSelection) {
+            studentMatches = studentIdentifiers.contains(normalizeKey(profile.getId()))
+                    || studentIdentifiers.contains(normalizeKey(profile.getStudentId()));
+        }
+
+        if (mode == ExamTarget.TargetMode.STUDENT) {
+            return hasStudentSelection && studentMatches;
+        }
+        if (mode == ExamTarget.TargetMode.BOTH) {
+            return (hasClassSelection && classMatches) || (hasStudentSelection && studentMatches);
+        }
+        return hasClassSelection && classMatches;
+    }
+
+    private List<ExamTarget> targetsForExam(Exam exam) {
+        if (exam.getTargets() != null && !exam.getTargets().isEmpty()) {
+            return exam.getTargets();
+        }
+        return List.of(legacyTarget(exam));
+    }
+
+    private ExamTarget primaryTarget(Exam exam) {
+        return targetsForExam(exam).stream()
+                .min(Comparator.comparing(ExamTarget::getStartTime))
+                .orElseGet(() -> legacyTarget(exam));
+    }
+
+    private ExamTarget legacyTarget(Exam exam) {
+        ExamTarget target = new ExamTarget();
+        target.setId(null);
+        target.setExam(exam);
+        target.setStudentGroupCode(examGroupCode(exam));
+        target.setTargetMode(ExamTarget.TargetMode.CLASS);
+        target.setStartTime(exam.getStartTime());
+        target.setEndTime(exam.getEndTime());
+        return target;
     }
 
     private String examGroupCode(Exam exam) {
@@ -595,6 +809,122 @@ public class ExamService {
             groupCode = groupCode.substring(0, groupCode.length() - 2);
         }
         return groupCode;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private boolean hasAnyText(List<String> values) {
+        return values != null && values.stream().anyMatch(this::hasText);
+    }
+
+    private List<String> preferredIdentifiers(List<String> primaryValues, List<String> fallbackValues) {
+        List<String> primary = cleanIdentifiers(primaryValues);
+        return primary.isEmpty() ? cleanIdentifiers(fallbackValues) : primary;
+    }
+
+    private List<String> cleanIdentifiers(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(this::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private void addTargetClasses(ExamTarget target, List<String> classIdentifiers) {
+        classIdentifiers.forEach(identifier -> {
+            ExamTargetClass targetClass = new ExamTargetClass();
+            targetClass.setTarget(target);
+            targetClass.setClassIdentifier(identifier);
+            target.getClasses().add(targetClass);
+        });
+    }
+
+    private void addTargetStudents(ExamTarget target, List<String> studentIdentifiers) {
+        studentIdentifiers.forEach(identifier -> {
+            ExamTargetStudent targetStudent = new ExamTargetStudent();
+            targetStudent.setTarget(target);
+            targetStudent.setStudentIdentifier(identifier);
+            target.getStudents().add(targetStudent);
+        });
+    }
+
+    private List<String> targetClassIdentifiersList(ExamTarget target) {
+        if (target.getClasses() == null) {
+            return List.of();
+        }
+        return target.getClasses().stream()
+                .map(ExamTargetClass::getClassIdentifier)
+                .filter(this::hasText)
+                .toList();
+    }
+
+    private List<String> targetStudentIdentifiersList(ExamTarget target) {
+        if (target.getStudents() == null) {
+            return List.of();
+        }
+        return target.getStudents().stream()
+                .map(ExamTargetStudent::getStudentIdentifier)
+                .filter(this::hasText)
+                .toList();
+    }
+
+    private Set<String> targetClassIdentifiers(ExamTarget target) {
+        return targetClassIdentifiersList(target).stream()
+                .map(this::normalizeKey)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<String> targetStudentIdentifiers(ExamTarget target) {
+        return targetStudentIdentifiersList(target).stream()
+                .map(this::normalizeKey)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<String> targetKeys(List<String> ids, List<String> codes) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (ids != null) {
+            ids.stream()
+                    .filter(this::hasText)
+                    .map(this::normalizeKey)
+                    .forEach(value -> keys.add("id:" + value));
+        }
+        if (codes != null) {
+            codes.stream()
+                    .filter(this::hasText)
+                    .map(this::normalizeKey)
+                    .forEach(value -> keys.add("code:" + value));
+        }
+        return keys;
+    }
+
+    private void ensureNoDuplicateTargets(Set<String> usedKeys, Set<String> currentKeys, String message) {
+        for (String key : currentKeys) {
+            if (!usedKeys.add(key)) {
+                throw new BadRequestException(message);
+            }
+        }
+    }
+
+    private boolean textEquals(String left, String right) {
+        return normalizeKey(left).equals(normalizeKey(right));
+    }
+
+    private String normalizeKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private List<ExamTargetRequest> normalizedTargetRequests(ExamRequest request) {
+        if (request.getTargets() == null) {
+            return List.of();
+        }
+        return request.getTargets().stream()
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private String targetGroupName(String groupCode) {
@@ -638,6 +968,7 @@ public class ExamService {
                 .questionCount(exam.getQuestionCount())
                 .targetGroupCode(targetGroupCode)
                 .targetGroupName(targetGroupName(targetGroupCode))
+                .targets(targetsForExam(exam).stream().map(this::toTargetResponse).toList())
                 .availableQuestionCount(questionRepository.countByExamId(exam.getId()))
                 .status(exam.getStatus())
                 .createdBy(exam.getCreatedBy())
@@ -678,19 +1009,40 @@ public class ExamService {
                 .build();
     }
 
-    private StudentExamSummary toStudentSummary(Exam exam, ExamAttempt attempt) {
-        String availability = availabilityStatus(exam, attempt);
-        String targetGroupCode = examGroupCode(exam);
+    private ExamTargetResponse toTargetResponse(ExamTarget target) {
+        String groupCode = normalizeGroupCode(target.getStudentGroupCode());
+        return ExamTargetResponse.builder()
+                .id(target.getId() == null ? null : String.valueOf(target.getId()))
+                .targetGroupCode(groupCode)
+                .targetGroupName(targetGroupName(groupCode))
+                .facultyId(target.getFacultyId())
+                .facultyCode(target.getFacultyCode())
+                .facultyName(target.getFacultyName())
+                .classIds(targetClassIdentifiersList(target))
+                .classCodes(List.of())
+                .targetMode(target.getTargetMode() == null ? ExamTarget.TargetMode.CLASS : target.getTargetMode())
+                .studentIds(targetStudentIdentifiersList(target))
+                .studentCodes(List.of())
+                .studentNames(List.of())
+                .startTime(target.getStartTime())
+                .endTime(target.getEndTime())
+                .build();
+    }
+
+    private StudentExamSummary toStudentSummary(Exam exam, ExamTarget target, ExamAttempt attempt) {
+        String availability = availabilityStatus(exam, target, attempt);
+        String targetGroupCode = normalizeGroupCode(target.getStudentGroupCode());
         return StudentExamSummary.builder()
                 .id(String.valueOf(exam.getId()))
                 .title(exam.getTitle())
                 .description(exam.getDescription())
-                .startTime(exam.getStartTime())
-                .endTime(exam.getEndTime())
+                .startTime(target.getStartTime())
+                .endTime(target.getEndTime())
                 .durationMins(exam.getDurationMins())
                 .questionCount(exam.getQuestionCount())
                 .targetGroupCode(targetGroupCode)
                 .targetGroupName(targetGroupName(targetGroupCode))
+                .eligibleTarget(toTargetResponse(target))
                 .availabilityStatus(availability)
                 .attemptStatus(attempt == null ? ExamAttempt.Status.NOT_STARTED : attempt.getStatus())
                 .score(attempt == null ? null : attempt.getScore())
@@ -700,12 +1052,12 @@ public class ExamService {
                 .build();
     }
 
-    private String availabilityStatus(Exam exam, ExamAttempt attempt) {
+    private String availabilityStatus(Exam exam, ExamTarget target, ExamAttempt attempt) {
         if (attempt != null && attempt.getStatus() == ExamAttempt.Status.SUBMITTED) return "COMPLETED";
         if (attempt != null && attempt.getStatus() == ExamAttempt.Status.LOCKED) return "LOCKED";
         LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(exam.getStartTime())) return "UPCOMING";
-        if (now.isAfter(exam.getEndTime())) return "CLOSED";
+        if (now.isBefore(target.getStartTime())) return "UPCOMING";
+        if (now.isAfter(target.getEndTime())) return "CLOSED";
         if (attempt != null && attempt.getStatus() == ExamAttempt.Status.IN_PROGRESS) return "IN_PROGRESS";
         return "AVAILABLE";
     }

@@ -10,12 +10,21 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class FormTypeServiceImpl implements FormTypeService {
+
+    private static final List<String> DEFAULT_FORM_CODES = List.of("NVQS", "KHAC", "VAY_VON");
+    private static final Map<String, Integer> FORM_CODE_ORDER = Map.of(
+            "NVQS", 0,
+            "KHAC", 1,
+            "VAY_VON", 2
+    );
 
     private final FormTypeRepository formTypeRepository;
 
@@ -80,7 +89,9 @@ public class FormTypeServiceImpl implements FormTypeService {
     @Override
     @Transactional(readOnly = true)
     public List<FormTypeDTO> getAllActiveFormTypes() {
-        return formTypeRepository.findByIsActiveTrue().stream()
+        return formTypeRepository.findByIsActiveTrueAndFormCodeIn(DEFAULT_FORM_CODES).stream()
+                .sorted(Comparator.comparingInt(formType ->
+                        FORM_CODE_ORDER.getOrDefault(formType.getFormCode(), DEFAULT_FORM_CODES.size())))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }

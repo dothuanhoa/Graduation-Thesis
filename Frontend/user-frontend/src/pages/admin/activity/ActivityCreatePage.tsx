@@ -1,6 +1,7 @@
-import { ArrowLeft, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
@@ -83,10 +84,7 @@ function ActivityCreatePage() {
         subtitle="Khai báo hoạt động ngoại khóa, thời gian, địa điểm, điểm rèn luyện và link đăng ký Google Form."
       />
 
-      <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/admin/activities">
-        <ArrowLeft className="h-4 w-4" />
-        Quay lại danh sách
-      </Link>
+      <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
 
       {message && <div className="rounded-lg bg-error-container px-4 py-3 text-sm font-semibold text-error">{message}</div>}
 

@@ -62,7 +62,7 @@
 </td>
 <td>
 <div class="infoBox duration">
-<div class="counter">17.678s</div>
+<div class="counter">13.786s</div>
 <p>duration</p>
 </div>
 </td>
@@ -92,14 +92,12 @@
 </tr>
 </thead>
 <tr>
-<td class="success">
-<a href="f9ZdqPj7kYc.html">contextLoads()</a>
-</td>
+<td class="success">contextLoads()</td>
 <td class="path" hidden="">contextLoads()</td>
 <td>1</td>
 <td>0</td>
 <td>0</td>
-<td>0.622s</td>
+<td>0.036s</td>
 <td class="success">100%</td>
 </tr>
 </table>
@@ -108,8 +106,8 @@
 <div class="tab">
 <h2>standard output</h2>
 <span class="code">
-<pre id="root-0-test-stdout-com.activityservice.ActivityServiceApplicationTests">15:24:17.953 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.activityservice.ActivityServiceApplicationTests]: ActivityServiceApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
-15:24:18.267 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.activityservice.ActivityServiceApplication for test class com.activityservice.ActivityServiceApplicationTests
+<pre id="root-0-test-stdout-com.activityservice.ActivityServiceApplicationTests">18:42:44.751 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.activityservice.ActivityServiceApplicationTests]: ActivityServiceApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+18:42:44.970 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.activityservice.ActivityServiceApplication for test class com.activityservice.ActivityServiceApplicationTests
 
   .   ____          _            __ _ _
  /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
@@ -120,18 +118,18 @@
 
  :: Spring Boot ::                (v3.4.5)
 
-2026-07-11T15:24:21.156+07:00  INFO 28720 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : Starting ActivityServiceApplicationTests using Java 21.0.9 with PID 28720 (started by phuco in C:\Users\phuco\Desktop\Graduation-Thesis\Backend\activity-service)
-2026-07-11T15:24:21.166+07:00  INFO 28720 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : The following 1 profile is active: &quot;local&quot;
-2026-07-11T15:24:23.772+07:00  INFO 28720 --- [activity-service] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2026-07-11T15:24:24.040+07:00  INFO 28720 --- [activity-service] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 251 ms. Found 3 JPA repository interfaces.
-2026-07-11T15:24:24.363+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.cloud.context.scope.GenericScope     : BeanFactory id=d6425dd1-a756-305f-bb42-113cf3ce071c
-2026-07-11T15:24:24.943+07:00  INFO 28720 --- [activity-service] [    Test worker] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
-2026-07-11T15:24:25.048+07:00  INFO 28720 --- [activity-service] [    Test worker] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
-2026-07-11T15:24:25.104+07:00  INFO 28720 --- [activity-service] [    Test worker] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
-2026-07-11T15:24:25.283+07:00  INFO 28720 --- [activity-service] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-07-11T15:24:25.598+07:00  INFO 28720 --- [activity-service] [    Test worker] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:activity_db user=SA
-2026-07-11T15:24:25.601+07:00  INFO 28720 --- [activity-service] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-07-11T15:24:25.690+07:00  INFO 28720 --- [activity-service] [    Test worker] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+2026-07-19T18:42:47.039+07:00  INFO 23336 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : Starting ActivityServiceApplicationTests using Java 21.0.9 with PID 23336 (started by phuco in C:\Users\phuco\Desktop\Graduation-Thesis\Backend\activity-service)
+2026-07-19T18:42:47.042+07:00  INFO 23336 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : The following 1 profile is active: &quot;local&quot;
+2026-07-19T18:42:49.002+07:00  INFO 23336 --- [activity-service] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-07-19T18:42:49.256+07:00  INFO 23336 --- [activity-service] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 235 ms. Found 3 JPA repository interfaces.
+2026-07-19T18:42:49.661+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.cloud.context.scope.GenericScope     : BeanFactory id=d6425dd1-a756-305f-bb42-113cf3ce071c
+2026-07-19T18:42:50.294+07:00  INFO 23336 --- [activity-service] [    Test worker] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-07-19T18:42:50.415+07:00  INFO 23336 --- [activity-service] [    Test worker] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.13.Final
+2026-07-19T18:42:50.494+07:00  INFO 23336 --- [activity-service] [    Test worker] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-07-19T18:42:50.743+07:00  INFO 23336 --- [activity-service] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-07-19T18:42:51.067+07:00  INFO 23336 --- [activity-service] [    Test worker] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:activity_db user=SA
+2026-07-19T18:42:51.074+07:00  INFO 23336 --- [activity-service] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-07-19T18:42:51.190+07:00  INFO 23336 --- [activity-service] [    Test worker] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
 	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
 	Database driver: undefined/unknown
 	Database version: 2.3.232
@@ -139,8 +137,8 @@
 	Isolation level: undefined/unknown
 	Minimum pool size: undefined/unknown
 	Maximum pool size: undefined/unknown
-2026-07-11T15:24:26.142+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-07-11T15:24:27.538+07:00  INFO 28720 --- [activity-service] [    Test worker] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-07-19T18:42:51.290+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-07-19T18:42:52.907+07:00  INFO 23336 --- [activity-service] [    Test worker] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
 Hibernate: 
     drop table if exists activities cascade 
 Hibernate: 
@@ -198,15 +196,15 @@ Hibernate:
        add constraint FKj6kk52cdt8bh1k3p33g9j6aap 
        foreign key (activity_id) 
        references activities
-2026-07-11T15:24:27.604+07:00  INFO 28720 --- [activity-service] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2026-07-11T15:24:28.967+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
-2026-07-11T15:24:30.907+07:00  WARN 28720 --- [activity-service] [    Test worker] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
-2026-07-11T15:24:31.056+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.c.openfeign.FeignClientFactoryBean   : For 'USER-SERVICE' URL not provided. Will try picking an instance via load-balancing.
-2026-07-11T15:24:33.413+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.b.a.h2.H2ConsoleAutoConfiguration    : H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:activity_db'
-2026-07-11T15:24:34.539+07:00  INFO 28720 --- [activity-service] [    Test worker] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
-2026-07-11T15:24:34.552+07:00  INFO 28720 --- [activity-service] [    Test worker] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
-2026-07-11T15:24:34.583+07:00  WARN 28720 --- [activity-service] [    Test worker] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
-2026-07-11T15:24:34.638+07:00  INFO 28720 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : Started ActivityServiceApplicationTests in 15.628 seconds (process running for 18.334)
+2026-07-19T18:42:53.025+07:00  INFO 23336 --- [activity-service] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-07-19T18:42:53.947+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-07-19T18:42:55.332+07:00  WARN 23336 --- [activity-service] [    Test worker] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-07-19T18:42:55.406+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.c.openfeign.FeignClientFactoryBean   : For 'USER-SERVICE' URL not provided. Will try picking an instance via load-balancing.
+2026-07-19T18:42:56.856+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.b.a.h2.H2ConsoleAutoConfiguration    : H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:activity_db'
+2026-07-19T18:42:58.042+07:00  INFO 23336 --- [activity-service] [    Test worker] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-07-19T18:42:58.056+07:00  INFO 23336 --- [activity-service] [    Test worker] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-07-19T18:42:58.100+07:00  WARN 23336 --- [activity-service] [    Test worker] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-07-19T18:42:58.163+07:00  INFO 23336 --- [activity-service] [    Test worker] c.a.ActivityServiceApplicationTests      : Started ActivityServiceApplicationTests in 12.753 seconds (process running for 16.6)
 </pre>
 <button class="clipboard-copy-btn" aria-label="Copy to clipboard" data-copy-element-id="root-0-test-stdout-com.activityservice.ActivityServiceApplicationTests">Copy</button>
 </span>
@@ -221,7 +219,7 @@ Hibernate:
 <input id="line-wrapping-toggle" type="checkbox" autocomplete="off"/>
 </label>
 </div>Generated by 
-<a href="https://www.gradle.org">Gradle 9.4.1</a> at Jul 11, 2026, 3:24:35 PM</p>
+<a href="https://www.gradle.org">Gradle 9.4.1</a> at Jul 19, 2026, 6:42:58 PM</p>
 </div>
 </div>
 </body>

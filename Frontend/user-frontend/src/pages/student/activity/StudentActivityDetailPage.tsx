@@ -1,6 +1,7 @@
-import { ArrowLeft, CalendarDays, ExternalLink, MapPin, TicketCheck } from "lucide-react";
+﻿import { CalendarDays, ExternalLink, MapPin, TicketCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
@@ -45,20 +46,16 @@ function StudentActivityDetailPage() {
       <div className="space-y-gutter">
         <PageHeader title="Không tìm thấy hoạt động" subtitle="Hoạt động này không còn tồn tại hoặc chưa được mở cho tài khoản của bạn." />
         {message && <div className="rounded-lg bg-error-container px-4 py-3 text-sm font-semibold text-error">{message}</div>}
-        <Link className="font-semibold text-primary hover:underline" to="/student/activities">
-          Quay lại danh sách hoạt động
-        </Link>
+        <BackButton to="/student/activities">Quay lại danh sách hoạt động</BackButton>
       </div>
     );
   }
+
   const isLimitedActivity = (activity.participationType || "LIMITED") === "LIMITED";
 
   return (
     <div className="space-y-gutter">
-      <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/student/activities">
-        <ArrowLeft className="h-4 w-4" />
-        Quay lại hoạt động
-      </Link>
+      <BackButton to="/student/activities">Quay lại hoạt động</BackButton>
 
       <PageHeader title={activity.title} subtitle="Xem thời gian, địa điểm, nội dung và thông tin đăng ký hoạt động." />
 

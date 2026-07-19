@@ -17,6 +17,11 @@ export const userProfileSchema = z.object({
     .trim()
     .min(2, "Họ tên cần ít nhất 2 ký tự")
     .max(100, "Họ tên tối đa 100 ký tự"),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || z.email().safeParse(value).success, "Email sinh viên không hợp lệ"),
   dob: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"], {
     message: "Giới tính không hợp lệ",

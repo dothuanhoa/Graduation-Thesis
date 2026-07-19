@@ -1,4 +1,5 @@
 import type { UserProfile } from "../../services/api";
+import { normalizeCertificateCode } from "../../utils/certificateUtils";
 
 type Metadata = Record<string, unknown>;
 
@@ -17,25 +18,6 @@ const PRINCIPAL_NAME = "PGS. TS. Cao Hào Thi";
 
 const text = (value: unknown) =>
   value === null || value === undefined ? "" : String(value);
-
-export const normalizeCertificateCode = (
-  formCode?: string,
-  formTypeName?: string,
-) => {
-  const raw = `${formCode || ""} ${formTypeName || ""}`
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase();
-
-  if (raw.includes("VAY") || raw.includes("VON")) return "VAY_VON";
-  if (
-    raw.includes("NVQS") ||
-    raw.includes("QUAN SU") ||
-    raw.includes("NGHIA VU")
-  )
-    return "NVQS";
-  return "KHAC";
-};
 
 const getDefaultValue = (
   key: string,
@@ -387,7 +369,11 @@ function NvqsForm(props: CertificateDocumentProps) {
           adminMode={props.adminMode}
           onChange={props.onChange}
         />
-        <SchoolConfirmation {...props} metadata={metadata} />
+        <SchoolConfirmation
+          {...props}
+          editable={props.adminMode ? props.editable : false}
+          metadata={metadata}
+        />
       </div>
     </div>
   );
@@ -661,20 +647,24 @@ function LoanForm(props: CertificateDocumentProps) {
             className="min-w-28"
           />
           Thời gian ra trường dự kiến{" "}
-          <Field
-            name="graduationMonth"
-            {...props}
-            metadata={metadata}
-            className="w-12"
-          />{" "}
-          tháng
-          <Field
-            name="graduationYear"
-            {...props}
-            metadata={metadata}
-            className="w-16"
-          />{" "}
-          năm
+          <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+            tháng
+            <Field
+              name="graduationMonth"
+              {...props}
+              metadata={metadata}
+              className="w-12"
+            />
+          </span>{" "}
+          <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+            năm
+            <Field
+              name="graduationYear"
+              {...props}
+              metadata={metadata}
+              className="w-16"
+            />
+          </span>
         </p>
         <p>
           Thời gian học tại trường:{" "}

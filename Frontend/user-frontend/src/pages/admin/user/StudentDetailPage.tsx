@@ -1,6 +1,7 @@
 import { KeyRound, Lock, RotateCcw, Save, Trash2, Unlock } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
@@ -12,6 +13,7 @@ import { userProfileSchema } from "../../../validation/userSchemas";
 const emptyProfile: UserProfilePayload = {
   studentId: "",
   fullName: "",
+  email: "",
   dob: "",
   gender: "MALE",
   contactPhone: "",
@@ -55,6 +57,7 @@ function StudentDetailPage() {
       setFormData({
         studentId: data.studentId,
         fullName: data.fullName,
+        email: data.email || "",
         dob: data.dob || "",
         gender: data.gender || "MALE",
         contactPhone: data.contactPhone || "",
@@ -139,9 +142,7 @@ function StudentDetailPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Link className="rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" to="/admin/students">
-          Quay lại danh sách
-        </Link>
+        <BackButton to="/admin/students">Quay lại danh sách</BackButton>
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadProfile} type="button">
           <RotateCcw className="h-5 w-5" />
           Tải lại
@@ -158,6 +159,7 @@ function StudentDetailPage() {
             <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSave}>
               <FormField label="MSSV" onChange={(event) => updateField("studentId", event.target.value)} required value={formData.studentId} />
               <FormField label="Họ tên" onChange={(event) => updateField("fullName", event.target.value)} required value={formData.fullName} />
+              <FormField label="Email sinh viên" onChange={(event) => updateField("email", event.target.value)} required type="email" value={formData.email} />
               <FormField label="Ngày sinh" onChange={(event) => updateField("dob", event.target.value)} type="date" value={formData.dob} />
               <FormField as="select" label="Giới tính" onChange={(event) => updateField("gender", event.target.value)} options={["MALE", "FEMALE", "OTHER"]} value={formData.gender} />
               <FormField label="Số điện thoại" onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="090..." value={formData.contactPhone} />
@@ -214,7 +216,7 @@ function StudentDetailPage() {
             <Card>
               <p className="text-sm font-semibold text-primary">Tài khoản đăng nhập</p>
               <h2 className="mt-2 text-xl font-bold text-on-surface">{profile?.studentId}</h2>
-              <p className="mt-2 text-sm text-on-surface-variant">{profile?.studentId}@student.stu.edu.vn</p>
+              <p className="mt-2 text-sm text-on-surface-variant">{profile?.email || `${profile?.studentId}@student.edu.vn`}</p>
               <div className="mt-4">{profile?.studentStatus && <StatusBadge status={profile.studentStatus} />}</div>
             </Card>
 

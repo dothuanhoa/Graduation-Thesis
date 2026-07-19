@@ -1,5 +1,6 @@
 import { Lock, LogIn, UserRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import Card from "../../components/Card";
 import FormField from "../../components/FormField";
 import { useAuth } from "../../context/useAuth";
@@ -160,7 +161,9 @@ function LoginPage() {
 
         <div className="mt-8 border-t border-outline-variant pt-5 text-sm text-on-surface-variant">
           Gặp sự cố khi đăng nhập?{" "}
-          <span className="font-semibold text-primary">Liên hệ hỗ trợ</span>
+          <Link className="font-semibold text-primary hover:text-primary-container" to="/forgot-password">
+            Quên mật khẩu
+          </Link>
         </div>
       </Card>
       <p className="mt-6 text-center text-sm text-on-primary">

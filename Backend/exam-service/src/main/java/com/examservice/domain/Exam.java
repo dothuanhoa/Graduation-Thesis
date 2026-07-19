@@ -9,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "exams")
@@ -39,6 +41,10 @@ public class Exam {
 
     @Column(name = "target_group_code", nullable = false, length = 20)
     private String targetGroupCode = "1";
+
+    @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("startTime ASC")
+    private List<ExamTarget> targets = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

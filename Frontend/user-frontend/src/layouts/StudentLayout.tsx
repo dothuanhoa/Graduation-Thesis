@@ -115,7 +115,6 @@ function StudentLayout() {
           mobileTitle="Cổng sinh viên"
           onToggleSidebar={handleToggleSidebar}
           roleLabel="Sinh viên"
-          searchPlaceholder="Tìm thông báo, kỳ thi, hoạt động, đơn xác nhận..."
           userName={displayName}
         />
         <main className="flex-1 px-4 py-6 md:px-padding-page md:py-padding-page">

@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowLeft, Clock, Flag, Save } from "lucide-react";
+import { AlertTriangle, Clock, Flag, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import { examApi, type ExamStateResponse } from "../../../services/api";
 
@@ -41,7 +42,8 @@ function ExamTakePage() {
   }, [id, navigate]);
 
   useEffect(() => {
-    void loadExam();
+    const timeoutId = window.setTimeout(() => void loadExam(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadExam]);
 
   useEffect(() => {
@@ -87,22 +89,36 @@ function ExamTakePage() {
   }, [id, navigate, state]);
 
   const currentQuestion = state?.questions[currentIndex];
-  const answeredCount = useMemo(() => Object.keys(state?.answers || {}).length, [state]);
+  const answeredCount = useMemo(
+    () => state?.questions.filter((question) => Boolean(state.answers[question.id])).length || 0,
+    [state],
+  );
 
   const saveAnswer = async (questionId: string, optionId: string) => {
     if (!id || !state) return;
+    const previousState = state;
+    setMessage("");
     setState({ ...state, answers: { ...state.answers, [questionId]: optionId } });
     try {
       const next = await examApi.saveAnswer(id, questionId, optionId);
       setState(next);
       setRemainingSeconds(next.remainingSeconds);
     } catch (err) {
+      setState(previousState);
       setMessage(err instanceof Error ? err.message : "Không lưu được đáp án.");
     }
   };
 
   const submit = async () => {
-    if (!id || submittingRef.current) return;
+    if (!id || !state || submittingRef.current) return;
+    const firstUnansweredIndex = state.questions.findIndex((question) => !state.answers[question.id]);
+    if (firstUnansweredIndex >= 0) {
+      const remainingCount = state.questions.length - answeredCount;
+      setCurrentIndex(firstUnansweredIndex);
+      setMessage(`Bạn còn ${remainingCount} câu chưa trả lời. Vui lòng hoàn thành tất cả câu hỏi trước khi nộp bài.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (!window.confirm("Bạn chắc chắn muốn nộp bài? Sau khi nộp sẽ không thể sửa đáp án.")) return;
     submittingRef.current = true;
     try {
@@ -121,10 +137,7 @@ function ExamTakePage() {
   if (!state || !currentQuestion) {
     return (
       <div className="space-y-gutter">
-        <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/student/exams">
-          <ArrowLeft className="h-4 w-4" />
-          Quay lại kỳ thi
-        </Link>
+        <BackButton to="/student/exams">Quay lại kỳ thi</BackButton>
         <div className="panel p-6 text-on-surface-variant">{message || "Không có dữ liệu bài thi."}</div>
       </div>
     );
@@ -134,10 +147,7 @@ function ExamTakePage() {
     <div className="space-y-gutter">
       <div className="sticky top-16 z-20 panel flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <Link className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/student/exams">
-            <ArrowLeft className="h-4 w-4" />
-            Danh sách kỳ thi
-          </Link>
+          <BackButton className="mb-2" to="/student/exams">Danh sách kỳ thi</BackButton>
           <p className="text-sm font-semibold text-primary">Bài kiểm tra trắc nghiệm</p>
           <h1 className="text-2xl font-bold text-on-surface">Màn hình làm bài thi</h1>
         </div>

@@ -1,6 +1,7 @@
-import { ArrowLeft, FileUp, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
+import { FileUp, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
@@ -453,9 +454,7 @@ function ActivityDetailPage() {
       <div className="space-y-gutter">
         <PageHeader title="Không tìm thấy hoạt động" subtitle="Hoạt động này không còn tồn tại hoặc bạn không có quyền xem." />
         {message && <div className="rounded-lg bg-error-container px-4 py-3 text-sm font-semibold text-error">{message}</div>}
-        <Link className="font-semibold text-primary hover:underline" to="/admin/activities">
-          Quay lại danh sách
-        </Link>
+        <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
       </div>
     );
   }
@@ -469,10 +468,7 @@ function ActivityDetailPage() {
       <PageHeader title={activity.title} subtitle="Quản lý chi tiết hoạt động, danh sách đăng ký, người điểm danh và trạng thái tổ chức." />
 
       <div className="flex flex-wrap items-center gap-3">
-        <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/admin/activities">
-          <ArrowLeft className="h-4 w-4" />
-          Quay lại danh sách
-        </Link>
+        <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
         <StatusBadge status={activity.status} />
       </div>
 

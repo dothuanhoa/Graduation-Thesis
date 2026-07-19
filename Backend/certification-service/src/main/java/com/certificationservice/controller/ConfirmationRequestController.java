@@ -1,7 +1,9 @@
 package com.certificationservice.controller;
 
 import com.certificationservice.dto.ConfirmationRequestDTO;
+import com.certificationservice.dto.BulkUpdateStatusDTO;
 import com.certificationservice.dto.CreateConfirmationRequestDTO;
+import com.certificationservice.dto.UpdateProofFileDTO;
 import com.certificationservice.dto.UpdateStatusDTO;
 import com.certificationservice.service.ConfirmationRequestService;
 import jakarta.validation.Valid;
@@ -72,6 +74,18 @@ public class ConfirmationRequestController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/my-requests/{id}/proof")
+    public ResponseEntity<ConfirmationRequestDTO> updateMyRequestProof(
+            @RequestHeader(value = "X-User-Code") String studentId,
+            @RequestHeader(value = "X-User-Role") String role,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProofFileDTO dto) {
+        if (!"STUDENT".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(requestService.updateProofFile(id, studentId, dto));
+    }
+
     // --- API DÀNH CHO ADMIN ---
 
     @GetMapping
@@ -103,5 +117,15 @@ public class ConfirmationRequestController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(requestService.updateRequestStatus(id, dto));
+    }
+
+    @PutMapping("/bulk/status")
+    public ResponseEntity<List<ConfirmationRequestDTO>> updateRequestStatuses(
+            @RequestHeader(value = "X-User-Role") String role,
+            @Valid @RequestBody BulkUpdateStatusDTO dto) {
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(requestService.updateRequestStatuses(dto));
     }
 }

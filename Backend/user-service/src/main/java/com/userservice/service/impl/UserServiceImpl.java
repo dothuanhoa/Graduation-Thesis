@@ -4,6 +4,7 @@ import com.userservice.client.AuthServiceClient;
 import com.userservice.domain.Clazz;
 import com.userservice.domain.StudentGroup;
 import com.userservice.domain.UserProfile;
+import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.BulkRegisterMessage;
 import com.userservice.dto.OrganizationImportSummary;
@@ -11,12 +12,14 @@ import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 import com.userservice.exception.BadRequestException;
 import com.userservice.exception.ResourceNotFoundException;
+import com.userservice.repository.AcademicYearRepository;
 import com.userservice.repository.ClassRepository;
 import com.userservice.repository.StudentGroupRepository;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.OrganizationService;
 import com.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,9 +47,13 @@ public class UserServiceImpl implements UserService {
 
     private final UserProfileRepository userProfileRepository;
     private final ClassRepository classRepository;
+    private final AcademicYearRepository academicYearRepository;
     private final StudentGroupRepository studentGroupRepository;
     private final AuthServiceClient authServiceClient;
     private final OrganizationService organizationService;
+
+    @Value("${app.student.email-domain:student.edu.vn}")
+    private String studentEmailDomain;
 
     public List<UserProfile> findAll() {
         return userProfileRepository.findAll();
@@ -69,6 +76,7 @@ public class UserServiceImpl implements UserService {
         Clazz targetClazz = resolveClazz(userProfile);
         StudentGroup targetGroup = resolveStudentGroupForCreate(userProfile);
         ensureClassHasRoom(null, targetClazz, 1);
+        userProfile.setEmail(resolveStudentEmail(userProfile.getStudentId(), userProfile.getEmail()));
         userProfile.setClazz(targetClazz);
         userProfile.setStudentGroup(targetGroup);
         UserProfile savedProfile = userProfileRepository.save(userProfile);
@@ -112,13 +120,13 @@ public class UserServiceImpl implements UserService {
             }
 
             row.setStudentId(studentId);
-            pendingAccounts.add(new BulkRegisterMessage.UserAccountDTO(
-                    studentId,
-                    studentId + "@student.stu.edu.vn"
-            ));
             Clazz clazz = resolveImportClass(row, organizationSummary, classCache);
             StudentGroup studentGroup = resolveImportStudentGroup(row, studentGroupCache);
             Optional<UserProfile> existingProfile = Optional.ofNullable(existingProfiles.get(studentId));
+            pendingAccounts.add(new BulkRegisterMessage.UserAccountDTO(
+                    studentId,
+                    resolveStudentEmail(studentId, row.getEmail(), existingProfile.orElse(null))
+            ));
 
             if (existingProfile.isPresent()) {
                 UserProfile profile = existingProfile.get();
@@ -176,6 +184,7 @@ public class UserServiceImpl implements UserService {
             ensureClassHasRoom(user, targetClazz, 1);
             user.setFullName(userDetails.getFullName());
             user.setStudentId(userDetails.getStudentId());
+            user.setEmail(resolveStudentEmail(userDetails.getStudentId(), userDetails.getEmail()));
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
@@ -216,6 +225,23 @@ public class UserServiceImpl implements UserService {
         return new BulkStudentUpdateResponse(
                 students.size(),
                 "Đã cập nhật trạng thái cho " + students.size() + " sinh viên."
+        );
+    }
+
+    @Transactional
+    public BulkStudentUpdateResponse updateStudentGroups(BulkStudentGroupRequest request) {
+        StudentGroup targetGroup = studentGroupRepository.findById(request.getStudentGroupId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm sinh viên với id: " + request.getStudentGroupId()));
+        List<UserProfile> students = loadStudentsForGroupScope(request);
+        if (students.isEmpty()) {
+            throw new BadRequestException("Không tìm thấy sinh viên phù hợp để chuyển nhóm.");
+        }
+
+        students.forEach(student -> student.setStudentGroup(targetGroup));
+        userProfileRepository.saveAll(students);
+        return new BulkStudentUpdateResponse(
+                students.size(),
+                "Đã chuyển " + students.size() + " sinh viên sang nhóm " + targetGroup.getName() + "."
         );
     }
 
@@ -307,7 +333,7 @@ public class UserServiceImpl implements UserService {
     private void createAuthAccount(UserProfile profile) {
         authServiceClient.registerAccount(new AuthServiceClient.RegisterRequest(
                 profile.getStudentId(),
-                profile.getStudentId() + "@student.stu.edu.vn"
+                resolveStudentEmail(profile.getStudentId(), profile.getEmail())
         ));
     }
 
@@ -378,6 +404,22 @@ public class UserServiceImpl implements UserService {
         return students;
     }
 
+    private List<UserProfile> loadStudentsForGroupScope(BulkStudentGroupRequest request) {
+        if (request.getScope() == BulkStudentGroupRequest.Scope.CLASS) {
+            classRepository.findById(request.getClassId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + request.getClassId()));
+            return userProfileRepository.findByClazzId(request.getClassId());
+        }
+
+        if (request.getScope() == BulkStudentGroupRequest.Scope.ACADEMIC_YEAR) {
+            academicYearRepository.findById(request.getAcademicYearId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy niên khóa với id: " + request.getAcademicYearId()));
+            return userProfileRepository.findByClazzAcademicYearId(request.getAcademicYearId());
+        }
+
+        return loadStudentsByIds(request.getStudentIds());
+    }
+
     private void ensureClassHasRoom(UserProfile currentStudent, Clazz targetClazz, int incomingCount) {
         if (targetClazz == null || incomingCount <= 0) {
             return;
@@ -412,6 +454,10 @@ public class UserServiceImpl implements UserService {
     private void applyImportRow(UserProfile profile, StudentImportRow row, Clazz clazz, StudentGroup studentGroup) {
         profile.setStudentId(clean(row.getStudentId()));
         profile.setFullName(clean(row.getFullName()));
+        String rowEmail = normalizeEmail(row.getEmail());
+        if (!rowEmail.isBlank() || isBlank(profile.getEmail())) {
+            profile.setEmail(resolveStudentEmail(profile.getStudentId(), rowEmail));
+        }
 
         if (row.getDob() != null) {
             profile.setDob(row.getDob());
@@ -487,6 +533,36 @@ public class UserServiceImpl implements UserService {
             return "";
         }
         return value.trim().replaceAll("\\s+", " ");
+    }
+
+    private String resolveStudentEmail(String studentId, String email) {
+        String normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail.isBlank()) {
+            return normalizedEmail;
+        }
+        return defaultStudentEmail(studentId);
+    }
+
+    private String resolveStudentEmail(String studentId, String email, UserProfile existingProfile) {
+        String normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail.isBlank()) {
+            return normalizedEmail;
+        }
+        if (existingProfile != null && !isBlank(existingProfile.getEmail())) {
+            return normalizeEmail(existingProfile.getEmail());
+        }
+        return defaultStudentEmail(studentId);
+    }
+
+    private String normalizeEmail(String email) {
+        return clean(email).toLowerCase(Locale.ROOT);
+    }
+
+    private String defaultStudentEmail(String studentId) {
+        String domain = studentEmailDomain == null || studentEmailDomain.isBlank()
+                ? "student.edu.vn"
+                : studentEmailDomain.trim().replaceFirst("^@", "");
+        return clean(studentId).toLowerCase(Locale.ROOT) + "@" + domain.toLowerCase(Locale.ROOT);
     }
 
     private boolean isBlank(String value) {

@@ -1,11 +1,13 @@
-import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+﻿import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { Camera, CheckCircle2, Keyboard, ListChecks, MapPin, RefreshCw, ScanLine, StopCircle, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { useAuth } from "../../context/useAuth";
 import { activityApi, type ActivityRegistrationResponse, type ActivityResponse } from "../../services/api";
 import { activityParticipationLabels, formatActivityRange, isActivityScanActive } from "../../utils/activityUi";
+import { getDashboardPath } from "../../utils/authRouting";
 import { checkinSchema } from "../../validation/activitySchemas";
 import { getZodMessage } from "../../validation/userSchemas";
 
@@ -38,7 +40,8 @@ const extractStudentCode = (rawValue: string) => {
 };
 
 function CheckerScanPage() {
-  const { username } = useAuth();
+  const navigate = useNavigate();
+  const { role, username } = useAuth();
   const [activities, setActivities] = useState<ActivityResponse[]>([]);
   const [activityId, setActivityId] = useState("");
   const [studentCode, setStudentCode] = useState("");
@@ -190,6 +193,15 @@ function CheckerScanPage() {
     void submitCheckin(studentCode);
   };
 
+  const handleBack = () => {
+    stopScanner();
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(getDashboardPath(role), { replace: true });
+  };
+
   const checkedIn = selectedActivity?.attendedCount ?? 0;
   const registered = selectedActivity?.registrationCount ?? 0;
   const isOpenActivity = selectedActivity?.participationType === "OPEN";
@@ -197,7 +209,13 @@ function CheckerScanPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-      <div className="mx-auto grid min-h-[calc(100vh-48px)] max-w-6xl gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="mx-auto mb-4 max-w-6xl">
+        <BackButton className="border-white/15 bg-white/10 px-4 py-3 text-white hover:bg-white/15" onClick={handleBack}>
+          Quay lại
+        </BackButton>
+      </div>
+
+      <div className="mx-auto grid min-h-[calc(100vh-112px)] max-w-6xl gap-5 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="flex min-h-[640px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-raised">
           <header className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
             <button className="rounded-xl bg-white/10 p-3 transition hover:bg-white/15" onClick={() => void loadActivities()} type="button">

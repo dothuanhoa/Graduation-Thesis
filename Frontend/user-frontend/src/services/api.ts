@@ -2,6 +2,85 @@ import { emitToast } from "../utils/toastBus";
 import { toSuccessMessage, toUserFacingMessage } from "../utils/messages";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
+const LEGACY_TOKEN_KEY = "token";
+const ACCESS_TOKEN_REFRESH_SKEW_MS = 30_000;
+
+type JwtPayload = {
+  exp?: number;
+};
+
+type AuthSessionHandlers = {
+  onAccessTokenChange?: (accessToken: string) => void;
+  onSessionExpired?: () => void;
+};
+
+let authSessionHandlers: AuthSessionHandlers = {};
+let refreshPromise: Promise<string> | null = null;
+let memoryAccessToken = "";
+
+export const registerAuthSessionHandlers = (handlers: AuthSessionHandlers) => {
+  authSessionHandlers = handlers;
+
+  return () => {
+    if (authSessionHandlers === handlers) {
+      authSessionHandlers = {};
+    }
+  };
+};
+
+export const getStoredAccessToken = () => memoryAccessToken;
+
+export const setStoredAccessToken = (accessToken: string, notify = true) => {
+  memoryAccessToken = accessToken;
+
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+
+  if (notify) {
+    authSessionHandlers.onAccessTokenChange?.(accessToken);
+  }
+};
+
+export const clearClientAuthTokens = (notify = true) => {
+  memoryAccessToken = "";
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+
+  if (notify) {
+    authSessionHandlers.onSessionExpired?.();
+  }
+};
+
+const decodeJwtPayload = (token: string): JwtPayload => {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return {};
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(normalized)
+        .split("")
+        .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
+        .join(""),
+    );
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return {};
+  }
+};
+
+export const isAccessTokenExpired = (token: string, skewMs = ACCESS_TOKEN_REFRESH_SKEW_MS) => {
+  const payload = decodeJwtPayload(token);
+  if (!payload.exp) return true;
+  return payload.exp * 1000 <= Date.now() + skewMs;
+};
 
 export class ApiError extends Error {
   status: number;
@@ -17,7 +96,7 @@ export class ApiError extends Error {
 
 export type TokenResponse = {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string | null;
 };
 
 export type LoginPayload = {
@@ -31,10 +110,25 @@ export type ChangePasswordPayload = {
   newPassword: string;
 };
 
+export type ForgotPasswordPayload = {
+  usernameOrEmail: string;
+};
+
+export type ResetForgotPasswordPayload = {
+  token: string;
+  newPassword: string;
+};
+
+export type CurrentPasswordChangePayload = {
+  oldPassword: string;
+  newPassword: string;
+};
+
 export type UserProfile = {
   id: string;
   studentId: string;
   fullName: string;
+  email?: string;
   dob?: string;
   gender?: "MALE" | "FEMALE" | "OTHER";
   contactPhone?: string;
@@ -63,6 +157,16 @@ export type StudentGroupResponse = {
 export type BulkStudentUpdateResponse = {
   updatedCount: number;
   message: string;
+};
+
+export type StudentGroupScope = "SELECTED_STUDENTS" | "CLASS" | "ACADEMIC_YEAR";
+
+export type BulkStudentGroupPayload = {
+  scope: StudentGroupScope;
+  studentIds?: Array<string | number>;
+  classId?: string | number;
+  academicYearId?: string | number;
+  studentGroupId: string | number;
 };
 
 export type StudentImportJobStatus = {
@@ -216,6 +320,24 @@ export type ActivityImportResult = {
 export type ExamStatus = "ACTIVE" | "INACTIVE";
 export type AttemptStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "LOCKED";
 export type StudentExamAvailability = "UPCOMING" | "AVAILABLE" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "LOCKED";
+export type ExamTargetMode = "CLASS" | "STUDENT" | "BOTH";
+
+export type ExamTargetPayload = {
+  id?: string | null;
+  targetGroupCode: string;
+  targetGroupName?: string;
+  facultyId?: string;
+  facultyCode?: string;
+  facultyName?: string;
+  classIds?: string[];
+  classCodes?: string[];
+  targetMode?: ExamTargetMode;
+  studentIds?: string[];
+  studentCodes?: string[];
+  studentNames?: string[];
+  startTime: string;
+  endTime: string;
+};
 
 export type ExamPayload = {
   title: string;
@@ -225,6 +347,7 @@ export type ExamPayload = {
   durationMins: number;
   questionCount: number;
   targetGroupCode: string;
+  targets?: ExamTargetPayload[];
   status: ExamStatus;
 };
 
@@ -289,6 +412,7 @@ export type StudentExamSummary = {
   questionCount: number;
   targetGroupCode: string;
   targetGroupName?: string;
+  eligibleTarget?: ExamTargetPayload;
   availabilityStatus: StudentExamAvailability;
   attemptStatus: AttemptStatus;
   score?: number;
@@ -315,14 +439,13 @@ export type ExamStateResponse = {
   questions: StudentQuestion[];
 };
 
-const getStoredToken = () => sessionStorage.getItem("accessToken") || "";
-
 const isJsonResponse = (res: Response) => res.headers.get("content-type")?.includes("application/json");
 
 type ApiRequestInit = RequestInit & {
   errorMessage?: string;
   successMessage?: string;
   suppressToast?: boolean;
+  skipAuthRefresh?: boolean;
 };
 
 async function parseResponse(res: Response) {
@@ -331,25 +454,118 @@ async function parseResponse(res: Response) {
   return res.text();
 }
 
-export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
-  const { errorMessage, successMessage, suppressToast, ...requestInit } = init;
-  const headers = new Headers(requestInit.headers);
-  const hasBody = init.body !== undefined;
+const extractErrorMessage = (data: unknown) => {
+  if (typeof data === "object" && data !== null) {
+    if ("message" in data) {
+      return String((data as Record<string, unknown>).message);
+    }
+    if ("error" in data) {
+      return String((data as Record<string, unknown>).error);
+    }
+    const errorValues = Object.values(data);
+    if (errorValues.length > 0 && typeof errorValues[0] === "string") {
+      return errorValues.join(", ");
+    }
+  }
 
-  if (hasBody && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+  if (typeof data === "string") {
+    return data;
+  }
+
+  return "Request failed";
+};
+
+async function refreshAccessToken() {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      clearClientAuthTokens();
+      throw new ApiError(0, toUserFacingMessage("Không thể làm mới phiên đăng nhập."), err);
+    }
+
+    const data = await parseResponse(res);
+    if (!res.ok) {
+      clearClientAuthTokens();
+      throw new ApiError(res.status, toUserFacingMessage(extractErrorMessage(data)), data);
+    }
+
+    const tokenResponse = data as TokenResponse;
+    if (!tokenResponse.accessToken) {
+      clearClientAuthTokens();
+      throw new ApiError(401, toUserFacingMessage("Phiên đăng nhập đã hết hạn."), data);
+    }
+
+    setStoredAccessToken(tokenResponse.accessToken);
+    return tokenResponse.accessToken;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
+async function getValidAccessToken(skipAuthRefresh: boolean) {
+  const token = getStoredAccessToken();
+  if (skipAuthRefresh) {
+    return token;
+  }
+
+  if (token && !isAccessTokenExpired(token)) {
+    return token;
+  }
+
+  return refreshAccessToken();
+}
+
+const buildRequestHeaders = (headersInit: HeadersInit | undefined, body: BodyInit | null | undefined, token: string) => {
+  const headers = new Headers(headersInit);
+  const hasBody = body !== undefined && body !== null;
+
+  if (hasBody && !(body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const token = getStoredToken();
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+
+  return headers;
+};
+
+export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { errorMessage, successMessage, suppressToast, skipAuthRefresh = false, ...requestInit } = init;
+  const credentials = requestInit.credentials ?? "include";
+  let token: string;
+
+  try {
+    token = await getValidAccessToken(skipAuthRefresh);
+  } catch (err) {
+    if (!suppressToast && !(err instanceof ApiError && err.status === 401)) {
+      emitToast({
+        variant: "error",
+        message: err instanceof Error ? err.message : toUserFacingMessage("Phiên đăng nhập đã hết hạn."),
+      });
+    }
+    throw err;
+  }
+
+  let headers = buildRequestHeaders(requestInit.headers, requestInit.body, token);
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...requestInit,
       headers,
+      credentials,
     });
   } catch (err) {
     const userMessage = toUserFacingMessage(errorMessage || "Không kết nối được đến hệ thống.");
@@ -359,24 +575,30 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
     throw new ApiError(0, userMessage, err);
   }
 
+  if (res.status === 401 && !skipAuthRefresh) {
+    try {
+      token = await refreshAccessToken();
+      headers = buildRequestHeaders(requestInit.headers, requestInit.body, token);
+      res = await fetch(`${API_BASE_URL}${path}`, {
+        ...requestInit,
+        headers,
+        credentials,
+      });
+    } catch (err) {
+      if (!suppressToast && !(err instanceof ApiError && err.status === 401)) {
+        emitToast({
+          variant: "error",
+          message: err instanceof Error ? err.message : toUserFacingMessage("Phiên đăng nhập đã hết hạn."),
+        });
+      }
+      throw err;
+    }
+  }
+
   const data = await parseResponse(res);
 
   if (!res.ok) {
-    let message = "Request failed";
-    if (typeof data === "object" && data !== null) {
-      if ("message" in data) {
-        message = String((data as Record<string, unknown>).message);
-      } else if ("error" in data) {
-        message = String((data as Record<string, unknown>).error);
-      } else {
-        const errorValues = Object.values(data);
-        if (errorValues.length > 0 && typeof errorValues[0] === "string") {
-          message = errorValues.join(", ");
-        }
-      }
-    } else if (typeof data === "string") {
-      message = data;
-    }
+    const message = extractErrorMessage(data);
     const userMessage = toUserFacingMessage(errorMessage || message);
     if (!suppressToast && res.status !== 401) {
       emitToast({ variant: "error", message: userMessage });
@@ -392,11 +614,84 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
   return data as T;
 }
 
+export async function apiBlobRequest(path: string, init: ApiRequestInit = {}): Promise<Blob> {
+  const { errorMessage, successMessage, suppressToast, skipAuthRefresh = false, ...requestInit } = init;
+  const credentials = requestInit.credentials ?? "include";
+  let token: string;
+
+  try {
+    token = await getValidAccessToken(skipAuthRefresh);
+  } catch (err) {
+    if (!suppressToast && !(err instanceof ApiError && err.status === 401)) {
+      emitToast({
+        variant: "error",
+        message: err instanceof Error ? err.message : toUserFacingMessage("Phiên đăng nhập đã hết hạn."),
+      });
+    }
+    throw err;
+  }
+
+  let headers = buildRequestHeaders(requestInit.headers, requestInit.body, token);
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...requestInit,
+      headers,
+      credentials,
+    });
+  } catch (err) {
+    const userMessage = toUserFacingMessage(errorMessage || "Không kết nối được đến hệ thống.");
+    if (!suppressToast) {
+      emitToast({ variant: "error", message: userMessage });
+    }
+    throw new ApiError(0, userMessage, err);
+  }
+
+  if (res.status === 401 && !skipAuthRefresh) {
+    try {
+      token = await refreshAccessToken();
+      headers = buildRequestHeaders(requestInit.headers, requestInit.body, token);
+      res = await fetch(`${API_BASE_URL}${path}`, {
+        ...requestInit,
+        headers,
+        credentials,
+      });
+    } catch (err) {
+      if (!suppressToast && !(err instanceof ApiError && err.status === 401)) {
+        emitToast({
+          variant: "error",
+          message: err instanceof Error ? err.message : toUserFacingMessage("Phiên đăng nhập đã hết hạn."),
+        });
+      }
+      throw err;
+    }
+  }
+
+  if (!res.ok) {
+    const data = await parseResponse(res);
+    const message = extractErrorMessage(data);
+    const userMessage = toUserFacingMessage(errorMessage || message);
+    if (!suppressToast && res.status !== 401) {
+      emitToast({ variant: "error", message: userMessage });
+    }
+    throw new ApiError(res.status, userMessage, data);
+  }
+
+  const method = (requestInit.method || "GET").toUpperCase();
+  if (!suppressToast && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    emitToast({ variant: "success", message: toSuccessMessage(successMessage || "Thao tác thành công.") });
+  }
+
+  return res.blob();
+}
+
 export const authApi = {
   login(payload: LoginPayload) {
     return apiRequest<TokenResponse>("/api/auth/login", {
       method: "POST",
       suppressToast: true,
+      skipAuthRefresh: true,
       body: JSON.stringify(payload),
     });
   },
@@ -404,7 +699,45 @@ export const authApi = {
     return apiRequest<TokenResponse>("/api/auth/first-change-password", {
       method: "POST",
       successMessage: "Đổi mật khẩu thành công.",
+      skipAuthRefresh: true,
       body: JSON.stringify(payload),
+    });
+  },
+  forgotPassword(payload: ForgotPasswordPayload) {
+    return apiRequest<{ message: string }>("/api/auth/forgot-password", {
+      method: "POST",
+      suppressToast: true,
+      skipAuthRefresh: true,
+      body: JSON.stringify(payload),
+    });
+  },
+  resetForgotPassword(payload: ResetForgotPasswordPayload) {
+    return apiRequest<{ message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      suppressToast: true,
+      skipAuthRefresh: true,
+      body: JSON.stringify(payload),
+    });
+  },
+  changePassword(payload: CurrentPasswordChangePayload) {
+    return apiRequest<{ message: string }>("/api/auth/change-password", {
+      method: "POST",
+      suppressToast: true,
+      body: JSON.stringify(payload),
+    });
+  },
+  refresh() {
+    return apiRequest<TokenResponse>("/api/auth/refresh", {
+      method: "POST",
+      suppressToast: true,
+      skipAuthRefresh: true,
+    });
+  },
+  logout() {
+    return apiRequest<void>("/api/auth/logout", {
+      method: "POST",
+      suppressToast: true,
+      skipAuthRefresh: true,
     });
   },
   revokeUser(username: string) {
@@ -489,6 +822,17 @@ export const userApi = {
         studentIds,
         status,
       }),
+    });
+  },
+  updateStudentGroups(payload: BulkStudentGroupPayload) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/group", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  downloadImportTemplate() {
+    return apiBlobRequest("/api/users/import/template", {
+      suppressToast: true,
     });
   },
   importExcel(file: File) {
@@ -666,10 +1010,23 @@ export const notificationApi = {
   markAsRead(id: string) {
     return apiRequest<void>(`/api/notifications/${id}/read`, {
       method: "POST",
+      suppressToast: true,
     });
   },
 };
 
+export const notificationImageApi = {
+  upload(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<{ location: string; fileUrl: string }>("/api/notifications/images/upload", {
+      method: "POST",
+      body: formData,
+      suppressToast: true,
+      errorMessage: "Khong tai duoc anh thong bao.",
+    });
+  },
+};
 // --- Certification Service Types ---
 
 export type RequestStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "REJECTED" | "NEEDS_INFO" | "CANCELLED";
@@ -721,6 +1078,14 @@ export type CreateConfirmationRequestPayload = {
 
 export type UpdateStatusPayload = {
   status: RequestStatus;
+  adminNote?: string;
+  appointmentDate?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type BulkUpdateStatusPayload = {
+  requestIds: string[];
+  status?: RequestStatus;
   adminNote?: string;
   appointmentDate?: string;
   metadata?: Record<string, unknown>;
@@ -963,6 +1328,12 @@ export const certificationRequestApi = {
       method: "PUT",
     });
   },
+  updateMineProof(id: string, proofFileUrl: string) {
+    return apiRequest<ConfirmationRequest>(`/api/certifications/requests/my-requests/${id}/proof`, {
+      method: "PUT",
+      body: JSON.stringify({ proofFileUrl }),
+    });
+  },
   listAll(page: number = 0, size: number = 10) {
     return apiRequest<PageResponse<ConfirmationRequest>>(`/api/certifications/requests?page=${page}&size=${size}`);
   },
@@ -971,6 +1342,12 @@ export const certificationRequestApi = {
   },
   updateStatus(id: string, payload: UpdateStatusPayload) {
     return apiRequest<ConfirmationRequest>(`/api/certifications/requests/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  bulkUpdateStatus(payload: BulkUpdateStatusPayload) {
+    return apiRequest<ConfirmationRequest[]>("/api/certifications/requests/bulk/status", {
       method: "PUT",
       body: JSON.stringify(payload),
     });

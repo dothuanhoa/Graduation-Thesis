@@ -18,6 +18,7 @@ public class StudentExamSummary {
     private Integer questionCount;
     private String targetGroupCode;
     private String targetGroupName;
+    private ExamTargetResponse eligibleTarget;
     private String availabilityStatus;
     private ExamAttempt.Status attemptStatus;
     private Double score;

@@ -1,11 +1,30 @@
-import { ArrowLeft, FileUp, Loader2, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { FileUp, Loader2, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
-import { examApi, type AttemptResponse, type ExamPayload, type ExamResponse, type ExamStatus, type QuestionPayload, type QuestionResponse } from "../../../services/api";
+import {
+  classApi,
+  examApi,
+  facultyApi,
+  userApi,
+  type AttemptResponse,
+  type ClassResponse,
+  type ExamPayload,
+  type ExamResponse,
+  type ExamStatus,
+  type ExamTargetPayload,
+  type FacultyResponse,
+  type QuestionPayload,
+  type QuestionResponse,
+  type StudentGroupResponse,
+  type UserProfile,
+} from "../../../services/api";
 import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
+import ExamTargetEditor from "./ExamTargetEditor";
+import { createEmptyExamTarget } from "./examTargetUtils";
 
 const toDateTimeLocal = (value?: string) => {
   if (!value) return "";
@@ -26,6 +45,7 @@ const emptyExamForm: ExamPayload = {
   durationMins: 30,
   questionCount: 30,
   targetGroupCode: "1",
+  targets: [createEmptyExamTarget()],
   status: "INACTIVE",
 };
 
@@ -46,13 +66,68 @@ const attemptLabel: Record<string, string> = {
   LOCKED: "Bị khóa",
 };
 
+const normalizeExamTargets = (exam: ExamResponse): ExamTargetPayload[] => {
+  if (exam.targets?.length) {
+    return exam.targets.map((target) => ({
+      ...target,
+      targetGroupCode: target.targetGroupCode || "1",
+      facultyId: target.facultyId || "",
+      facultyCode: target.facultyCode || "",
+      facultyName: target.facultyName || "",
+      classIds: target.classIds || [],
+      classCodes: target.classCodes || [],
+      targetMode: target.targetMode || (target.studentIds?.length || target.studentCodes?.length ? "STUDENT" : "CLASS"),
+      studentIds: target.studentIds || [],
+      studentCodes: target.studentCodes || [],
+      studentNames: target.studentNames || [],
+      startTime: toDateTimeLocal(target.startTime),
+      endTime: toDateTimeLocal(target.endTime),
+    }));
+  }
+
+  return [{
+    ...createEmptyExamTarget(),
+    targetGroupCode: exam.targetGroupCode || "1",
+    startTime: toDateTimeLocal(exam.startTime),
+    endTime: toDateTimeLocal(exam.endTime),
+  }];
+};
+
+const minDateTime = (values: string[]) => values.filter(Boolean).sort()[0] || "";
+const maxDateTime = (values: string[]) => {
+  const sorted = values.filter(Boolean).sort();
+  return sorted[sorted.length - 1] || "";
+};
+
+const examTargetSummary = (exam?: ExamResponse | null) => {
+  if (!exam) return "Chưa cấu hình";
+  if (exam.targets?.length && exam.targets.length > 1) return `${exam.targets.length} khung giờ`;
+  const target = exam.targets?.[0];
+  if (!target) return exam.targetGroupName || studentGroupName(exam.targetGroupCode);
+  const group = target.targetGroupName || studentGroupName(target.targetGroupCode);
+  const faculty = target.facultyName || "Tất cả khoa";
+  const mode = target.targetMode || "CLASS";
+  const classCount = Math.max(target.classIds?.length || 0, target.classCodes?.length || 0);
+  const studentCount = Math.max(target.studentIds?.length || 0, target.studentCodes?.length || 0);
+  const classes = classCount ? `${classCount} lớp` : "Chưa chọn lớp";
+  const students = studentCount ? `${studentCount} sinh viên` : "Chưa chọn sinh viên";
+  if (mode === "STUDENT") return `${group} · ${faculty} · ${students}`;
+  if (mode === "BOTH") return `${group} · ${faculty} · ${classes} · ${students}`;
+  return `${group} · ${faculty} · ${classes}`;
+};
+
 function AdminExamDetailPage() {
   const { id = "" } = useParams();
   const [exam, setExam] = useState<ExamResponse | null>(null);
   const [examForm, setExamForm] = useState<ExamPayload>(emptyExamForm);
+  const [classes, setClasses] = useState<ClassResponse[]>([]);
+  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
+  const [students, setStudents] = useState<UserProfile[]>([]);
   const [questions, setQuestions] = useState<QuestionResponse[]>([]);
   const [attempts, setAttempts] = useState<AttemptResponse[]>([]);
   const [questionForm, setQuestionForm] = useState<QuestionPayload>(emptyQuestionForm);
+  const [questionSearch, setQuestionSearch] = useState("");
   const [editingQuestionId, setEditingQuestionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -79,6 +154,7 @@ function AdminExamDetailPage() {
         durationMins: examData.durationMins,
         questionCount: examData.questionCount,
         targetGroupCode: examData.targetGroupCode || "1",
+        targets: normalizeExamTargets(examData),
         status: examData.status,
       });
       setQuestions(questionData);
@@ -91,8 +167,32 @@ function AdminExamDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    void loadData();
+    const timeoutId = window.setTimeout(() => void loadData(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadData]);
+
+  const loadReferences = useCallback(async () => {
+    try {
+      const [facultyData, classData, groupData] = await Promise.all([
+        facultyApi.list(),
+        classApi.list(),
+        userApi.listStudentGroups(),
+      ]);
+      const studentData = await userApi.list();
+      setFaculties(facultyData);
+      setClasses(classData);
+      setStudentGroups(groupData.length > 0 ? groupData : defaultStudentGroups);
+      setStudents(studentData);
+    } catch {
+      setStudentGroups(defaultStudentGroups);
+      setStudents([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadReferences(), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadReferences]);
 
   const resultStats = useMemo(() => {
     const submitted = attempts.filter((attempt) => attempt.status === "SUBMITTED");
@@ -102,18 +202,72 @@ function AdminExamDetailPage() {
     return { submitted: submitted.length, total: attempts.length, average: Math.round(average * 100) / 100 };
   }, [attempts]);
 
+  const filteredQuestions = useMemo(() => {
+    const keyword = questionSearch.trim().toLowerCase();
+    if (!keyword) return questions;
+    return questions.filter((question) => {
+      const optionText = question.options.map((option) => option.content).join(" ");
+      return `${question.content} ${optionText}`.toLowerCase().includes(keyword);
+    });
+  }, [questionSearch, questions]);
+
+  const buildExamPayload = () => {
+    const targets = (examForm.targets?.length ? examForm.targets : [createEmptyExamTarget()]).map((target) => {
+      const faculty = faculties.find((item) => item.id === target.facultyId || item.facultyCode === target.facultyCode || item.facultyName === target.facultyName);
+      const targetMode = target.targetMode || "CLASS";
+      const selectedClassKeys = new Set(targetMode === "STUDENT" ? [] : [...(target.classIds || []), ...(target.classCodes || [])]);
+      const selectedStudentKeys = new Set(targetMode === "CLASS" ? [] : [...(target.studentIds || []), ...(target.studentCodes || [])]);
+      const selectedClasses = classes.filter((item) => selectedClassKeys.has(item.id) || selectedClassKeys.has(item.classCode));
+      const outputClassIds = targetMode === "STUDENT" ? [] : selectedClasses.length > 0 ? selectedClasses.map((item) => item.id) : target.classIds || [];
+      const outputClassCodes = targetMode === "STUDENT" ? [] : selectedClasses.length > 0 ? selectedClasses.map((item) => item.classCode) : target.classCodes || [];
+      const selectedClassIds = new Set(outputClassIds);
+      const selectedClassCodes = new Set(outputClassCodes);
+      const selectedStudents = students.filter((student) => {
+        const directlySelected = selectedStudentKeys.has(student.id) || selectedStudentKeys.has(student.studentId);
+        if (targetMode === "STUDENT") return directlySelected;
+        const classMatched = Boolean(
+          student.clazz && (
+            (student.clazz.id && selectedClassIds.has(student.clazz.id))
+            || (student.clazz.classCode && selectedClassCodes.has(student.clazz.classCode))
+          ),
+        );
+        return classMatched || (targetMode === "BOTH" && directlySelected);
+      });
+      const outputStudentIds = selectedStudents.length > 0 ? selectedStudents.map((student) => student.id) : target.studentIds || [];
+      const outputStudentCodes = selectedStudents.length > 0 ? selectedStudents.map((student) => student.studentId) : target.studentCodes || [];
+      const outputStudentNames = selectedStudents.length > 0 ? selectedStudents.map((student) => student.fullName) : target.studentNames || [];
+      return {
+        ...target,
+        targetMode,
+        facultyCode: faculty?.facultyCode || target.facultyCode || "",
+        facultyName: faculty?.facultyName || target.facultyName || "",
+        classIds: outputClassIds,
+        classCodes: outputClassCodes,
+        studentIds: outputStudentIds,
+        studentCodes: outputStudentCodes,
+        studentNames: outputStudentNames,
+        startTime: toApiDateTime(target.startTime),
+        endTime: toApiDateTime(target.endTime),
+      };
+    });
+
+    return {
+      ...examForm,
+      startTime: minDateTime(targets.map((target) => target.startTime)),
+      endTime: maxDateTime(targets.map((target) => target.endTime)),
+      durationMins: Number(examForm.durationMins),
+      questionCount: Number(examForm.questionCount),
+      targetGroupCode: targets[0]?.targetGroupCode || "1",
+      targets,
+    };
+  };
+
   const saveExam = async (event: FormEvent) => {
     event.preventDefault();
     if (!id) return;
     setMessage("");
     try {
-      await examApi.update(id, {
-        ...examForm,
-        startTime: toApiDateTime(examForm.startTime),
-        endTime: toApiDateTime(examForm.endTime),
-        durationMins: Number(examForm.durationMins),
-        questionCount: Number(examForm.questionCount),
-      });
+      await examApi.update(id, buildExamPayload());
       setMessage("Đã cập nhật cấu hình kỳ thi.");
       await loadData();
     } catch (err) {
@@ -234,10 +388,7 @@ function AdminExamDetailPage() {
 
   return (
     <div className="space-y-gutter">
-      <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/admin/exams">
-        <ArrowLeft className="h-4 w-4" />
-        Quay lại danh sách kỳ thi
-      </Link>
+      <BackButton to="/admin/exams">Quay lại danh sách kỳ thi</BackButton>
 
       <PageHeader
         title={exam?.title || "Chi tiết kỳ thi"}
@@ -246,28 +397,16 @@ function AdminExamDetailPage() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
-      <div className="grid gap-gutter xl:grid-cols-[420px_1fr]">
+      <div className="space-y-gutter">
         <Card>
           <h2 className="text-xl font-bold text-on-surface">Cấu hình kỳ thi</h2>
           <form className="mt-5 grid gap-4" onSubmit={saveExam}>
             <FormField label="Tên kỳ thi" onChange={(event) => setExamForm((current) => ({ ...current, title: event.target.value }))} required value={examForm.title} />
             <FormField as="textarea" label="Mô tả / hướng dẫn" onChange={(event) => setExamForm((current) => ({ ...current, description: event.target.value }))} value={examForm.description || ""} />
-            <FormField label="Giờ mở đề" onChange={(event) => setExamForm((current) => ({ ...current, startTime: event.target.value }))} required type="datetime-local" value={examForm.startTime} />
-            <FormField label="Giờ đóng đề" onChange={(event) => setExamForm((current) => ({ ...current, endTime: event.target.value }))} required type="datetime-local" value={examForm.endTime} />
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Thời lượng" min={1} onChange={(event) => setExamForm((current) => ({ ...current, durationMins: Number(event.target.value) }))} type="number" value={examForm.durationMins} />
               <FormField label="Số câu bốc" min={1} onChange={(event) => setExamForm((current) => ({ ...current, questionCount: Number(event.target.value) }))} type="number" value={examForm.questionCount} />
             </div>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">Đối tượng thi</span>
-              <select className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm focus-ring" onChange={(event) => setExamForm((current) => ({ ...current, targetGroupCode: event.target.value }))} value={examForm.targetGroupCode}>
-                {defaultStudentGroups.map((group) => (
-                  <option key={group.code} value={group.code}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-semibold text-on-surface">Trạng thái</span>
               <select className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm focus-ring" onChange={(event) => setExamForm((current) => ({ ...current, status: event.target.value as ExamStatus }))} value={examForm.status}>
@@ -275,6 +414,14 @@ function AdminExamDetailPage() {
                 <option value="ACTIVE">Hoạt động</option>
               </select>
             </label>
+            <ExamTargetEditor
+              classes={classes}
+              faculties={faculties}
+              onChange={(targets) => setExamForm((current) => ({ ...current, targets }))}
+              studentGroups={studentGroups}
+              students={students}
+              targets={examForm.targets || []}
+            />
             <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" type="submit">
               <Save className="h-5 w-5" />
               Lưu cấu hình
@@ -282,25 +429,24 @@ function AdminExamDetailPage() {
           </form>
         </Card>
 
-        <div className="space-y-gutter">
-          <div className="grid gap-gutter md:grid-cols-4">
-            <Card>
-              <p className="text-sm text-on-surface-variant">Câu hỏi khả dụng</p>
-              <p className="mt-2 text-3xl font-bold text-on-surface">{exam?.availableQuestionCount ?? questions.length}/{exam?.questionCount}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-on-surface-variant">Đối tượng thi</p>
-              <p className="mt-2 text-xl font-bold text-on-surface">{exam?.targetGroupName || studentGroupName(exam?.targetGroupCode)}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-on-surface-variant">Lượt nộp bài</p>
-              <p className="mt-2 text-3xl font-bold text-on-surface">{resultStats.submitted}/{resultStats.total}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-on-surface-variant">Điểm trung bình</p>
-              <p className="mt-2 text-3xl font-bold text-on-surface">{resultStats.average}</p>
-            </Card>
-          </div>
+        <div className="grid gap-gutter md:grid-cols-4">
+          <Card>
+            <p className="text-sm text-on-surface-variant">Câu hỏi khả dụng</p>
+            <p className="mt-2 text-3xl font-bold text-on-surface">{exam?.availableQuestionCount ?? questions.length}/{exam?.questionCount}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-on-surface-variant">Đối tượng thi</p>
+            <p className="mt-2 text-xl font-bold text-on-surface">{examTargetSummary(exam)}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-on-surface-variant">Lượt nộp bài</p>
+            <p className="mt-2 text-3xl font-bold text-on-surface">{resultStats.submitted}/{resultStats.total}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-on-surface-variant">Điểm trung bình</p>
+            <p className="mt-2 text-3xl font-bold text-on-surface">{resultStats.average}</p>
+          </Card>
+        </div>
 
           <Card>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -372,8 +518,28 @@ function AdminExamDetailPage() {
               </div>
             </form>
 
-            <div className="mt-5 space-y-3">
-              {questions.map((question, index) => (
+            <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant pt-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-on-surface">Danh sách câu hỏi</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Hiển thị {filteredQuestions.length}/{questions.length} câu hỏi.
+                </p>
+              </div>
+              <label className="relative w-full lg:max-w-md">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-3 pl-10 pr-3 text-sm text-on-surface placeholder:text-outline focus-ring"
+                  onChange={(event) => setQuestionSearch(event.target.value)}
+                  placeholder="Tìm theo nội dung câu hỏi hoặc đáp án"
+                  value={questionSearch}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-2">
+              {filteredQuestions.map((question) => {
+                const index = questions.findIndex((item) => item.id === question.id);
+                return (
                 <div key={question.id} className="rounded-xl border border-outline-variant p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -395,8 +561,10 @@ function AdminExamDetailPage() {
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               {questions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Chưa có câu hỏi nào.</p>}
+              {questions.length > 0 && filteredQuestions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Không tìm thấy câu hỏi phù hợp.</p>}
             </div>
           </Card>
 
@@ -436,7 +604,6 @@ function AdminExamDetailPage() {
               {attempts.length === 0 && <p className="border-t border-outline-variant px-4 py-6 text-center text-sm text-on-surface-variant">Chưa có lượt thi.</p>}
             </div>
           </Card>
-        </div>
       </div>
     </div>
   );

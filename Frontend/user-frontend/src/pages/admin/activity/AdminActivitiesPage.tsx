@@ -2,11 +2,13 @@ import { CalendarPlus, Eye, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import DataTable, { type Column } from "../../../components/DataTable";
+import FilterBar from "../../../components/FilterBar";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { activityApi, type ActivityResponse } from "../../../services/api";
 import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
+import { includesSearch } from "../../../utils/search";
 
 type ActivityRow = TableRow & {
   id: string;
@@ -44,6 +46,10 @@ function AdminActivitiesPage() {
   const [activities, setActivities] = useState<ActivityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [participationFilter, setParticipationFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const loadActivities = useCallback(async () => {
     setLoading(true);
@@ -67,12 +73,24 @@ function AdminActivitiesPage() {
     return () => window.clearTimeout(timerId);
   }, [loadActivities]);
 
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter((activity) => {
+        const matchesKeyword = includesSearch(`${activity.title} ${activity.location} ${activity.reward}`, keyword);
+        const matchesCategory = !categoryFilter || activity.category === categoryFilter;
+        const matchesParticipation = !participationFilter || (activity.participationType || "LIMITED") === participationFilter;
+        const matchesStatus = !statusFilter || activity.status === statusFilter;
+        return matchesKeyword && matchesCategory && matchesParticipation && matchesStatus;
+      }),
+    [activities, categoryFilter, keyword, participationFilter, statusFilter],
+  );
+
   const rows = useMemo(
     () =>
-      [...activities]
+      [...filteredActivities]
         .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
         .map(toRow),
-    [activities],
+    [filteredActivities],
   );
 
   const removeActivity = async (row: ActivityRow) => {
@@ -108,6 +126,54 @@ function AdminActivitiesPage() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
+      <FilterBar
+        filters={[
+          {
+            id: "category",
+            label: "Loại hoạt động",
+            value: categoryFilter,
+            onChange: setCategoryFilter,
+            options: [
+              { value: "", label: "Tất cả loại" },
+              ...Object.entries(activityCategoryLabels).map(([value, label]) => ({ value, label })),
+            ],
+          },
+          {
+            id: "participation",
+            label: "Hình thức",
+            value: participationFilter,
+            onChange: setParticipationFilter,
+            options: [
+              { value: "", label: "Tất cả hình thức" },
+              ...Object.entries(activityParticipationLabels).map(([value, label]) => ({ value, label })),
+            ],
+          },
+          {
+            id: "status",
+            label: "Trạng thái",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "UPCOMING", label: "Sắp diễn ra" },
+              { value: "ONGOING", label: "Đang diễn ra" },
+              { value: "COMPLETED", label: "Đã kết thúc" },
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setCategoryFilter("");
+          setParticipationFilter("");
+          setStatusFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredActivities.length} / ${activities.length} hoạt động`}
+        searchPlaceholder="Nhập tên, địa điểm hoặc điểm rèn luyện"
+        searchValue={keyword}
+        title="Lọc danh sách hoạt động"
+      />
+
       {loading ? (
         <div className="panel p-6 text-on-surface-variant">Đang tải danh sách hoạt động...</div>
       ) : (
@@ -134,6 +200,7 @@ function AdminActivitiesPage() {
           caption="Danh sách hoạt động"
           columns={columns}
           rows={rows}
+          selectable={false}
         />
       )}
     </div>

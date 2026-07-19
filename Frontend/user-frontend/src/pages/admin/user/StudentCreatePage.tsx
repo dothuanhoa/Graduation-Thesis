@@ -1,6 +1,7 @@
 import { Save } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
@@ -13,6 +14,7 @@ function StudentCreatePage() {
   const [formData, setFormData] = useState<UserProfilePayload>({
     studentId: "",
     fullName: "",
+    email: "",
     dob: "",
     gender: "MALE",
     contactPhone: "",
@@ -55,7 +57,7 @@ function StudentCreatePage() {
         studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
       await userApi.create(payload);
-      setMessage("Đã tạo hồ sơ sinh viên và tài khoản đăng nhập.");
+      setMessage("Đã tạo hồ sơ sinh viên. Thông tin tài khoản đăng nhập sẽ được gửi về email sinh viên.");
       setTimeout(() => navigate("/admin/students"), 700);
     } catch (err) {
       setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không tạo được sinh viên."));
@@ -66,6 +68,8 @@ function StudentCreatePage() {
 
   return (
     <>
+      <BackButton to="/admin/students">Quay lại danh sách</BackButton>
+
       <PageHeader
         title="Thêm sinh viên thủ công"
         subtitle="Tạo hồ sơ sinh viên mới kèm tài khoản đăng nhập ban đầu."
@@ -86,6 +90,14 @@ function StudentCreatePage() {
             placeholder="Nguyễn Văn A"
             required
             value={formData.fullName}
+          />
+          <FormField
+            label="Email sinh viên"
+            onChange={(event) => updateField("email", event.target.value)}
+            placeholder="mssv@student.edu.vn"
+            required
+            type="email"
+            value={formData.email}
           />
           <FormField
             label="Ngày sinh"

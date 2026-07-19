@@ -1,16 +1,19 @@
 import { CheckCheck, Eye, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
+import FilterBar from "../../../components/FilterBar";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
+import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { notificationApi, type NotificationResponse } from "../../../services/api";
-
-const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+import { stripHtmlToText } from "../../../utils/html";
+import { getStoredReadNotificationIds, rememberReadNotification } from "../../../utils/notificationReadState";
+import { includesSearch } from "../../../utils/search";
 
 const formatDateTime = (value?: string) => {
   if (!value) return "Vừa cập nhật";
@@ -22,7 +25,7 @@ const formatDateTime = (value?: string) => {
   }).format(date);
 };
 
-const toNotice = (item: NotificationResponse): StudentNotice => ({
+const toNotice = (item: NotificationResponse, readIds = new Set<string>()): StudentNotice => ({
   id: item.id,
   title: item.title,
   content: item.content,
@@ -31,28 +34,33 @@ const toNotice = (item: NotificationResponse): StudentNotice => ({
   time: formatDateTime(item.startDate),
   endTime: formatDateTime(item.endDate),
   priority: item.priority as StatusType,
-  isRead: Boolean(item.isRead),
+  isRead: Boolean(item.isRead || readIds.has(String(item.id))),
   fromApi: true,
 });
 
 function StudentNotificationsPage() {
+  const { username } = useAuth();
   const [notices, setNotices] = useState<StudentNotice[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [readFilter, setReadFilter] = useState("");
 
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     setMessage("");
     try {
       const data = await notificationApi.listMine();
-      setNotices(data.map(toNotice));
+      const readIds = getStoredReadNotificationIds(username);
+      setNotices(data.map((item) => toNotice(item, readIds)));
     } catch (err) {
       setNotices([]);
       setMessage(err instanceof Error ? err.message : "Không tải được thông báo.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [username]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -66,17 +74,33 @@ function StudentNotificationsPage() {
 
   const markAsRead = async (notice: StudentNotice) => {
     if (!notice.fromApi) {
+      rememberReadNotification(username, notice.id);
       setNotices((current) => current.map((item) => (item.id === notice.id ? { ...item, isRead: true } : item)));
       return;
     }
 
     try {
       await notificationApi.markAsRead(notice.id);
+      rememberReadNotification(username, notice.id);
       setNotices((current) => current.map((item) => (item.id === notice.id ? { ...item, isRead: true } : item)));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không đánh dấu đã đọc được.");
     }
   };
+
+  const filteredNotices = useMemo(
+    () =>
+      notices.filter((notice) => {
+        const matchesKeyword = includesSearch(`${notice.title} ${stripHtmlToText(notice.content)} ${notice.source}`, keyword);
+        const matchesPriority = !priorityFilter || notice.priority === priorityFilter;
+        const matchesRead =
+          !readFilter
+          || (readFilter === "READ" && notice.isRead)
+          || (readFilter === "UNREAD" && !notice.isRead);
+        return matchesKeyword && matchesPriority && matchesRead;
+      }),
+    [keyword, notices, priorityFilter, readFilter],
+  );
 
   const {
     pageItems: paginatedNotices,
@@ -85,7 +109,7 @@ function StudentNotificationsPage() {
     totalItems,
     setPageIndex,
     setPageSize,
-  } = usePaginatedList(notices);
+  } = usePaginatedList(filteredNotices);
 
   return (
     <div className="space-y-gutter">
@@ -116,18 +140,57 @@ function StudentNotificationsPage() {
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
 
-      {!loading && notices.length === 0 && (
+      <FilterBar
+        filters={[
+          {
+            id: "priority",
+            label: "Độ ưu tiên",
+            value: priorityFilter,
+            onChange: setPriorityFilter,
+            options: [
+              { value: "", label: "Tất cả độ ưu tiên" },
+              { value: "URGENT", label: "Cấp bách" },
+              { value: "NORMAL", label: "Bình thường" },
+            ],
+          },
+          {
+            id: "read",
+            label: "Trạng thái đọc",
+            value: readFilter,
+            onChange: setReadFilter,
+            options: [
+              { value: "", label: "Tất cả" },
+              { value: "UNREAD", label: "Chưa đọc" },
+              { value: "READ", label: "Đã đọc" },
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setPriorityFilter("");
+          setReadFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredNotices.length} / ${notices.length} thông báo`}
+        searchPlaceholder="Nhập tiêu đề, nội dung hoặc nguồn gửi"
+        searchValue={keyword}
+        title="Lọc thông báo"
+      />
+
+      {!loading && filteredNotices.length === 0 && (
         <Card>
-          <p className="font-semibold text-on-surface">Chưa có thông báo phù hợp với tài khoản của bạn.</p>
+          <p className="font-semibold text-on-surface">
+            {notices.length === 0 ? "Chưa có thông báo phù hợp với tài khoản của bạn." : "Không tìm thấy thông báo phù hợp."}
+          </p>
           <p className="mt-2 text-sm text-on-surface-variant">
-            Service chỉ trả các thông báo đang `PUBLISHED`, còn hạn, và có target là `ALL`, đúng `USER`, đúng `CLASS` hoặc đúng `FACULTY`.
+            Thử đổi từ khóa hoặc xóa bộ lọc để xem thêm thông báo.
           </p>
         </Card>
       )}
 
       <div className="space-y-4">
         {paginatedNotices.map((notice) => {
-          const preview = stripHtml(notice.content) || "Bấm xem chi tiết để đọc toàn bộ nội dung thông báo.";
+          const preview = stripHtmlToText(notice.content) || "Bấm xem chi tiết để đọc toàn bộ nội dung thông báo.";
 
           return (
             <Card key={notice.id} className={notice.isRead ? "opacity-80" : ""}>
@@ -160,7 +223,7 @@ function StudentNotificationsPage() {
                     type="button"
                   >
                     <CheckCheck className="h-4 w-4" />
-                    {notice.isRead ? "Đã đọc" : "Đã đọc"}
+                    {notice.isRead ? "Đã đọc" : "Đánh dấu đã đọc"}
                   </button>
                 </div>
               </div>
@@ -168,7 +231,7 @@ function StudentNotificationsPage() {
           );
         })}
       </div>
-      {!loading && notices.length > 0 && (
+      {!loading && filteredNotices.length > 0 && (
         <PaginationControls
           itemLabel="thông báo"
           onPageChange={setPageIndex}

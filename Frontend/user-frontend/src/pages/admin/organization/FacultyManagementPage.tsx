@@ -1,13 +1,15 @@
 import { Edit3, PlusCircle, RotateCcw, Save, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Card from "../../../components/Card";
 import ExcelImportButton from "../../../components/ExcelImportButton";
+import FilterBar from "../../../components/FilterBar";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { facultyApi, type FacultyPayload, type FacultyResponse, type OrganizationStatus } from "../../../services/api";
+import { includesSearch } from "../../../utils/search";
 import { facultySchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -27,6 +29,8 @@ function FacultyManagementPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const loadFaculties = useCallback(async () => {
     setLoading(true);
@@ -126,6 +130,14 @@ function FacultyManagementPage() {
     }
   };
 
+  const filteredFaculties = useMemo(() => {
+    const status = statusFilter as OrganizationStatus | "";
+    return faculties.filter((faculty) => (
+      includesSearch(`${faculty.facultyCode} ${faculty.facultyName}`, keyword)
+      && (!status || faculty.status === status)
+    ));
+  }, [faculties, keyword, statusFilter]);
+
   const {
     pageItems: paginatedFaculties,
     pageIndex,
@@ -133,7 +145,7 @@ function FacultyManagementPage() {
     totalItems,
     setPageIndex,
     setPageSize,
-  } = usePaginatedList(faculties);
+  } = usePaginatedList(filteredFaculties);
 
   return (
     <div className="space-y-gutter">
@@ -143,6 +155,31 @@ function FacultyManagementPage() {
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+
+      <FilterBar
+        filters={[
+          {
+            id: "status",
+            label: "Trạng thái",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              { value: "ACTIVE", label: "Hoạt động" },
+              { value: "INACTIVE", label: "Ngưng hoạt động" },
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setStatusFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredFaculties.length} / ${faculties.length} khoa`}
+        searchPlaceholder="Nhập mã khoa hoặc tên khoa"
+        searchValue={keyword}
+        title="Lọc danh sách khoa"
+      />
 
       <Card>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -221,10 +258,10 @@ function FacultyManagementPage() {
               ))}
             </tbody>
           </table>
-          {!loading && faculties.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Chưa có khoa nào.</p>}
+          {!loading && filteredFaculties.length === 0 && <p className="px-5 py-6 text-sm text-on-surface-variant">Không tìm thấy khoa phù hợp.</p>}
           {loading && <p className="px-5 py-6 text-sm text-on-surface-variant">Đang tải danh sách khoa...</p>}
         </div>
-        {!loading && faculties.length > 0 && (
+        {!loading && filteredFaculties.length > 0 && (
           <PaginationControls
             itemLabel="khoa"
             onPageChange={setPageIndex}

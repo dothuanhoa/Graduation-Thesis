@@ -1,6 +1,7 @@
-import { ArrowLeft, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Clock, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import { examApi, type AttemptResponse } from "../../../services/api";
@@ -34,15 +35,13 @@ function ExamResultPage() {
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   return (
     <div className="space-y-gutter">
-      <Link className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/student/exams">
-        <ArrowLeft className="h-4 w-4" />
-        Quay lại danh sách kỳ thi
-      </Link>
+      <BackButton to="/student/exams">Quay lại danh sách kỳ thi</BackButton>
 
       <PageHeader title="Kết quả kỳ thi" subtitle="Xem điểm số, số câu đúng và các vi phạm đã được hệ thống ghi nhận." />
 

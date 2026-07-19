@@ -1,11 +1,13 @@
 import { Clock, FileText, PlayCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/Card";
+import FilterBar from "../../../components/FilterBar";
 import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { examApi, type StudentExamSummary } from "../../../services/api";
+import { includesSearch } from "../../../utils/search";
 import { studentGroupName } from "../../../utils/studentGroups";
 
 const availabilityLabel: Record<string, string> = {
@@ -32,6 +34,8 @@ function StudentExamsPage() {
   const [exams, setExams] = useState<StudentExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [availabilityFilter, setAvailabilityFilter] = useState("");
 
   const loadExams = useCallback(async () => {
     setLoading(true);
@@ -47,8 +51,20 @@ function StudentExamsPage() {
   }, []);
 
   useEffect(() => {
-    void loadExams();
+    const timeoutId = window.setTimeout(() => void loadExams(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadExams]);
+
+  const filteredExams = useMemo(
+    () =>
+      exams.filter((exam) => {
+        const groupName = exam.targetGroupName || studentGroupName(exam.targetGroupCode);
+        const matchesKeyword = includesSearch(`${exam.title} ${exam.description ?? ""} ${groupName}`, keyword);
+        const matchesAvailability = !availabilityFilter || exam.availabilityStatus === availabilityFilter;
+        return matchesKeyword && matchesAvailability;
+      }),
+    [availabilityFilter, exams, keyword],
+  );
 
   const {
     pageItems: paginatedExams,
@@ -57,7 +73,7 @@ function StudentExamsPage() {
     totalItems,
     setPageIndex,
     setPageSize,
-  } = usePaginatedList(exams);
+  } = usePaginatedList(filteredExams);
 
   return (
     <div className="space-y-gutter">
@@ -74,6 +90,30 @@ function StudentExamsPage() {
       </div>
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+
+      <FilterBar
+        filters={[
+          {
+            id: "availability",
+            label: "Trạng thái",
+            value: availabilityFilter,
+            onChange: setAvailabilityFilter,
+            options: [
+              { value: "", label: "Tất cả trạng thái" },
+              ...Object.entries(availabilityLabel).map(([value, label]) => ({ value, label })),
+            ],
+          },
+        ]}
+        onReset={() => {
+          setKeyword("");
+          setAvailabilityFilter("");
+        }}
+        onSearchChange={setKeyword}
+        resultText={`Hiển thị ${filteredExams.length} / ${exams.length} kỳ thi`}
+        searchPlaceholder="Nhập tên kỳ thi, mô tả hoặc đối tượng"
+        searchValue={keyword}
+        title="Lọc kỳ thi"
+      />
 
       {loading ? (
         <div className="panel p-6 text-on-surface-variant">Đang tải danh sách kỳ thi...</div>
@@ -129,9 +169,9 @@ function StudentExamsPage() {
         </div>
       )}
 
-      {!loading && exams.length === 0 && <div className="panel p-6 text-on-surface-variant">Hiện chưa có kỳ thi nào.</div>}
+      {!loading && filteredExams.length === 0 && <div className="panel p-6 text-on-surface-variant">Không tìm thấy kỳ thi phù hợp.</div>}
 
-      {exams.length > 0 && (
+      {filteredExams.length > 0 && (
         <PaginationControls
           itemLabel="kỳ thi"
           onPageChange={setPageIndex}
