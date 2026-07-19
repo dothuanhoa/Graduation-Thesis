@@ -1,4 +1,5 @@
-const serviceNamePattern = /\b(?:user|notification|activity|auth|certification)-service\b/gi;
+const serviceNamePattern =
+  /\b(?:user|notification|activity|auth|certification)-service\b/gi;
 const serviceWordPattern = /\bservice\b/gi;
 
 export function sanitizeServiceMessage(message: string) {
@@ -12,21 +13,40 @@ export function sanitizeServiceMessage(message: string) {
 function translateMessage(message: string) {
   const value = message.toLowerCase();
 
-  if (value.includes("không tìm thấy")) return "Not found. Please check the information.";
-  if (value.includes("không khớp")) return "The information does not match the existing record.";
-  if (value.includes("không được để trống") || value.includes("vui lòng nhập") || value.includes("vui lòng chọn")) {
+  if (value.includes("không tìm thấy"))
+    return "Not found. Please check the information.";
+  if (value.includes("không khớp"))
+    return "The information does not match the existing record.";
+  if (
+    value.includes("không được để trống") ||
+    value.includes("vui lòng nhập") ||
+    value.includes("vui lòng chọn")
+  ) {
     return "Please complete the required information.";
   }
-  if (value.includes("không có quyền") || value.includes("không được phân quyền")) return "You do not have permission to perform this action.";
+  if (
+    value.includes("không có quyền") ||
+    value.includes("không được phân quyền")
+  )
+    return "You do not have permission to perform this action.";
   if (value.includes("đã tồn tại")) return "This record already exists.";
-  if (value.includes("không thành công") || value.includes("thất bại") || value.includes("không ")) return "The action could not be completed. Please try again.";
-  if (value.includes("thành công") || value.includes("đã ")) return "Action completed successfully.";
+  if (value.includes("đã bị khóa")) return "";
+  if (
+    value.includes("không thành công") ||
+    value.includes("thất bại") ||
+    value.includes("không ")
+  )
+    return "The action could not be completed. Please try again.";
+  if (value.includes("thành công") || value.includes("đã "))
+    return "Action completed successfully.";
 
   return "Please check the information and try again.";
 }
 
 export function toUserFacingMessage(message: string) {
-  const cleanMessage = sanitizeServiceMessage(message || "Thao tác không thành công.");
+  const cleanMessage = sanitizeServiceMessage(
+    message || "Thao tác không thành công.",
+  );
   return `${cleanMessage}\n${translateMessage(cleanMessage)}`;
 }
 
