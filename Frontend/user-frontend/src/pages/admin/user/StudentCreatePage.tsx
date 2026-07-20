@@ -41,6 +41,7 @@ function StudentCreatePage() {
   const [classId, setClassId] = useState("");
   const [classSearch, setClassSearch] = useState("");
   const [studentGroupId, setStudentGroupId] = useState("1");
+  const [sendMail, setSendMail] = useState(true);
 
   const classOptions: AutocompleteOption[] = classes.map((clazz) => ({
     value: clazz.id,
@@ -100,8 +101,10 @@ function StudentCreatePage() {
         clazz: matchedClass || classId ? { id: matchedClass?.id ?? classId } : undefined,
         studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
-      await userApi.create(payload);
-      setMessage("Đã tạo hồ sơ sinh viên. Thông tin tài khoản đăng nhập sẽ được gửi về email sinh viên.");
+      await userApi.create(payload, { sendMail });
+      setMessage(sendMail
+        ? "Đã tạo hồ sơ sinh viên. Thông tin tài khoản đăng nhập sẽ được gửi về email sinh viên nếu cấu hình mail đang bật."
+        : "Đã tạo hồ sơ sinh viên và tài khoản đăng nhập. Hệ thống đã bỏ qua gửi email theo tùy chọn.");
       setTimeout(() => navigate("/admin/students"), 700);
     } catch (err) {
       setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không tạo được sinh viên."));
@@ -209,6 +212,21 @@ function StudentCreatePage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="flex items-start gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 md:col-span-2">
+            <input
+              checked={sendMail}
+              className="mt-1 h-4 w-4 accent-primary"
+              disabled={loading}
+              onChange={(event) => setSendMail(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <span className="block font-bold text-on-surface">Gửi email tài khoản cho sinh viên sau khi tạo</span>
+              <span className="mt-1 block text-sm leading-6 text-on-surface-variant">
+                Bỏ chọn khi đang test để tránh gửi mail thật. Nếu bỏ chọn, tài khoản vẫn được tạo với mật khẩu tạm ngẫu nhiên nhưng sinh viên sẽ không nhận thông tin đăng nhập qua email.
+              </span>
+            </span>
           </label>
           <div className="md:col-span-2">
             <button

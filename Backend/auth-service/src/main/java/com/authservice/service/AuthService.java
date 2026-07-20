@@ -61,6 +61,10 @@ public class AuthService {
     private int passwordResetMonthlyLimit;
 
     public void internalRegister(String username, String email) {
+        internalRegister(username, email, true);
+    }
+
+    public void internalRegister(String username, String email, boolean sendMail) {
         String cleanUsername = username == null ? "" : username.trim();
         if (cleanUsername.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên đăng nhập không được để trống");
@@ -73,8 +77,18 @@ public class AuthService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã thuộc tài khoản quản trị");
             }
 
-            issueTemporaryPassword(existingUser, accountEmail);
-            System.out.println("Re-issued student account email for: " + cleanUsername);
+            if (existingUser.getStatus() == AuthUser.Status.REQUIRE_CHANGE_PWD) {
+                issueTemporaryPassword(existingUser, accountEmail, sendMail);
+                System.out.println("Re-issued temporary password for student account: " + cleanUsername
+                        + ", send mail: " + sendMail);
+                return;
+            }
+
+            if (!sameEmail(existingUser.getEmail(), accountEmail)) {
+                existingUser.setEmail(accountEmail);
+                authUserRepository.save(existingUser);
+            }
+            System.out.println("Student account already initialized, skipped password reset for: " + cleanUsername);
             return;
         }
 
@@ -88,8 +102,10 @@ public class AuthService {
         user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
 
         authUserRepository.save(user);
-        accountEmailService.sendInitialPasswordEmail(accountEmail, cleanUsername, randomPass);
-        System.out.println("Created single account: " + cleanUsername);
+        if (sendMail) {
+            accountEmailService.sendInitialPasswordEmail(accountEmail, cleanUsername, randomPass);
+        }
+        System.out.println("Created single account: " + cleanUsername + ", send mail: " + sendMail);
     }
 
     public TokenResponse login(LoginRequest request) {
@@ -296,6 +312,10 @@ public class AuthService {
     }
 
     public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
+        bulkRegister(accounts, true);
+    }
+
+    public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts, boolean sendMail) {
         Map<String, com.authservice.dto.BulkRegisterMessage.UserAccountDTO> uniqueAccounts = accounts.stream()
                 .filter(account -> account.getUsername() != null && !account.getUsername().isBlank())
                 .collect(Collectors.toMap(
@@ -326,6 +346,9 @@ public class AuthService {
         List<CreatedCredential> createdCredentials = new ArrayList<>();
         Set<String> reservedEmails = new HashSet<>();
         int skippedAdmins = 0;
+        int createdAccounts = 0;
+        int resetPendingAccounts = 0;
+        int skippedInitializedAccounts = 0;
         for (com.authservice.dto.BulkRegisterMessage.UserAccountDTO account : uniqueAccounts.values()) {
             String username = account.getUsername().trim();
             AuthUser user = existingUsersByUsername.get(username);
@@ -334,32 +357,50 @@ public class AuthService {
                 continue;
             }
 
-            String randomPwd = generateTemporaryPassword();
             String accountEmail = resolveBulkEmail(account.getEmail(), username, user, existingEmailOwners, reservedEmails);
 
             if (user == null) {
                 user = new AuthUser();
+                user.setUsername(username);
+                user.setRole(AuthUser.Role.STUDENT);
+                createdAccounts++;
+                issueTemporaryPassword(user, accountEmail, createdCredentials);
+                users.add(user);
+                continue;
             }
-            user.setUsername(username);
-            user.setEmail(accountEmail);
-            user.setPasswordHash(passwordEncoder.encode(randomPwd));
-            user.setRole(AuthUser.Role.STUDENT);
-            user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
-            user.setFailedAttempts(0);
-            users.add(user);
-            createdCredentials.add(new CreatedCredential(username, accountEmail, randomPwd));
+
+            if (user.getStatus() == AuthUser.Status.REQUIRE_CHANGE_PWD) {
+                resetPendingAccounts++;
+                issueTemporaryPassword(user, accountEmail, createdCredentials);
+                users.add(user);
+                redisService.unlockUser(username);
+                redisService.revokeAccess(username);
+                continue;
+            }
+
+            skippedInitializedAccounts++;
+            if (!sameEmail(user.getEmail(), accountEmail)) {
+                user.setEmail(accountEmail);
+                users.add(user);
+            }
         }
 
         authUserRepository.saveAll(users);
-        createdCredentials.forEach(credential ->
-                accountEmailService.sendInitialPasswordEmail(
-                        credential.email(),
-                        credential.username(),
-                        credential.rawPassword()
-                )
-        );
-        System.out.println("Prepared bulk account emails: " + users.size() + "/" + uniqueAccounts.size()
-                + ", skipped admins: " + skippedAdmins);
+        if (sendMail) {
+            createdCredentials.forEach(credential ->
+                    accountEmailService.sendInitialPasswordEmail(
+                            credential.email(),
+                            credential.username(),
+                            credential.rawPassword()
+                    )
+            );
+        }
+        System.out.println("Prepared bulk accounts: " + users.size() + "/" + uniqueAccounts.size()
+                + ", skipped admins: " + skippedAdmins
+                + ", created accounts: " + createdAccounts
+                + ", reset pending accounts: " + resetPendingAccounts
+                + ", skipped initialized accounts: " + skippedInitializedAccounts
+                + ", send mail: " + sendMail);
     }
 
     @Transactional
@@ -522,7 +563,7 @@ public class AuthService {
         return username.trim().toLowerCase() + "@" + domain.toLowerCase();
     }
 
-    private void issueTemporaryPassword(AuthUser user, String accountEmail) {
+    private void issueTemporaryPassword(AuthUser user, String accountEmail, boolean sendMail) {
         String randomPass = generateTemporaryPassword();
         user.setEmail(accountEmail);
         user.setPasswordHash(passwordEncoder.encode(randomPass));
@@ -532,11 +573,29 @@ public class AuthService {
         authUserRepository.save(user);
         redisService.unlockUser(user.getUsername());
         redisService.revokeAccess(user.getUsername());
-        accountEmailService.sendInitialPasswordEmail(accountEmail, user.getUsername(), randomPass);
+        if (sendMail) {
+            accountEmailService.sendInitialPasswordEmail(accountEmail, user.getUsername(), randomPass);
+        }
+    }
+
+    private void issueTemporaryPassword(AuthUser user, String accountEmail, List<CreatedCredential> createdCredentials) {
+        String randomPass = generateTemporaryPassword();
+        user.setEmail(accountEmail);
+        user.setPasswordHash(passwordEncoder.encode(randomPass));
+        user.setRole(AuthUser.Role.STUDENT);
+        user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
+        user.setFailedAttempts(0);
+        createdCredentials.add(new CreatedCredential(user.getUsername(), accountEmail, randomPass));
     }
 
     private String generateTemporaryPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private boolean sameEmail(String left, String right) {
+        String cleanLeft = left == null ? "" : left.trim().toLowerCase();
+        String cleanRight = right == null ? "" : right.trim().toLowerCase();
+        return cleanLeft.equals(cleanRight);
     }
 
     private record CreatedCredential(String username, String email, String rawPassword) {

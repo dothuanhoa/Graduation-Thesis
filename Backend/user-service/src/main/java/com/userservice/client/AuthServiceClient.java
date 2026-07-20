@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -13,10 +14,16 @@ import lombok.NoArgsConstructor;
 public interface AuthServiceClient {
 
     @PostMapping("/api/auth/internal/register")
-    String registerAccount(@RequestBody RegisterRequest request);
+    String registerAccount(
+            @RequestParam("sendMail") boolean sendMail,
+            @RequestBody RegisterRequest request
+    );
 
     @PostMapping("/api/auth/internal/bulk-register")
-    String bulkRegisterAccount(@RequestBody java.util.List<com.userservice.dto.BulkRegisterMessage.UserAccountDTO> accounts);
+    String bulkRegisterAccount(
+            @RequestParam("sendMail") boolean sendMail,
+            @RequestBody java.util.List<com.userservice.dto.BulkRegisterMessage.UserAccountDTO> accounts
+    );
 
     @PostMapping("/api/auth/internal/revoke/{username}")
     String revokeAccess(@RequestHeader("X-User-Role") String role, @PathVariable("username") String username);

@@ -90,6 +90,21 @@ class AuthServiceTest {
     }
 
     @Test
+    void internalRegisterCanSkipInitialEmail() {
+        when(authUserRepository.findByEmail("dh52201258@student.edu.vn")).thenReturn(Optional.empty());
+        when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
+
+        authService.internalRegister("DH52201258", null, false);
+
+        ArgumentCaptor<AuthUser> userCaptor = ArgumentCaptor.forClass(AuthUser.class);
+        verify(authUserRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().getUsername()).isEqualTo("DH52201258");
+        assertThat(userCaptor.getValue().getStatus()).isEqualTo(AuthUser.Status.REQUIRE_CHANGE_PWD);
+        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+    }
+
+    @Test
     void bulkRegisterDeduplicatesAccountsAndUsesDefaultStudentEmail() {
         when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of());
         when(authUserRepository.findByEmailIn(anyCollection())).thenReturn(List.of());
@@ -104,6 +119,64 @@ class AuthServiceTest {
         verify(authUserRepository).saveAll(usersCaptor.capture());
         assertThat(usersCaptor.getValue()).hasSize(1);
         assertThat(usersCaptor.getValue().get(0).getEmail()).isEqualTo("dh52201258@student.edu.vn");
+        verify(accountEmailService).sendInitialPasswordEmail(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
+    }
+
+    @Test
+    void bulkRegisterSkipsInitialEmailWhenSendMailDisabled() {
+        when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of());
+        when(authUserRepository.findByEmailIn(anyCollection())).thenReturn(List.of());
+        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
+
+        authService.bulkRegister(List.of(
+                new BulkRegisterMessage.UserAccountDTO("DH52201258", "student@example.edu.vn")
+        ), false);
+
+        ArgumentCaptor<List<AuthUser>> usersCaptor = ArgumentCaptor.forClass(List.class);
+        verify(authUserRepository).saveAll(usersCaptor.capture());
+        assertThat(usersCaptor.getValue()).hasSize(1);
+        assertThat(usersCaptor.getValue().get(0).getEmail()).isEqualTo("student@example.edu.vn");
+        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+    }
+
+    @Test
+    void bulkRegisterDoesNotResetPasswordForStudentWhoAlreadyChangedPassword() {
+        AuthUser existing = activeStudent("DH52201258", "dh52201258@student.edu.vn");
+        when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of(existing));
+        when(authUserRepository.findByEmailIn(anyCollection())).thenReturn(List.of(existing));
+
+        authService.bulkRegister(List.of(
+                new BulkRegisterMessage.UserAccountDTO("DH52201258", "dh52201258@student.edu.vn")
+        ), true);
+
+        ArgumentCaptor<List<AuthUser>> usersCaptor = ArgumentCaptor.forClass(List.class);
+        verify(authUserRepository).saveAll(usersCaptor.capture());
+        assertThat(usersCaptor.getValue()).isEmpty();
+        assertThat(existing.getPasswordHash()).isEqualTo("encoded-password");
+        assertThat(existing.getStatus()).isEqualTo(AuthUser.Status.ACTIVE);
+        verify(passwordEncoder, never()).encode(any());
+        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+    }
+
+    @Test
+    void bulkRegisterResetsPasswordForStudentWhoHasNotChangedPasswordYet() {
+        AuthUser existing = activeStudent("DH52201258", "dh52201258@student.edu.vn");
+        existing.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
+        when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of(existing));
+        when(authUserRepository.findByEmailIn(anyCollection())).thenReturn(List.of(existing));
+        when(passwordEncoder.encode(any())).thenReturn("new-encoded-password");
+
+        authService.bulkRegister(List.of(
+                new BulkRegisterMessage.UserAccountDTO("DH52201258", "dh52201258@student.edu.vn")
+        ), true);
+
+        ArgumentCaptor<List<AuthUser>> usersCaptor = ArgumentCaptor.forClass(List.class);
+        verify(authUserRepository).saveAll(usersCaptor.capture());
+        assertThat(usersCaptor.getValue()).containsExactly(existing);
+        assertThat(existing.getPasswordHash()).isEqualTo("new-encoded-password");
+        assertThat(existing.getStatus()).isEqualTo(AuthUser.Status.REQUIRE_CHANGE_PWD);
+        verify(redisService).unlockUser("DH52201258");
+        verify(redisService).revokeAccess("DH52201258");
         verify(accountEmailService).sendInitialPasswordEmail(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
     }
 

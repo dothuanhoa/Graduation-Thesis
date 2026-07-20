@@ -90,12 +90,13 @@ public class UserController {
     @PostMapping
     public ResponseEntity<Object> createUser(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
             @Valid @RequestBody UserProfile userProfile
     ) {
         if (!isAdminOrSystem(role)) {
             return forbidden();
         }
-        return ResponseEntity.ok(userService.save(userProfile));
+        return ResponseEntity.ok(userService.save(userProfile, sendMail));
     }
 
     @PutMapping("/{id}")
@@ -161,14 +162,15 @@ public class UserController {
     @PostMapping("/import")
     public ResponseEntity<String> importExcel(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail
     ) {
         if (!isAdminOrSystem(role)) {
             return ResponseEntity.status(403).body("Bạn không có quyền thực hiện thao tác này");
         }
         try {
             List<StudentImportRow> rows = excelService.parseExcelFile(file);
-            String result = userService.bulkImport(rows);
+            String result = userService.bulkImport(rows, sendMail);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
@@ -193,14 +195,15 @@ public class UserController {
     @PostMapping("/import/jobs")
     public ResponseEntity<Object> startImportJob(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail
     ) {
         if (!isAdminOrSystem(role)) {
             return forbidden();
         }
         try {
             List<StudentImportRow> rows = excelService.parseExcelFile(file);
-            return ResponseEntity.accepted().body(studentImportJobService.start(rows));
+            return ResponseEntity.accepted().body(studentImportJobService.start(rows, sendMail));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Lỗi: " + e.getMessage());
         }

@@ -69,9 +69,27 @@ class UserServiceImplTest {
         assertThat(saved.getEmail()).isEqualTo("dh52201258@student.edu.vn");
         assertThat(saved.getStudentGroup()).isSameAs(defaultGroup);
         ArgumentCaptor<AuthServiceClient.RegisterRequest> requestCaptor = ArgumentCaptor.forClass(AuthServiceClient.RegisterRequest.class);
-        verify(authServiceClient).registerAccount(requestCaptor.capture());
+        verify(authServiceClient).registerAccount(eq(true), requestCaptor.capture());
         assertThat(requestCaptor.getValue().getUsername()).isEqualTo("DH52201258");
         assertThat(requestCaptor.getValue().getEmail()).isEqualTo("dh52201258@student.edu.vn");
+    }
+
+    @Test
+    void saveCanSkipInitialAuthEmail() {
+        StudentGroup defaultGroup = group(1, "1", "Dau khoa");
+        UserProfile profile = new UserProfile();
+        profile.setStudentId("DH52201258");
+        profile.setFullName("Tran Thanh Hoai Phuc");
+        profile.setStudentStatus(UserProfile.StudentStatus.STUDYING);
+
+        when(studentGroupRepository.findByCode("1")).thenReturn(Optional.of(defaultGroup));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.save(profile, false);
+
+        ArgumentCaptor<AuthServiceClient.RegisterRequest> requestCaptor = ArgumentCaptor.forClass(AuthServiceClient.RegisterRequest.class);
+        verify(authServiceClient).registerAccount(eq(false), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getUsername()).isEqualTo("DH52201258");
     }
 
     @Test

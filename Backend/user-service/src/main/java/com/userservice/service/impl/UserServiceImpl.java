@@ -74,6 +74,11 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public UserProfile save(UserProfile userProfile) {
+        return save(userProfile, true);
+    }
+
+    @Transactional
+    public UserProfile save(UserProfile userProfile, boolean sendMail) {
         Clazz targetClazz = resolveClazz(userProfile);
         StudentGroup targetGroup = resolveStudentGroupForCreate(userProfile);
         ensureClassHasRoom(null, targetClazz, 1);
@@ -81,15 +86,23 @@ public class UserServiceImpl implements UserService {
         userProfile.setClazz(targetClazz);
         userProfile.setStudentGroup(targetGroup);
         UserProfile savedProfile = userProfileRepository.save(userProfile);
-        createAuthAccount(savedProfile);
+        createAuthAccount(savedProfile, sendMail);
         return savedProfile;
     }
 
     public String bulkImport(List<StudentImportRow> rows) {
-        return bulkImport(rows, null);
+        return bulkImport(rows, true);
+    }
+
+    public String bulkImport(List<StudentImportRow> rows, boolean sendMail) {
+        return bulkImport(rows, null, sendMail);
     }
 
     public String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer) {
+        return bulkImport(rows, progressConsumer, true);
+    }
+
+    public String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer, boolean sendMail) {
         OrganizationImportSummary organizationSummary = new OrganizationImportSummary();
         List<UserProfile> newProfiles = new ArrayList<>();
         List<UserProfile> updatedProfiles = new ArrayList<>();
@@ -161,18 +174,27 @@ public class UserServiceImpl implements UserService {
         }
 
         int authTotal = pendingAccounts.size();
+        String authMessage = sendMail
+                ? "Đang tạo tài khoản đăng nhập và gửi email cho sinh viên mới."
+                : "Đang tạo tài khoản đăng nhập, bỏ qua gửi email theo tùy chọn import.";
         report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
-                authProcessed, authTotal, "Đang tạo tài khoản đăng nhập cho sinh viên mới.");
+                authProcessed, authTotal, authMessage);
 
         for (int start = 0; start < pendingAccounts.size(); start += AUTH_BATCH_SIZE) {
             int end = Math.min(start + AUTH_BATCH_SIZE, pendingAccounts.size());
-            authServiceClient.bulkRegisterAccount(pendingAccounts.subList(start, end));
+            authServiceClient.bulkRegisterAccount(sendMail, pendingAccounts.subList(start, end));
             authProcessed = end;
+            String progressMessage = sendMail
+                    ? "Đang tạo tài khoản đăng nhập và gửi email: "
+                    : "Đang tạo tài khoản đăng nhập không gửi email: ";
             report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
-                    authProcessed, authTotal, "Đang tạo tài khoản đăng nhập: " + authProcessed + "/" + authTotal + ".");
+                    authProcessed, authTotal, progressMessage + authProcessed + "/" + authTotal + ".");
         }
 
         String result = organizationSummary.toStudentMessage(createdStudents, updatedStudents, skippedStudents);
+        if (!sendMail) {
+            result += " Đã bỏ qua gửi email tài khoản theo tùy chọn import.";
+        }
         report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
                 authProcessed, authTotal, result);
         return result;
@@ -181,14 +203,19 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserProfile update(Long id, UserProfile userDetails) {
         return userProfileRepository.findById(id).map(user -> {
+            String requestedStudentId = clean(userDetails.getStudentId());
+            if (!requestedStudentId.isBlank() && !requestedStudentId.equalsIgnoreCase(clean(user.getStudentId()))) {
+                throw new BadRequestException("MSSV không được thay đổi sau khi tạo hồ sơ.");
+            }
+
             UserProfile.StudentStatus previousStatus = user.getStudentStatus();
             UserProfile.StudentStatus targetStatus = userDetails.getStudentStatus();
             Clazz targetClazz = resolveClazz(userDetails);
             StudentGroup targetGroup = resolveStudentGroupForUpdate(user, userDetails);
             ensureClassHasRoom(user, targetClazz, 1);
             user.setFullName(userDetails.getFullName());
-            user.setStudentId(userDetails.getStudentId());
-            user.setEmail(resolveStudentEmail(userDetails.getStudentId(), userDetails.getEmail()));
+            user.setStudentId(user.getStudentId());
+            user.setEmail(resolveStudentEmail(user.getStudentId(), userDetails.getEmail()));
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
@@ -344,8 +371,8 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toMap(StudentGroup::getCode, Function.identity()));
     }
 
-    private void createAuthAccount(UserProfile profile) {
-        authServiceClient.registerAccount(new AuthServiceClient.RegisterRequest(
+    private void createAuthAccount(UserProfile profile, boolean sendMail) {
+        authServiceClient.registerAccount(sendMail, new AuthServiceClient.RegisterRequest(
                 profile.getStudentId(),
                 resolveStudentEmail(profile.getStudentId(), profile.getEmail())
         ));

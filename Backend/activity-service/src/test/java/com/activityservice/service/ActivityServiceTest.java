@@ -81,7 +81,8 @@ class ActivityServiceTest {
         when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
                 .thenReturn(true);
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
-        when(userClient.getStudentProfile("DH52201258")).thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = service.checkin(1L, "CHECKER1", request);

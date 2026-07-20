@@ -23,6 +23,10 @@ public class StudentImportJobService {
     private final ExecutorService executorService = Executors.newFixedThreadPool(2);
 
     public StudentImportProgress start(List<StudentImportRow> rows) {
+        return start(rows, true);
+    }
+
+    public StudentImportProgress start(List<StudentImportRow> rows, boolean sendMail) {
         String jobId = UUID.randomUUID().toString();
         StudentImportProgress progress = StudentImportProgress.builder()
                 .jobId(jobId)
@@ -35,7 +39,7 @@ public class StudentImportJobService {
                 .build();
 
         jobs.put(jobId, progress);
-        executorService.submit(() -> runImport(progress, rows));
+        executorService.submit(() -> runImport(progress, rows, sendMail));
         return progress;
     }
 
@@ -43,13 +47,15 @@ public class StudentImportJobService {
         return Optional.ofNullable(jobs.get(jobId));
     }
 
-    private void runImport(StudentImportProgress progress, List<StudentImportRow> rows) {
+    private void runImport(StudentImportProgress progress, List<StudentImportRow> rows, boolean sendMail) {
         try {
             progress.setStatus(StudentImportProgress.Status.PROCESSING);
-            progress.setMessage("Đang import hồ sơ sinh viên.");
+            progress.setMessage(sendMail
+                    ? "Đang import hồ sơ sinh viên và chuẩn bị gửi email tài khoản."
+                    : "Đang import hồ sơ sinh viên, không gửi email tài khoản.");
             progress.setProgressPercent(1);
 
-            String result = userService.bulkImport(rows, update -> applyUpdate(progress, update));
+            String result = userService.bulkImport(rows, update -> applyUpdate(progress, update), sendMail);
 
             progress.setStatus(StudentImportProgress.Status.COMPLETED);
             progress.setMessage(result);

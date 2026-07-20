@@ -32,6 +32,9 @@ import java.util.Locale;
 @Service
 @RequiredArgsConstructor
 public class ActivityService {
+    private static final String INTERNAL_ROLE = "SYSTEM";
+    private static final String INTERNAL_USER_CODE = "activity-service";
+
     private final ActivityRepository activityRepository;
     private final ActivityRegistrationRepository registrationRepository;
     private final ActivityCheckerRepository checkerRepository;
@@ -416,7 +419,7 @@ public class ActivityService {
     private UserProfileDTO requireMatchingStudent(String studentCode, String fullName, String subjectLabel) {
         UserProfileDTO profile;
         try {
-            profile = userClient.getStudentProfile(studentCode);
+            profile = userClient.getStudentProfile(INTERNAL_ROLE, INTERNAL_USER_CODE, studentCode);
         } catch (FeignException.NotFound ex) {
             throw new BadRequestException("Không tìm thấy " + subjectLabel + " có mã " + studentCode + " trong hệ thống");
         } catch (FeignException ex) {
@@ -438,7 +441,7 @@ public class ActivityService {
     private UserProfileDTO requireExistingStudent(String studentCode, String subjectLabel) {
         UserProfileDTO profile;
         try {
-            profile = userClient.getStudentProfile(studentCode);
+            profile = userClient.getStudentProfile(INTERNAL_ROLE, INTERNAL_USER_CODE, studentCode);
         } catch (FeignException.NotFound ex) {
             throw new BadRequestException("Không tìm thấy " + subjectLabel + " có mã " + studentCode + " trong hệ thống");
         } catch (FeignException ex) {

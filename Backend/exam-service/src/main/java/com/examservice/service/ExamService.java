@@ -38,6 +38,8 @@ public class ExamService {
     private static final int EXAM_BUFFER_MINUTES = 15;
     private static final int MAX_VIOLATIONS = 3;
     private static final int MAX_IMPORT_ERRORS = 20;
+    private static final String INTERNAL_ROLE = "SYSTEM";
+    private static final String INTERNAL_USER_CODE = "exam-service";
     private static final Map<String, String> STUDENT_GROUP_NAMES = Map.of(
             "1", "Đầu khóa",
             "2", "Giữa khóa",
@@ -675,7 +677,7 @@ public class ExamService {
 
     private UserProfileDTO resolveStudentProfile(String userCode) {
         try {
-            UserProfileDTO profile = userClient.getProfileByStudentId(userCode);
+            UserProfileDTO profile = userClient.getProfileByStudentId(INTERNAL_ROLE, INTERNAL_USER_CODE, userCode);
             if (profile == null) {
                 throw new BadRequestException("Không tìm thấy hồ sơ sinh viên.");
             }

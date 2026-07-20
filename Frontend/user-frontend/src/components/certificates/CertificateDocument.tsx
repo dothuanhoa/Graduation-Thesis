@@ -789,6 +789,7 @@ function Signature({
           metadata={metadata}
           editable={editable}
           editScope={editScope}
+          adminMode={adminMode}
           onChange={onChange}
           className="min-w-44"
         />
@@ -921,6 +922,7 @@ function Principal({
           metadata={metadata}
           editable={editable}
           editScope={editScope}
+          adminMode={adminMode}
           onChange={onChange}
           className="min-w-36 text-center"
         />
@@ -931,6 +933,7 @@ function Principal({
           metadata={metadata}
           editable={editable}
           editScope={editScope}
+          adminMode={adminMode}
           onChange={onChange}
           className="min-w-44 text-center"
         />

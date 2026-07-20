@@ -39,14 +39,19 @@ public class AuthController {
 
     // API này sau này sẽ bị giới hạn chỉ cho nội bộ gọi (từ user-service)
     @PostMapping("/internal/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
-        authService.internalRegister(request.getUsername(), request.getEmail());
+    public ResponseEntity<String> register(
+            @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
+            @RequestBody RegisterRequest request
+    ) {
+        authService.internalRegister(request.getUsername(), request.getEmail(), sendMail);
         return ResponseEntity.ok("Khởi tạo tài khoản thành công!");
     }
 
     @PostMapping("/internal/bulk-register")
-    public ResponseEntity<String> bulkRegister(@RequestBody java.util.List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
-        authService.bulkRegister(accounts);
+    public ResponseEntity<String> bulkRegister(
+            @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
+            @RequestBody java.util.List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
+        authService.bulkRegister(accounts, sendMail);
         return ResponseEntity.ok("Import thành công!");
     }
 

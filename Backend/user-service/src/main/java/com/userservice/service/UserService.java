@@ -17,10 +17,13 @@ public interface UserService {
     Optional<UserProfile> findByStudentId(String studentId);
     List<StudentGroup> findAllStudentGroups();
     UserProfile save(UserProfile userProfile);
+    UserProfile save(UserProfile userProfile, boolean sendMail);
     UserProfile update(Long id, UserProfile userProfile);
     void delete(Long id);
     String bulkImport(List<StudentImportRow> rows);
+    String bulkImport(List<StudentImportRow> rows, boolean sendMail);
     String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer);
+    String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer, boolean sendMail);
     BulkStudentUpdateResponse assignStudentsToClass(List<Long> studentIds, Long classId);
     BulkStudentUpdateResponse updateStudentStatuses(List<Long> studentIds, UserProfile.StudentStatus status);
     BulkStudentUpdateResponse updateStudentGroups(BulkStudentGroupRequest request);

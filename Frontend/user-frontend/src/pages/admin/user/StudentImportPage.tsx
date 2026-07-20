@@ -26,6 +26,7 @@ function StudentImportPage() {
   const [uploading, setUploading] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [job, setJob] = useState<StudentImportJobStatus | null>(null);
+  const [sendMail, setSendMail] = useState(false);
 
   const isRunning = Boolean(job && runningStatuses.includes(job.status));
   const progressPercent = uploading ? 8 : Math.max(0, Math.min(100, job?.progressPercent ?? 0));
@@ -39,8 +40,9 @@ function StudentImportPage() {
       { label: "Cập nhật", value: job?.updatedStudents ?? 0 },
       { label: "Bỏ qua", value: job?.skippedStudents ?? 0 },
       { label: "Tài khoản", value: job?.authTotal ? `${job.authProcessed}/${job.authTotal}` : "0/0" },
+      { label: "Gửi mail", value: sendMail ? "Có" : "Không" },
     ],
-    [job],
+    [job, sendMail],
   );
 
   useEffect(() => {
@@ -83,9 +85,11 @@ function StudentImportPage() {
     setJob(null);
     try {
       await excelImportSchema.validate({ file });
-      const startedJob = await userApi.startImportJob(file as File);
+      const startedJob = await userApi.startImportJob(file as File, { sendMail });
       setJob(startedJob);
-      setMessage("Đã bắt đầu import. Bạn có thể theo dõi tiến độ bên dưới.");
+      setMessage(sendMail
+        ? "Đã bắt đầu import và gửi email tài khoản. Bạn có thể theo dõi tiến độ bên dưới."
+        : "Đã bắt đầu import không gửi email tài khoản. Bạn có thể theo dõi tiến độ bên dưới.");
     } catch (err) {
       setMessage(getYupMessage(err, err instanceof Error ? err.message : "Import thất bại."));
     } finally {
@@ -157,6 +161,22 @@ function StudentImportPage() {
               onChange={(event) => handleSelectFile(event.target.files?.[0] ?? null)}
               type="file"
             />
+          </label>
+
+          <label className="flex items-start gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3">
+            <input
+              checked={sendMail}
+              className="mt-1 h-4 w-4 accent-primary"
+              disabled={uploading || isRunning}
+              onChange={(event) => setSendMail(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <span className="block font-bold text-on-surface">Gửi email tài khoản cho sinh viên sau khi import</span>
+              <span className="mt-1 block text-sm leading-6 text-on-surface-variant">
+                Mặc định đang tắt để test import an toàn, tránh gửi mail hàng loạt. Nếu tắt, tài khoản vẫn được tạo/cập nhật với mật khẩu tạm ngẫu nhiên nhưng sinh viên sẽ không nhận email thông tin đăng nhập.
+              </span>
+            </span>
           </label>
 
           {(uploading || job) && (

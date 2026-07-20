@@ -455,21 +455,48 @@ async function parseResponse(res: Response) {
   return res.text();
 }
 
-const extractErrorMessage = (data: unknown) => {
+const parseJsonString = (value: string) => {
+  const cleanValue = value.trim();
+  if (!cleanValue || !["{", "["].includes(cleanValue[0])) return null;
+
+  try {
+    return JSON.parse(cleanValue) as unknown;
+  } catch {
+    return null;
+  }
+};
+
+const extractErrorMessage = (data: unknown): string => {
+  if (Array.isArray(data)) {
+    const messages = data
+      .map((item) => extractErrorMessage(item))
+      .filter((message) => message && message !== "Request failed");
+    return messages[0] || "Request failed";
+  }
+
   if (typeof data === "object" && data !== null) {
     if ("message" in data) {
-      return String((data as Record<string, unknown>).message);
+      const message = (data as Record<string, unknown>).message;
+      return typeof message === "string" ? message : extractErrorMessage(message);
     }
     if ("error" in data) {
-      return String((data as Record<string, unknown>).error);
+      const error = (data as Record<string, unknown>).error;
+      return typeof error === "string" ? error : extractErrorMessage(error);
     }
     const errorValues = Object.values(data);
     if (errorValues.length > 0 && typeof errorValues[0] === "string") {
       return errorValues.join(", ");
     }
+    if (errorValues.length > 0) {
+      return extractErrorMessage(errorValues[0]);
+    }
   }
 
   if (typeof data === "string") {
+    const parsed = parseJsonString(data);
+    if (parsed !== null) {
+      return extractErrorMessage(parsed);
+    }
     return data;
   }
 
@@ -790,8 +817,9 @@ export const userApi = {
       throw err;
     }
   },
-  create(payload: UserProfilePayload) {
-    return apiRequest<UserProfile>("/api/users", {
+  create(payload: UserProfilePayload, options: { sendMail?: boolean } = {}) {
+    const searchParams = new URLSearchParams({ sendMail: String(options.sendMail ?? true) });
+    return apiRequest<UserProfile>(`/api/users?${searchParams.toString()}`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -836,17 +864,19 @@ export const userApi = {
       suppressToast: true,
     });
   },
-  importExcel(file: File) {
+  importExcel(file: File, options: { sendMail?: boolean } = {}) {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("sendMail", String(options.sendMail ?? true));
     return apiRequest<string>("/api/users/import", {
       method: "POST",
       body: formData,
     });
   },
-  startImportJob(file: File) {
+  startImportJob(file: File, options: { sendMail?: boolean } = {}) {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("sendMail", String(options.sendMail ?? true));
     return apiRequest<StudentImportJobStatus>("/api/users/import/jobs", {
       method: "POST",
       body: formData,
