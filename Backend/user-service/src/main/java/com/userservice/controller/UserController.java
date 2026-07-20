@@ -1,7 +1,7 @@
 package com.userservice.controller;
 
-import com.userservice.domain.UserProfile;
 import com.userservice.domain.StudentGroup;
+import com.userservice.domain.UserProfile;
 import com.userservice.dto.BulkStudentClassRequest;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentStatusRequest;
@@ -38,27 +38,48 @@ import java.util.Map;
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
 public class UserController {
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_SYSTEM = "SYSTEM";
+
     private final UserService userService;
     private final ExcelService excelService;
     private final StudentImportJobService studentImportJobService;
 
     @GetMapping
-    public ResponseEntity<List<UserProfile>> getUsers() {
+    public ResponseEntity<Object> getUsers(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
         return ResponseEntity.ok(userService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserProfile> getUserById(@PathVariable Long id) {
+    public ResponseEntity<Object> getUserById(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable Long id
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
         return userService.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .<ResponseEntity<Object>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/profile/{studentId}")
-    public ResponseEntity<UserProfile> getUserByStudentId(@PathVariable String studentId) {
+    public ResponseEntity<Object> getUserByStudentId(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code", defaultValue = "") String currentUserCode,
+            @PathVariable String studentId
+    ) {
+        if (!isAdminOrSystem(role) && !sameSchoolCode(studentId, currentUserCode)) {
+            return forbidden();
+        }
         return userService.findByStudentId(studentId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .<ResponseEntity<Object>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/student-groups")
@@ -71,8 +92,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @Valid @RequestBody UserProfile userProfile
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         return ResponseEntity.ok(userService.save(userProfile));
     }
@@ -83,8 +104,8 @@ public class UserController {
             @PathVariable Long id,
             @Valid @RequestBody UserProfile userProfile
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         return ResponseEntity.ok(userService.update(id, userProfile));
     }
@@ -94,8 +115,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @Valid @RequestBody BulkStudentClassRequest request
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         BulkStudentUpdateResponse response = userService.assignStudentsToClass(request.getStudentIds(), request.getClassId());
         return ResponseEntity.ok(response);
@@ -106,8 +127,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @Valid @RequestBody BulkStudentStatusRequest request
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         BulkStudentUpdateResponse response = userService.updateStudentStatuses(request.getStudentIds(), request.getStatus());
         return ResponseEntity.ok(response);
@@ -118,8 +139,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @Valid @RequestBody BulkStudentGroupRequest request
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         BulkStudentUpdateResponse response = userService.updateStudentGroups(request);
         return ResponseEntity.ok(response);
@@ -130,8 +151,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @PathVariable Long id
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         userService.delete(id);
         return ResponseEntity.noContent().build();
@@ -142,8 +163,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @RequestParam("file") MultipartFile file
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền này");
+        if (!isAdminOrSystem(role)) {
+            return ResponseEntity.status(403).body("Bạn không có quyền thực hiện thao tác này");
         }
         try {
             List<StudentImportRow> rows = excelService.parseExcelFile(file);
@@ -158,7 +179,7 @@ public class UserController {
     public ResponseEntity<byte[]> downloadImportTemplate(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
+        if (!isAdminOrSystem(role)) {
             return ResponseEntity.status(403).build();
         }
 
@@ -174,8 +195,8 @@ public class UserController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @RequestParam("file") MultipartFile file
     ) {
-        if (!"ADMIN".equalsIgnoreCase(role)) {
-            return ResponseEntity.status(403).build();
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
         }
         try {
             List<StudentImportRow> rows = excelService.parseExcelFile(file);
@@ -186,10 +207,16 @@ public class UserController {
     }
 
     @GetMapping("/import/jobs/{jobId}")
-    public ResponseEntity<StudentImportProgress> getImportJob(@PathVariable String jobId) {
+    public ResponseEntity<Object> getImportJob(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable String jobId
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
         return studentImportJobService.get(jobId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .<ResponseEntity<Object>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/me/contacts")
@@ -202,5 +229,17 @@ public class UserController {
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.ok(userService.updateContactByStudentId(studentId, contactPhone));
+    }
+
+    private boolean isAdminOrSystem(String role) {
+        return ROLE_ADMIN.equalsIgnoreCase(role) || ROLE_SYSTEM.equalsIgnoreCase(role);
+    }
+
+    private boolean sameSchoolCode(String left, String right) {
+        return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private ResponseEntity<Object> forbidden() {
+        return ResponseEntity.status(403).body("Bạn không có quyền thực hiện thao tác này");
     }
 }

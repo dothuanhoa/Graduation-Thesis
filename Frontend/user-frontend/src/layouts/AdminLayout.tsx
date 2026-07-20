@@ -1,4 +1,4 @@
-import { LogOut, X } from "lucide-react";
+import { KeyRound, LogOut, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
@@ -21,6 +21,11 @@ function AdminLayout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const displayName = username || "Quản trị viên";
   const accountActions = [
+    {
+      label: "Đổi mật khẩu",
+      path: "/admin/change-password",
+      icon: KeyRound,
+    },
     {
       label: "Đăng xuất",
       path: "/login",

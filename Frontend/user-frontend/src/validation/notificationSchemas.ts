@@ -2,7 +2,7 @@ import * as yup from "yup";
 import { z } from "zod";
 import { stripHtmlToText } from "../utils/html";
 
-const notificationTargetTypes = ["ALL", "FACULTY", "CLASS", "USER"] as const;
+const notificationTargetTypes = ["ALL", "FACULTY", "CLASS"] as const;
 const notificationPriorities = ["NORMAL", "URGENT"] as const;
 const notificationStatuses = ["DRAFT", "PUBLISHED", "EXPIRED", "REVOKED"] as const;
 
@@ -38,7 +38,7 @@ export const notificationSchema = z
     if (data.targetType !== "ALL" && !data.targetId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Vui lòng nhập Target ID khi gửi theo khoa, lớp hoặc MSSV",
+        message: "Vui lòng nhập Mã đối tượng khi gửi theo khoa hoặc lớp",
         path: ["targetId"],
       });
     }

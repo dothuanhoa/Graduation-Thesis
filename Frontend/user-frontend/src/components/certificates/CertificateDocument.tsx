@@ -1,5 +1,6 @@
 import type { UserProfile } from "../../services/api";
 import { normalizeCertificateCode } from "../../utils/certificateUtils";
+import { formatVietnamDate } from "../../utils/dateTime";
 
 type Metadata = Record<string, unknown>;
 
@@ -25,7 +26,9 @@ const getDefaultValue = (
   profile?: UserProfile | null,
 ) => {
   const current = text(metadata[key]);
-  if (current) return current;
+  if (current) {
+    return key === "enrollmentDate" ? formatVietnamDate(current) : current;
+  }
 
   const facultyName =
     profile?.clazz?.faculty?.facultyName ||
@@ -135,6 +138,7 @@ const canEdit = (
 function DateFields({
   name,
   metadata,
+  profile,
   editable,
   editScope,
   adminMode,
@@ -142,12 +146,13 @@ function DateFields({
 }: {
   name: string;
   metadata: Metadata;
+  profile?: UserProfile | null;
   editable?: boolean;
   editScope?: "all" | "school";
   adminMode?: boolean;
   onChange?: (key: string, value: string) => void;
 }) {
-  const date = splitDate(text(metadata[name]));
+  const date = splitDate(getDefaultValue(name, metadata, profile));
   const isEditable = canEdit({ editable, editScope }, name);
   const updatePart = (part: "day" | "month" | "year", value: string) => {
     const next = { ...date, [part]: value };
@@ -196,6 +201,7 @@ function RadioLine({
   name,
   options,
   metadata,
+  profile,
   editable,
   editScope,
   onChange,
@@ -203,11 +209,12 @@ function RadioLine({
   name: string;
   options: string[];
   metadata: Metadata;
+  profile?: UserProfile | null;
   editable?: boolean;
   editScope?: "all" | "school";
   onChange?: (key: string, value: string) => void;
 }) {
-  const value = text(metadata[name]);
+  const value = getDefaultValue(name, metadata, profile);
   const isEditable = canEdit({ editable, editScope }, name);
   return (
     <span className="inline-flex flex-wrap gap-3 align-middle">
@@ -262,6 +269,7 @@ function NvqsForm(props: CertificateDocumentProps) {
           <DateFields
             name="dob"
             metadata={metadata}
+            profile={props.profile}
             editable={props.editable}
             editScope={props.editScope}
             adminMode={props.adminMode}
@@ -402,6 +410,7 @@ function GeneralForm(props: CertificateDocumentProps) {
           <DateFields
             name="dob"
             metadata={metadata}
+            profile={props.profile}
             editable={props.editable}
             editScope={props.editScope}
             adminMode={props.adminMode}
@@ -423,6 +432,7 @@ function GeneralForm(props: CertificateDocumentProps) {
             metadata={metadata}
             className="min-w-36"
           />
+          {" "}
           Khoa:{" "}
           <Field
             name="facultyName"
@@ -430,6 +440,7 @@ function GeneralForm(props: CertificateDocumentProps) {
             metadata={metadata}
             className="min-w-48"
           />
+          {" "}
           MSSV:{" "}
           <Field
             name="studentId"
@@ -455,6 +466,7 @@ function GeneralForm(props: CertificateDocumentProps) {
             metadata={metadata}
             className="min-w-28"
           />
+          {" "}
           Hệ đào tạo:{" "}
           <Field
             name="trainingType"
@@ -529,6 +541,7 @@ function LoanForm(props: CertificateDocumentProps) {
           <DateFields
             name="dob"
             metadata={metadata}
+            profile={props.profile}
             editable={props.editable}
             editScope={props.editScope}
             adminMode={props.adminMode}

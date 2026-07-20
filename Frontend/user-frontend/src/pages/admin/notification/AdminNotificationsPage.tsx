@@ -7,6 +7,7 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { notificationApi, type NotificationResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 import { stripHtmlToText } from "../../../utils/html";
 import { includesSearch } from "../../../utils/search";
 
@@ -20,19 +21,14 @@ type NotificationRow = TableRow & {
   endDate: string;
 };
 
-const toInputDateTime = (value?: string) => {
-  if (!value) return "";
-  return value.slice(0, 16);
-};
-
 const toRow = (item: NotificationResponse): NotificationRow => ({
   id: item.id,
   title: item.title,
   priority: item.priority,
-  target: item.targetType === "ALL" ? "Toàn trường" : `${item.targetType}${item.targetId ? `: ${item.targetId}` : ""}`,
+  target: item.targetType === "ALL" ? "Toàn trường" : `${item.targetType === "FACULTY" ? "Khoa" : "Lớp"}${item.targetId ? `: ${item.targetId}` : ""}`,
   status: item.status || "DRAFT",
-  startDate: toInputDateTime(item.startDate).replace("T", " "),
-  endDate: toInputDateTime(item.endDate).replace("T", " "),
+  startDate: formatVietnamDateTime(item.startDate),
+  endDate: formatVietnamDateTime(item.endDate),
 });
 
 const columns: Column<NotificationRow>[] = [
@@ -145,7 +141,6 @@ function AdminNotificationsPage() {
               { value: "ALL", label: "Toàn trường" },
               { value: "FACULTY", label: "Theo khoa" },
               { value: "CLASS", label: "Theo lớp" },
-              { value: "USER", label: "Theo sinh viên" },
             ],
           },
           {

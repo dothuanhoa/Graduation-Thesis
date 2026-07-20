@@ -9,6 +9,7 @@ import PaginationControls from "../../../components/PaginationControls";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { academicYearApi, type AcademicYearPayload, type AcademicYearResponse } from "../../../services/api";
 import { includesSearch } from "../../../utils/search";
+import { sortBySchoolCode } from "../../../utils/schoolCodeSort";
 import { academicYearSchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -38,7 +39,7 @@ function AcademicYearManagementPage() {
     setMessage("");
     try {
       const data = await academicYearApi.list();
-      setAcademicYears(data);
+      setAcademicYears(sortBySchoolCode(data, (year) => year.yearName));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không tải được danh sách niên khóa.");
     } finally {
@@ -78,11 +79,14 @@ function AcademicYearManagementPage() {
       const payload = toPayload();
       if (editingId) {
         const updated = await academicYearApi.update(editingId, payload);
-        setAcademicYears((current) => current.map((year) => (year.id === updated.id ? updated : year)));
+        setAcademicYears((current) => sortBySchoolCode(
+          current.map((year) => (year.id === updated.id ? updated : year)),
+          (year) => year.yearName,
+        ));
         setMessage("Đã cập nhật niên khóa.");
       } else {
         const created = await academicYearApi.create(payload);
-        setAcademicYears((current) => [created, ...current].sort((a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)));
+        setAcademicYears((current) => sortBySchoolCode([created, ...current], (year) => year.yearName));
         setMessage("Đã thêm niên khóa mới.");
       }
 
@@ -134,7 +138,7 @@ function AcademicYearManagementPage() {
   const startYearOptions = useMemo(
     () =>
       Array.from(new Set(academicYears.map((year) => year.startYear).filter(Boolean) as number[]))
-        .sort((a, b) => b - a)
+        .sort((a, b) => a - b)
         .map((year) => ({ value: String(year), label: String(year) })),
     [academicYears],
   );

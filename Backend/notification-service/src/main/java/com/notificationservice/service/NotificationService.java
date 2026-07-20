@@ -1,13 +1,18 @@
 package com.notificationservice.service;
 
+import com.notificationservice.client.UserClient;
 import com.notificationservice.domain.Notification;
 import com.notificationservice.domain.NotificationRead;
 import com.notificationservice.dto.NotificationRequest;
 import com.notificationservice.dto.NotificationResponse;
+import com.notificationservice.dto.UserProfileDTO;
 import com.notificationservice.repository.NotificationReadRepository;
 import com.notificationservice.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +23,7 @@ import java.util.stream.Collectors;
 public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationReadRepository notificationReadRepository;
+    private final UserClient userClient;
 
     // Cho Admin
     public List<Notification> getAllNotifications() {
@@ -25,6 +31,7 @@ public class NotificationService {
     }
 
     public Notification createNotification(NotificationRequest request, String adminId) {
+        normalizeAndValidateTarget(request);
         Notification notification = new Notification();
         notification.setTitle(request.getTitle());
         notification.setContent(request.getContent());
@@ -41,6 +48,7 @@ public class NotificationService {
     }
 
     public Notification updateNotification(Long id, NotificationRequest request) {
+        normalizeAndValidateTarget(request);
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
                 
@@ -65,9 +73,10 @@ public class NotificationService {
     }
 
     // Cho Student
-    public List<NotificationResponse> getMyNotifications(String userId, String facultyId, String classId) {
+    public List<NotificationResponse> getMyNotifications(String userId) {
+        StudentNotificationScope scope = resolveStudentScope(userId);
         List<Notification> activeNotifications = notificationRepository.findActiveNotificationsForUser(
-                LocalDateTime.now(), facultyId, classId, userId);
+                LocalDateTime.now(), scope.facultyCode(), scope.classCode());
 
         List<Long> notificationIds = activeNotifications.stream().map(Notification::getId).collect(Collectors.toList());
         
@@ -91,6 +100,12 @@ public class NotificationService {
     }
 
     public void markAsRead(Long notificationId, String userId) {
+        boolean visibleToStudent = getMyNotifications(userId).stream()
+                .anyMatch(notification -> notification.getId().equals(notificationId));
+        if (!visibleToStudent) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền đọc thông báo này");
+        }
+
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
                 
@@ -100,5 +115,46 @@ public class NotificationService {
             read.setUserId(userId);
             notificationReadRepository.save(read);
         }
+    }
+
+    private void normalizeAndValidateTarget(NotificationRequest request) {
+        if (request.getTargetType() == Notification.TargetType.USER) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hệ thống không còn hỗ trợ gửi thông báo theo từng USER");
+        }
+
+        if (request.getTargetType() == Notification.TargetType.ALL) {
+            request.setTargetId(null);
+            return;
+        }
+
+        String targetId = normalizeTargetId(request.getTargetId());
+        if (targetId == null || targetId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng nhập Mã đối tượng");
+        }
+        request.setTargetId(targetId);
+    }
+
+    private String normalizeTargetId(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private StudentNotificationScope resolveStudentScope(String userId) {
+        if (!StringUtils.hasText(userId) || "UNKNOWN".equalsIgnoreCase(userId.trim())) {
+            return new StudentNotificationScope("", "");
+        }
+
+        try {
+            UserProfileDTO profile = userClient.getStudentProfile("SYSTEM", "notification-service", userId.trim());
+            UserProfileDTO.ClazzDTO clazz = profile == null ? null : profile.getClazz();
+            UserProfileDTO.FacultyDTO faculty = clazz == null ? null : clazz.getFaculty();
+            String facultyCode = normalizeTargetId(faculty == null ? "" : faculty.getFacultyCode());
+            String classCode = normalizeTargetId(clazz == null ? "" : clazz.getClassCode());
+            return new StudentNotificationScope(facultyCode, classCode);
+        } catch (Exception ex) {
+            return new StudentNotificationScope("", "");
+        }
+    }
+
+    private record StudentNotificationScope(String facultyCode, String classCode) {
     }
 }

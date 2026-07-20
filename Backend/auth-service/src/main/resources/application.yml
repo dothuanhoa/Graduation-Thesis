@@ -33,6 +33,11 @@ spring:
             enable: ${MAIL_STARTTLS_ENABLE:true}
 
 app:
+  admin-bootstrap:
+    enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
+    username: ${ADMIN_BOOTSTRAP_USERNAME:}
+    email: ${ADMIN_BOOTSTRAP_EMAIL:}
+    password: ${ADMIN_BOOTSTRAP_PASSWORD:}
   auth:
     password-reset:
       url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}

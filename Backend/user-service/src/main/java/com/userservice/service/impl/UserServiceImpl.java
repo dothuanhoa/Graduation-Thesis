@@ -44,6 +44,7 @@ public class UserServiceImpl implements UserService {
     private static final int AUTH_BATCH_SIZE = 100;
     private static final int MAX_STUDENTS_PER_CLASS = 120;
     private static final String DEFAULT_STUDENT_GROUP_CODE = "1";
+    private static final String INTERNAL_ADMIN_ROLE = "ADMIN";
 
     private final UserProfileRepository userProfileRepository;
     private final ClassRepository classRepository;
@@ -56,7 +57,7 @@ public class UserServiceImpl implements UserService {
     private String studentEmailDomain;
 
     public List<UserProfile> findAll() {
-        return userProfileRepository.findAll();
+        return userProfileRepository.findAllByOrderByStudentIdAsc();
     }
 
     public Optional<UserProfile> findById(Long id) {
@@ -68,7 +69,7 @@ public class UserServiceImpl implements UserService {
     }
 
     public List<StudentGroup> findAllStudentGroups() {
-        return studentGroupRepository.findAllByOrderByIdAsc();
+        return studentGroupRepository.findAllByOrderByCodeAsc();
     }
 
     @Transactional
@@ -177,8 +178,11 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    @Transactional
     public UserProfile update(Long id, UserProfile userDetails) {
         return userProfileRepository.findById(id).map(user -> {
+            UserProfile.StudentStatus previousStatus = user.getStudentStatus();
+            UserProfile.StudentStatus targetStatus = userDetails.getStudentStatus();
             Clazz targetClazz = resolveClazz(userDetails);
             StudentGroup targetGroup = resolveStudentGroupForUpdate(user, userDetails);
             ensureClassHasRoom(user, targetClazz, 1);
@@ -190,8 +194,10 @@ public class UserServiceImpl implements UserService {
             user.setContactPhone(userDetails.getContactPhone());
             user.setClazz(targetClazz);
             user.setStudentGroup(targetGroup);
-            user.setStudentStatus(userDetails.getStudentStatus());
-            return userProfileRepository.save(user);
+            user.setStudentStatus(targetStatus);
+            UserProfile savedUser = userProfileRepository.save(user);
+            syncAuthAccessForStudentStatus(savedUser.getStudentId(), previousStatus, targetStatus);
+            return savedUser;
         }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
     }
 
@@ -220,8 +226,16 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public BulkStudentUpdateResponse updateStudentStatuses(List<Long> studentIds, UserProfile.StudentStatus status) {
         List<UserProfile> students = loadStudentsByIds(studentIds);
+        Map<Long, UserProfile.StudentStatus> previousStatuses = students.stream()
+                .collect(Collectors.toMap(UserProfile::getId, UserProfile::getStudentStatus));
+
         students.forEach(student -> student.setStudentStatus(status));
-        userProfileRepository.saveAll(students);
+        List<UserProfile> savedStudents = userProfileRepository.saveAll(students);
+        savedStudents.forEach(student -> syncAuthAccessForStudentStatus(
+                student.getStudentId(),
+                previousStatuses.get(student.getId()),
+                status
+        ));
         return new BulkStudentUpdateResponse(
                 students.size(),
                 "Đã cập nhật trạng thái cho " + students.size() + " sinh viên."
@@ -337,6 +351,25 @@ public class UserServiceImpl implements UserService {
         ));
     }
 
+    private void syncAuthAccessForStudentStatus(
+            String studentId,
+            UserProfile.StudentStatus previousStatus,
+            UserProfile.StudentStatus targetStatus
+    ) {
+        if (isBlank(studentId) || targetStatus == null) {
+            return;
+        }
+
+        if (targetStatus == UserProfile.StudentStatus.SUSPENDED) {
+            authServiceClient.revokeAccess(INTERNAL_ADMIN_ROLE, clean(studentId));
+            return;
+        }
+
+        if (previousStatus == UserProfile.StudentStatus.SUSPENDED) {
+            authServiceClient.unlockAccess(INTERNAL_ADMIN_ROLE, clean(studentId));
+        }
+    }
+
     private Clazz resolveClazz(UserProfile userProfile) {
         if (userProfile.getClazz() == null || userProfile.getClazz().getId() == null) {
             return null;
@@ -408,13 +441,13 @@ public class UserServiceImpl implements UserService {
         if (request.getScope() == BulkStudentGroupRequest.Scope.CLASS) {
             classRepository.findById(request.getClassId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp với id: " + request.getClassId()));
-            return userProfileRepository.findByClazzId(request.getClassId());
+            return userProfileRepository.findByClazzIdOrderByStudentIdAsc(request.getClassId());
         }
 
         if (request.getScope() == BulkStudentGroupRequest.Scope.ACADEMIC_YEAR) {
             academicYearRepository.findById(request.getAcademicYearId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy niên khóa với id: " + request.getAcademicYearId()));
-            return userProfileRepository.findByClazzAcademicYearId(request.getAcademicYearId());
+            return userProfileRepository.findByClazzAcademicYearIdOrderByStudentIdAsc(request.getAcademicYearId());
         }
 
         return loadStudentsByIds(request.getStudentIds());

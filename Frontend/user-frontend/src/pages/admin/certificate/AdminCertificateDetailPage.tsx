@@ -15,6 +15,7 @@ import {
   type UpdateStatusPayload,
 } from "../../../services/api";
 import { normalizeCertificateCode } from "../../../utils/certificateUtils";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 
 const getMetadataText = (metadata: Record<string, unknown> | undefined, key: string) => {
   const value = metadata?.[key];
@@ -122,7 +123,7 @@ function AdminCertificateDetailPage() {
       <div className="no-print flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <PageHeader
           title={`Chi tiết yêu cầu #${request.id}`}
-          subtitle={`Được tạo vào: ${request.createdAt ? new Date(request.createdAt).toLocaleString("vi-VN") : "N/A"}`}
+          subtitle={`Được tạo vào: ${formatVietnamDateTime(request.createdAt)}`}
         />
         <button
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary"
@@ -202,6 +203,7 @@ function AdminCertificateDetailPage() {
               >
                 <option value="PENDING">Chờ xử lý</option>
                 <option value="PROCESSING">Đang xử lý</option>
+                <option value="PRINTED">Đã in</option>
                 <option value="NEEDS_INFO">Cần bổ sung thông tin</option>
                 <option value="COMPLETED">Đã hoàn thành</option>
                 <option value="REJECTED">Từ chối</option>

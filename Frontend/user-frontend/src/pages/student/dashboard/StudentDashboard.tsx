@@ -6,8 +6,9 @@ import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentLayoutContext } from "../../../layouts/StudentLayout";
-import { activityApi, notificationApi, type ActivityResponse, type NotificationResponse } from "../../../services/api";
+import { activityApi, notificationApi, userApi, type ActivityResponse, type NotificationResponse } from "../../../services/api";
 import { formatActivityRange } from "../../../utils/activityUi";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 
 type DashboardNotice = {
   id: string;
@@ -25,15 +26,7 @@ type QuickAction = {
   requiresScanPermission?: boolean;
 };
 
-const formatDateTime = (value?: string) => {
-  if (!value) return "Vừa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace("T", " ");
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
-};
+const formatDateTime = (value?: string) => formatVietnamDateTime(value, "Vừa cập nhật");
 
 const toDashboardNotice = (item: NotificationResponse): DashboardNotice => ({
   id: item.id,
@@ -75,8 +68,9 @@ function StudentDashboard() {
     setMessage("");
 
     try {
+      const profile = await userApi.getByStudentId(username, { suppressToast: true });
       const [notificationData, activityData] = await Promise.all([
-        notificationApi.listMine({}, { suppressToast: true }).catch(() => []),
+        notificationApi.listMineForProfile(profile).catch(() => []),
         activityApi.list({ suppressToast: true }).catch(() => []),
       ]);
 
@@ -89,7 +83,7 @@ function StudentDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [username]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

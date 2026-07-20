@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
@@ -189,6 +190,27 @@ public class ActivityService {
                 .skipped(skipped)
                 .errors(errors)
                 .build();
+    }
+
+    public byte[] createRegistrationImportTemplate() {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Danh sach tham gia");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("MSSV");
+            header.createCell(1).setCellValue("Họ tên");
+
+            Row sample = sheet.createRow(1);
+            sample.createCell(0).setCellValue("DH52200694");
+            sample.createCell(1).setCellValue("Đỗ Thuận Hòa");
+
+            sheet.autoSizeColumn(0);
+            sheet.autoSizeColumn(1);
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception ex) {
+            throw new BadRequestException("Không tạo được file mẫu import: " + ex.getMessage());
+        }
     }
 
     public List<RegistrationResponse> getRegistrations(Long activityId) {

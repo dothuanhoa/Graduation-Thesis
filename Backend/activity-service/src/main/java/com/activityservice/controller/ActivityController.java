@@ -6,6 +6,8 @@ import com.activityservice.exception.ForbiddenException;
 import com.activityservice.service.ActivityService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,6 +80,16 @@ public class ActivityController {
             @RequestParam("file") MultipartFile file) {
         requireAdmin(role);
         return ResponseEntity.ok(activityService.importRegistrations(id, file));
+    }
+
+    @GetMapping("/registrations/import/template")
+    public ResponseEntity<byte[]> downloadRegistrationImportTemplate(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role) {
+        requireAdmin(role);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau-import-danh-sach-tham-gia.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(activityService.createRegistrationImportTemplate());
     }
 
     @GetMapping("/{id}/registrations")

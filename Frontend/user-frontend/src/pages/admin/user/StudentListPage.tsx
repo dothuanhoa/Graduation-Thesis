@@ -1,6 +1,7 @@
 import { CheckCircle2, Download, Filter, RefreshCw, Search, Trash2, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
 import Card from "../../../components/Card";
 import DataTable, { type Column } from "../../../components/DataTable";
 import PageHeader from "../../../components/PageHeader";
@@ -18,6 +19,7 @@ import {
   type StudentGroupScope,
   type UserProfile,
 } from "../../../services/api";
+import { sortBySchoolCode } from "../../../utils/schoolCodeSort";
 import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
 
 type StudentRow = TableRow & {
@@ -172,10 +174,12 @@ function StudentListPage() {
   const [bulkMode, setBulkMode] = useState<BulkMode>(null);
   const [filters, setFilters] = useState<StudentFilterState>(emptyFilters);
   const [bulkClassId, setBulkClassId] = useState("");
+  const [bulkClassSearch, setBulkClassSearch] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [groupScope, setGroupScope] = useState<StudentGroupScope>("SELECTED_STUDENTS");
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [groupClassId, setGroupClassId] = useState("");
+  const [groupClassSearch, setGroupClassSearch] = useState("");
   const [groupAcademicYearId, setGroupAcademicYearId] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingBulk, setSavingBulk] = useState(false);
@@ -194,11 +198,11 @@ function StudentListPage() {
         academicYearApi.list(),
         userApi.listStudentGroups(),
       ]);
-      const nextStudents = profileData.map(toStudentRow);
+      const nextStudents = sortBySchoolCode(profileData.map(toStudentRow), (student) => student.studentCode);
       setStudents(nextStudents);
-      setClasses(classData);
-      setAcademicYears(academicYearData);
-      setStudentGroups(groupData.length > 0 ? groupData : defaultStudentGroups);
+      setClasses(sortBySchoolCode(classData, (clazz) => clazz.classCode));
+      setAcademicYears(sortBySchoolCode(academicYearData, (year) => year.yearName));
+      setStudentGroups(sortBySchoolCode(groupData.length > 0 ? groupData : defaultStudentGroups, (group) => group.code));
       setSelectedStudentIds((current) => current.filter((id) => nextStudents.some((student) => student.id === id)));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -276,6 +280,43 @@ function StudentListPage() {
     return uniqueSorted([...students.map((student) => student.className), ...sourceClasses.map((clazz) => clazz.classCode)]);
   }, [classes, filters.faculty, students]);
 
+  const classAutocompleteOptions = useMemo<AutocompleteOption[]>(
+    () =>
+      classes.map((clazz) => ({
+        value: clazz.id,
+        label: clazz.classCode,
+        description: [
+          clazz.faculty?.facultyCode,
+          clazz.academicYear?.yearName,
+          `${clazz.studentCount ?? 0}/${MAX_STUDENTS_PER_CLASS} sinh viên`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        searchText: `${clazz.id} ${clazz.classCode} ${clazz.faculty?.facultyCode ?? ""} ${clazz.faculty?.facultyName ?? ""} ${clazz.academicYear?.yearName ?? ""}`,
+      })),
+    [classes],
+  );
+
+  const resolveClassByInput = (value: string) => {
+    const cleanValue = value.trim().toLowerCase();
+    if (!cleanValue) return undefined;
+    return classes.find((clazz) =>
+      [clazz.id, clazz.classCode, `${clazz.classCode} - ${clazz.faculty?.facultyCode ?? ""}`]
+        .map((item) => String(item ?? "").trim().toLowerCase())
+        .includes(cleanValue),
+    );
+  };
+
+  const updateBulkClassSearch = (value: string) => {
+    setBulkClassSearch(value);
+    setBulkClassId(resolveClassByInput(value)?.id ?? "");
+  };
+
+  const updateGroupClassSearch = (value: string) => {
+    setGroupClassSearch(value);
+    setGroupClassId(resolveClassByInput(value)?.id ?? "");
+  };
+
   const filteredStudents = useMemo(() => {
     const keyword = normalizeSearch(filters.keyword);
     const facultyKeyword = normalizeSearch(filters.faculty);
@@ -319,9 +360,11 @@ function StudentListPage() {
   const clearSelection = () => {
     setSelectedStudentIds([]);
     setBulkClassId("");
+    setBulkClassSearch("");
     setBulkStatus("");
     setBulkGroupId("");
     setGroupClassId("");
+    setGroupClassSearch("");
     setGroupAcademicYearId("");
     setGroupScope("SELECTED_STUDENTS");
   };
@@ -616,29 +659,26 @@ function StudentListPage() {
           </div>
 
           {bulkMode === "class" && (
-            <div className="grid gap-4 xl:grid-cols-[1fr_auto]">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-on-surface">Chuyển vào lớp</span>
-                <select
-                  className="h-[46px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface focus-ring"
-                  onChange={(event) => setBulkClassId(event.target.value)}
-                  value={bulkClassId}
-                >
-                  <option value="">Chọn lớp</option>
-                  {classes.map((clazz) => (
-                    <option key={clazz.id} value={clazz.id}>
-                      {clazz.classCode}
-                      {clazz.faculty?.facultyCode ? ` - ${clazz.faculty.facultyCode}` : ""}
-                      {` (${clazz.studentCount ?? 0}/${MAX_STUDENTS_PER_CLASS})`}
-                    </option>
-                  ))}
-                </select>
+            <div className="grid gap-4 xl:grid-cols-[1fr_auto_auto]">
+              <AutocompleteInput
+                emptyMessage="Không tìm thấy lớp phù hợp."
+                label="Chuyển vào lớp"
+                onChange={updateBulkClassSearch}
+                onSelect={(option) => {
+                  setBulkClassId(option.value);
+                  setBulkClassSearch(option.label);
+                }}
+                options={classAutocompleteOptions}
+                placeholder="Nhập mã lớp hoặc cuộn chọn lớp"
+                value={bulkClassSearch}
+              />
+              <div className="flex flex-col justify-end">
                 {selectedClass && (
                   <span className="text-xs text-on-surface-variant">
                     Lớp hiện có {selectedClass.studentCount ?? 0}/{MAX_STUDENTS_PER_CLASS} sinh viên.
                   </span>
                 )}
-              </label>
+              </div>
               <div className="flex items-end">
                 <button
                   className="inline-flex h-[46px] items-center justify-center gap-2 rounded-lg bg-primary px-4 font-semibold text-on-primary disabled:opacity-60"
@@ -696,28 +736,25 @@ function StudentListPage() {
                 </label>
 
                 {groupScope === "CLASS" && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-semibold text-on-surface">Lớp áp dụng</span>
-                    <select
-                      className="h-[46px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface focus-ring"
-                      onChange={(event) => setGroupClassId(event.target.value)}
-                      value={groupClassId}
-                    >
-                      <option value="">Chọn lớp</option>
-                      {classes.map((clazz) => (
-                        <option key={clazz.id} value={clazz.id}>
-                          {clazz.classCode}
-                          {clazz.academicYear?.yearName ? ` - ${clazz.academicYear.yearName}` : ""}
-                          {` (${clazz.studentCount ?? 0} sinh viên)`}
-                        </option>
-                      ))}
-                    </select>
+                  <div>
+                    <AutocompleteInput
+                      emptyMessage="Không tìm thấy lớp phù hợp."
+                      label="Lớp áp dụng"
+                      onChange={updateGroupClassSearch}
+                      onSelect={(option) => {
+                        setGroupClassId(option.value);
+                        setGroupClassSearch(option.label);
+                      }}
+                      options={classAutocompleteOptions}
+                      placeholder="Nhập mã lớp hoặc cuộn chọn lớp"
+                      value={groupClassSearch}
+                    />
                     {selectedGroupClass && (
                       <span className="text-xs text-on-surface-variant">
                         Sẽ chuyển {selectedGroupClass.studentCount ?? 0} sinh viên trong lớp {selectedGroupClass.classCode}.
                       </span>
                     )}
-                  </label>
+                  </div>
                 )}
 
                 {groupScope === "ACADEMIC_YEAR" && (

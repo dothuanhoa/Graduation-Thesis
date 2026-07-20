@@ -12,10 +12,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
+    List<UserProfile> findAllByOrderByStudentIdAsc();
     Optional<UserProfile> findByStudentId(String studentId);
     List<UserProfile> findByStudentIdIn(Collection<String> studentIds);
-    List<UserProfile> findByClazzId(Long clazzId);
-    List<UserProfile> findByClazzAcademicYearId(Long academicYearId);
+    List<UserProfile> findByClazzIdOrderByStudentIdAsc(Long clazzId);
+    List<UserProfile> findByClazzAcademicYearIdOrderByStudentIdAsc(Long academicYearId);
     long countByClazzId(Long clazzId);
     long countByClazzFacultyId(Long facultyId);
     boolean existsByClazzId(Long clazzId);

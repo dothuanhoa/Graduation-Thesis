@@ -5,8 +5,9 @@ import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import { examApi, type AttemptResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 
-const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString("vi-VN") : "N/A");
+const formatDateTime = (value?: string) => formatVietnamDateTime(value);
 
 const statusLabel: Record<string, string> = {
   NOT_STARTED: "Chưa bắt đầu",

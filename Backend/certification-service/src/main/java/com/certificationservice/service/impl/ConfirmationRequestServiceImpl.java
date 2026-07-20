@@ -224,7 +224,7 @@ public class ConfirmationRequestServiceImpl implements ConfirmationRequestServic
 
         if (fetchProfile) {
             try {
-                UserProfileDTO profile = userClient.getStudentProfile(request.getStudentId());
+                UserProfileDTO profile = userClient.getStudentProfile("SYSTEM", "certification-service", request.getStudentId());
                 dto.setStudentProfile(profile);
             } catch (Exception e) {
                 log.error("Không thể lấy thông tin sinh viên từ user-service cho studentId: {}", request.getStudentId(), e);

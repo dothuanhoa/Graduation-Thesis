@@ -7,6 +7,7 @@ import AuthLayout from "../layouts/AuthLayout";
 import StudentLayout from "../layouts/StudentLayout";
 import ActivityCreatePage from "../pages/admin/activity/ActivityCreatePage";
 import ActivityDetailPage from "../pages/admin/activity/ActivityDetailPage";
+import AdminChangePasswordPage from "../pages/admin/account/AdminChangePasswordPage";
 import AdminActivitiesPage from "../pages/admin/activity/AdminActivitiesPage";
 import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
 import AdminExamDetailPage from "../pages/admin/exam/AdminExamDetailPage";
@@ -28,7 +29,6 @@ import StudentDetailPage from "../pages/admin/user/StudentDetailPage";
 import StudentImportPage from "../pages/admin/user/StudentImportPage";
 import StudentListPage from "../pages/admin/user/StudentListPage";
 import CheckerScanPage from "../pages/checker/CheckerScanPage";
-import ForbiddenPage from "../pages/ForbiddenPage";
 import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
 import LoginPage from "../pages/auth/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
@@ -92,7 +92,7 @@ function RequireRole({
   }
 
   if (adminOnly && !isAdminRole(role)) {
-    return <Navigate to="/403" replace />;
+    return <Navigate to="/404" replace />;
   }
 
   return children;
@@ -136,6 +136,7 @@ function AppRoutes() {
         }
       >
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/change-password" element={<AdminChangePasswordPage />} />
         <Route
           path="/admin/statistics"
           element={<AdminModulePage meta={adminModuleMeta.statistics} />}
@@ -275,11 +276,11 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/403"
+        path="/404"
         element={
           <RequireRole>
             <RouteErrorBoundary>
-              <ForbiddenPage />
+              <NotFoundPage />
             </RouteErrorBoundary>
           </RequireRole>
         }

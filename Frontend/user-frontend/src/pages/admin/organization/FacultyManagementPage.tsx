@@ -10,6 +10,7 @@ import StatusBadge from "../../../components/StatusBadge";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { facultyApi, type FacultyPayload, type FacultyResponse, type OrganizationStatus } from "../../../services/api";
 import { includesSearch } from "../../../utils/search";
+import { sortBySchoolCode } from "../../../utils/schoolCodeSort";
 import { facultySchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -37,7 +38,7 @@ function FacultyManagementPage() {
     setMessage("");
     try {
       const data = await facultyApi.list();
-      setFaculties(data);
+      setFaculties(sortBySchoolCode(data, (faculty) => faculty.facultyCode));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không tải được danh sách khoa.");
     } finally {
@@ -76,11 +77,14 @@ function FacultyManagementPage() {
 
       if (editingId) {
         const updated = await facultyApi.update(editingId, payload);
-        setFaculties((current) => current.map((faculty) => (faculty.id === updated.id ? updated : faculty)));
+        setFaculties((current) => sortBySchoolCode(
+          current.map((faculty) => (faculty.id === updated.id ? updated : faculty)),
+          (faculty) => faculty.facultyCode,
+        ));
         setMessage("Đã cập nhật khoa.");
       } else {
         const created = await facultyApi.create(payload);
-        setFaculties((current) => [...current, created].sort((a, b) => a.facultyCode.localeCompare(b.facultyCode)));
+        setFaculties((current) => sortBySchoolCode([...current, created], (faculty) => faculty.facultyCode));
         setMessage("Đã thêm khoa mới.");
       }
 

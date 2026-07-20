@@ -10,20 +10,13 @@ import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
-import { notificationApi, type NotificationResponse } from "../../../services/api";
+import { notificationApi, userApi, type NotificationResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 import { stripHtmlToText } from "../../../utils/html";
 import { getStoredReadNotificationIds, rememberReadNotification } from "../../../utils/notificationReadState";
 import { includesSearch } from "../../../utils/search";
 
-const formatDateTime = (value?: string) => {
-  if (!value) return "Vừa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace("T", " ");
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
-};
+const formatDateTime = (value?: string) => formatVietnamDateTime(value, "Vừa cập nhật");
 
 const toNotice = (item: NotificationResponse, readIds = new Set<string>()): StudentNotice => ({
   id: item.id,
@@ -51,7 +44,8 @@ function StudentNotificationsPage() {
     setLoading(true);
     setMessage("");
     try {
-      const data = await notificationApi.listMine();
+      const profile = await userApi.getByStudentId(username, { suppressToast: true });
+      const data = await notificationApi.listMineForProfile(profile);
       const readIds = getStoredReadNotificationIds(username);
       setNotices(data.map((item) => toNotice(item, readIds)));
     } catch (err) {

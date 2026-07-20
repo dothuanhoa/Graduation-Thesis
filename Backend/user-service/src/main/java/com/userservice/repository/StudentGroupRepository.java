@@ -8,5 +8,5 @@ import java.util.Optional;
 
 public interface StudentGroupRepository extends JpaRepository<StudentGroup, Integer> {
     Optional<StudentGroup> findByCode(String code);
-    List<StudentGroup> findAllByOrderByIdAsc();
+    List<StudentGroup> findAllByOrderByCodeAsc();
 }

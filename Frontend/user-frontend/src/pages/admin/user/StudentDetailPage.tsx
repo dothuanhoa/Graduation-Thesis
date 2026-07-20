@@ -1,6 +1,7 @@
 import { KeyRound, Lock, RotateCcw, Save, Trash2, Unlock } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
@@ -8,7 +9,7 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import { authApi, classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
 import { defaultStudentGroups } from "../../../utils/studentGroups";
-import { userProfileSchema } from "../../../validation/userSchemas";
+import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
 
 const emptyProfile: UserProfilePayload = {
   studentId: "",
@@ -19,6 +20,19 @@ const emptyProfile: UserProfilePayload = {
   contactPhone: "",
   studentStatus: "STUDYING",
 };
+
+const studentStatusOptions: Array<{ value: NonNullable<UserProfilePayload["studentStatus"]>; label: string }> = [
+  { value: "STUDYING", label: "Đang học" },
+  { value: "RESERVED", label: "Bảo lưu" },
+  { value: "SUSPENDED", label: "Đình chỉ" },
+  { value: "GRADUATED", label: "Đã tốt nghiệp" },
+];
+
+const genderOptions: Array<{ value: NonNullable<UserProfilePayload["gender"]>; label: string }> = [
+  { value: "MALE", label: "Nam" },
+  { value: "FEMALE", label: "Nữ" },
+  { value: "OTHER", label: "Khác" },
+];
 
 function StudentDetailPage() {
   const { id } = useParams();
@@ -32,7 +46,31 @@ function StudentDetailPage() {
   const [classes, setClasses] = useState<ClassResponse[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [classId, setClassId] = useState("");
+  const [classSearch, setClassSearch] = useState("");
   const [studentGroupId, setStudentGroupId] = useState("1");
+
+  const classOptions: AutocompleteOption[] = classes.map((clazz) => ({
+    value: clazz.id,
+    label: clazz.classCode,
+    description: [clazz.faculty?.facultyCode, clazz.academicYear?.yearName].filter(Boolean).join(" · "),
+    searchText: `${clazz.id} ${clazz.classCode} ${clazz.faculty?.facultyCode ?? ""} ${clazz.faculty?.facultyName ?? ""} ${clazz.academicYear?.yearName ?? ""}`,
+  }));
+
+  const resolveClassByInput = (value: string) => {
+    const cleanValue = value.trim().toLowerCase();
+    if (!cleanValue) return undefined;
+    return classes.find((clazz) =>
+      [clazz.id, clazz.classCode, `${clazz.classCode} - ${clazz.faculty?.facultyCode ?? ""}`]
+        .map((item) => String(item ?? "").trim().toLowerCase())
+        .includes(cleanValue),
+    );
+  };
+
+  const updateClassSearch = (value: string) => {
+    setClassSearch(value);
+    const matchedClass = resolveClassByInput(value);
+    setClassId(matchedClass?.id ?? "");
+  };
 
   const loadProfile = useCallback(async () => {
     if (!profileId) {
@@ -53,6 +91,7 @@ function StudentDetailPage() {
       setClasses(classData);
       setStudentGroups(groupData.length ? groupData : defaultStudentGroups);
       setClassId(data.clazz?.id ? String(data.clazz.id) : "");
+      setClassSearch(data.clazz?.classCode || "");
       setStudentGroupId(data.studentGroup?.id ? String(data.studentGroup.id) : data.studentGroup?.code || "1");
       setFormData({
         studentId: data.studentId,
@@ -89,19 +128,26 @@ function StudentDetailPage() {
     setSaving(true);
     setMessage("");
     try {
+      const matchedClass = resolveClassByInput(classSearch);
+      if (classSearch.trim() && !matchedClass) {
+        setMessage("Vui lòng chọn lớp từ danh sách gợi ý để tránh sai mã lớp.");
+        return;
+      }
+
       const validated = userProfileSchema.parse(formData);
       const payload: UserProfilePayload = {
         ...validated,
-        clazz: classId ? { id: classId } : undefined,
+        clazz: matchedClass || classId ? { id: matchedClass?.id ?? classId } : undefined,
         studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
       const updated = await userApi.update(profile.id, payload);
       setProfile(updated);
       setClassId(updated.clazz?.id ? String(updated.clazz.id) : "");
+      setClassSearch(updated.clazz?.classCode || "");
       setStudentGroupId(updated.studentGroup?.id ? String(updated.studentGroup.id) : updated.studentGroup?.code || "1");
       setMessage("Đã cập nhật hồ sơ sinh viên.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
+      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không cập nhật được hồ sơ."));
     } finally {
       setSaving(false);
     }
@@ -157,34 +203,60 @@ function StudentDetailPage() {
         <section className="grid gap-gutter xl:grid-cols-[1fr_360px]">
           <Card>
             <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSave}>
-              <FormField label="MSSV" onChange={(event) => updateField("studentId", event.target.value)} required value={formData.studentId} />
+              <FormField
+                className="disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                disabled
+                hint="Mã sinh viên không được thay đổi sau khi tạo hồ sơ."
+                label="MSSV"
+                onChange={(event) => updateField("studentId", event.target.value)}
+                required
+                value={formData.studentId}
+              />
               <FormField label="Họ tên" onChange={(event) => updateField("fullName", event.target.value)} required value={formData.fullName} />
               <FormField label="Email sinh viên" onChange={(event) => updateField("email", event.target.value)} required type="email" value={formData.email} />
               <FormField label="Ngày sinh" onChange={(event) => updateField("dob", event.target.value)} type="date" value={formData.dob} />
-              <FormField as="select" label="Giới tính" onChange={(event) => updateField("gender", event.target.value)} options={["MALE", "FEMALE", "OTHER"]} value={formData.gender} />
-              <FormField label="Số điện thoại" onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="090..." value={formData.contactPhone} />
-              <FormField
-                as="select"
-                label="Trạng thái"
-                onChange={(event) => updateField("studentStatus", event.target.value)}
-                options={["STUDYING", "RESERVED", "SUSPENDED", "GRADUATED"]}
-                value={formData.studentStatus}
-              />
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-on-surface">Lớp</span>
+                <span className="text-sm font-semibold text-on-surface">Giới tính</span>
                 <select
                   className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
-                  onChange={(event) => setClassId(event.target.value)}
-                  value={classId}
+                  onChange={(event) => updateField("gender", event.target.value)}
+                  value={formData.gender}
                 >
-                  <option value="">Chưa phân lớp</option>
-                  {classes.map((clazz) => (
-                    <option key={clazz.id} value={clazz.id}>
-                      {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+                  {genderOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
               </label>
+              <FormField label="Số điện thoại" onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="090..." value={formData.contactPhone} />
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Trạng thái</span>
+                <select
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                  onChange={(event) => updateField("studentStatus", event.target.value)}
+                  value={formData.studentStatus}
+                >
+                  {studentStatusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <AutocompleteInput
+                emptyMessage="Không tìm thấy lớp phù hợp."
+                hint="Bỏ trống nếu sinh viên chưa phân lớp."
+                label="Lớp"
+                onChange={updateClassSearch}
+                onSelect={(option) => {
+                  setClassId(option.value);
+                  setClassSearch(option.label);
+                }}
+                options={classOptions}
+                placeholder="Nhập mã lớp, VD: D22_TH01"
+                value={classSearch}
+              />
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold text-on-surface">Nhóm sinh viên</span>
                 <select

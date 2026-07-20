@@ -17,15 +17,13 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
            "AND n.endDate >= :now " +
            "AND (" +
            "  n.targetType = 'ALL' " +
-           "  OR (n.targetType = 'FACULTY' AND n.targetId = :facultyId) " +
-           "  OR (n.targetType = 'CLASS' AND n.targetId = :classId) " +
-           "  OR (n.targetType = 'USER' AND n.targetId = :userId)" +
+           "  OR (n.targetType = 'FACULTY' AND LOWER(n.targetId) = LOWER(:facultyId)) " +
+           "  OR (n.targetType = 'CLASS' AND LOWER(n.targetId) = LOWER(:classId))" +
            ") " +
            "ORDER BY n.priority DESC, n.startDate DESC")
     List<Notification> findActiveNotificationsForUser(
             @Param("now") LocalDateTime now,
             @Param("facultyId") String facultyId,
-            @Param("classId") String classId,
-            @Param("userId") String userId
+            @Param("classId") String classId
     );
 }

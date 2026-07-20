@@ -7,6 +7,7 @@ import PageHeader from "../../../components/PageHeader";
 import PaginationControls from "../../../components/PaginationControls";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import { examApi, type StudentExamSummary } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 import { includesSearch } from "../../../utils/search";
 import { studentGroupName } from "../../../utils/studentGroups";
 
@@ -28,7 +29,7 @@ const availabilityTone: Record<string, string> = {
   LOCKED: "bg-red-100 text-red-700",
 };
 
-const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString("vi-VN") : "N/A");
+const formatDateTime = (value?: string) => formatVietnamDateTime(value);
 
 function StudentExamsPage() {
   const [exams, setExams] = useState<StudentExamSummary[]>([]);

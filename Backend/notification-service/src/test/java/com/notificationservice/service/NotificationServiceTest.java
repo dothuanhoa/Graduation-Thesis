@@ -3,6 +3,7 @@ package com.notificationservice.service;
 import com.notificationservice.domain.Notification;
 import com.notificationservice.domain.NotificationRead;
 import com.notificationservice.dto.NotificationRequest;
+import com.notificationservice.client.UserClient;
 import com.notificationservice.repository.NotificationReadRepository;
 import com.notificationservice.repository.NotificationRepository;
 import org.junit.jupiter.api.Test;
@@ -25,10 +26,11 @@ import static org.mockito.Mockito.when;
 class NotificationServiceTest {
     @Mock private NotificationRepository notificationRepository;
     @Mock private NotificationReadRepository notificationReadRepository;
+    @Mock private UserClient userClient;
 
     @Test
     void createNotificationPreservesRichHtmlContent() {
-        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository);
+        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository, userClient);
         NotificationRequest request = new NotificationRequest();
         request.setTitle("Thong bao");
         request.setContent("<p><strong>Noi dung co dinh dang</strong></p>");
@@ -47,9 +49,19 @@ class NotificationServiceTest {
 
     @Test
     void markAsReadIsIdempotent() {
-        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository);
+        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository, userClient);
         Notification notification = new Notification();
         notification.setId(99L);
+        notification.setTitle("Thong bao");
+        notification.setContent("<p>Noi dung</p>");
+        notification.setPriority(Notification.Priority.NORMAL);
+        notification.setTargetType(Notification.TargetType.ALL);
+        notification.setStartDate(LocalDateTime.now().minusDays(1));
+        notification.setEndDate(LocalDateTime.now().plusDays(1));
+        notification.setCreatedBy("admin");
+        when(notificationRepository.findActiveNotificationsForUser(any(LocalDateTime.class), any(), any()))
+                .thenReturn(List.of(notification));
+        when(notificationReadRepository.findReadNotificationIds("DH52201258", List.of(99L))).thenReturn(List.of());
         when(notificationRepository.findById(99L)).thenReturn(Optional.of(notification));
         when(notificationReadRepository.existsByNotificationIdAndUserId(99L, "DH52201258")).thenReturn(false, true);
 
@@ -64,7 +76,7 @@ class NotificationServiceTest {
 
     @Test
     void getMyNotificationsMapsReadState() {
-        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository);
+        NotificationService service = new NotificationService(notificationRepository, notificationReadRepository, userClient);
         Notification notification = new Notification();
         notification.setId(100L);
         notification.setTitle("Thong bao");
@@ -75,11 +87,11 @@ class NotificationServiceTest {
         notification.setEndDate(LocalDateTime.now().plusDays(1));
         notification.setCreatedBy("admin");
 
-        when(notificationRepository.findActiveNotificationsForUser(any(LocalDateTime.class), any(), any(), any()))
+        when(notificationRepository.findActiveNotificationsForUser(any(LocalDateTime.class), any(), any()))
                 .thenReturn(List.of(notification));
         when(notificationReadRepository.findReadNotificationIds("DH52201258", List.of(100L))).thenReturn(List.of(100L));
 
-        var response = service.getMyNotifications("DH52201258", "", "");
+        var response = service.getMyNotifications("DH52201258");
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).isRead()).isTrue();

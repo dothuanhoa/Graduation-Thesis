@@ -1,4 +1,5 @@
 import type { ActivityCategory, ActivityParticipationType, ActivityResponse, ActivityStatus } from "../services/api";
+import { formatVietnamDateTime, toApiLocalDateTime, toDateTimeLocalInput } from "./dateTime";
 
 export const activityCategoryLabels: Record<ActivityCategory, string> = {
   ACADEMIC: "Học thuật",
@@ -19,21 +20,12 @@ export const activityParticipationLabels: Record<ActivityParticipationType, stri
   OPEN: "Tự do tham gia",
 };
 
-export const toInputDateTime = (value?: string) => {
-  if (!value) return "";
-  return value.slice(0, 16);
-};
+export const toInputDateTime = toDateTimeLocalInput;
 
-export const toApiDateTime = (value: string) => (value.length === 16 ? `${value}:00` : value);
+export const toApiDateTime = toApiLocalDateTime;
 
 export const formatDateTime = (value?: string) => {
-  if (!value) return "Chưa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.replace("T", " ");
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  return formatVietnamDateTime(value, "Chưa cập nhật");
 };
 
 export const formatActivityRange = (startTime?: string, endTime?: string) => {

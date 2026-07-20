@@ -24,6 +24,7 @@ export type StatusType =
   | "PUBLISHED"
   | "PENDING"
   | "PROCESSING"
+  | "PRINTED"
   | "APPROVED"
   | "REJECTED"
   | "COMPLETED"

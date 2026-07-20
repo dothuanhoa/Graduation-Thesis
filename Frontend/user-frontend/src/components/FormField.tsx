@@ -11,6 +11,11 @@ type BaseProps = {
   icon?: ReactNode;
 };
 
+type SelectOption = string | {
+  value: string;
+  label: string;
+};
+
 type FormFieldProps =
   | (BaseProps & InputHTMLAttributes<HTMLInputElement> & { as?: "input" })
   | (BaseProps &
@@ -18,7 +23,7 @@ type FormFieldProps =
   | (BaseProps &
       SelectHTMLAttributes<HTMLSelectElement> & {
         as: "select";
-        options: string[];
+        options: SelectOption[];
       });
 
 function FormField(props: FormFieldProps) {
@@ -53,10 +58,16 @@ function FormField(props: FormFieldProps) {
             className={inputClass}
           >
             <option value="">-------</option>
-            {(props as BaseProps & { options: string[] }).options.map(
-              (option) => (
-                <option key={option}>{option}</option>
-              ),
+            {(props as BaseProps & { options: SelectOption[] }).options.map(
+              (option) => {
+                const value = typeof option === "string" ? option : option.value;
+                const label = typeof option === "string" ? option : option.label;
+                return (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                );
+              },
             )}
           </select>
         ) : (

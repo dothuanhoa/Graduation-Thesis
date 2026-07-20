@@ -19,6 +19,7 @@ import {
   type OrganizationStatus,
 } from "../../../services/api";
 import { includesSearch } from "../../../utils/search";
+import { sortBySchoolCode } from "../../../utils/schoolCodeSort";
 import { classSchema } from "../../../validation/organizationSchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -66,9 +67,9 @@ function ClassManagementPage() {
         facultyApi.list(),
         academicYearApi.list(),
       ]);
-      setClasses(classData);
-      setFaculties(facultyData);
-      setAcademicYears(academicYearData);
+      setClasses(sortBySchoolCode(classData, (clazz) => clazz.classCode));
+      setFaculties(sortBySchoolCode(facultyData, (faculty) => faculty.facultyCode));
+      setAcademicYears(sortBySchoolCode(academicYearData, (year) => year.yearName));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không tải được dữ liệu lớp.");
     } finally {
@@ -119,16 +120,19 @@ function ClassManagementPage() {
       const payload = classSchema.parse(toPayload());
       if (editingId) {
         const updated = await classApi.update(editingId, payload);
-        setClasses((current) => current.map((clazz) => (clazz.id === updated.id ? updated : clazz)));
+        setClasses((current) => sortBySchoolCode(
+          current.map((clazz) => (clazz.id === updated.id ? updated : clazz)),
+          (clazz) => clazz.classCode,
+        ));
         setMessage("Đã cập nhật lớp.");
       } else {
         const created = await classApi.create(payload);
-        setClasses((current) => [...current, created].sort((a, b) => a.classCode.localeCompare(b.classCode)));
+        setClasses((current) => sortBySchoolCode([...current, created], (clazz) => clazz.classCode));
         setMessage("Đã thêm lớp mới.");
       }
 
       const yearData = await academicYearApi.list();
-      setAcademicYears(yearData);
+      setAcademicYears(sortBySchoolCode(yearData, (year) => year.yearName));
       resetForm();
     } catch (err) {
       setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không lưu được lớp."));

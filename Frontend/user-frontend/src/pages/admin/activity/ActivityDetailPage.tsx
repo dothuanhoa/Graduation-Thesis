@@ -1,4 +1,4 @@
-import { FileUp, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
+import { Download, FileUp, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
@@ -48,6 +48,19 @@ const emptyChecker: ActivityCheckerPayload = {
 const emptyRegistration: ActivityRegistrationPayload = {
   studentCode: "",
   fullName: "",
+};
+
+const IMPORT_TEMPLATE_FILENAME = "mau-import-danh-sach-tham-gia.xlsx";
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
 const toForm = (activity: ActivityResponse): ActivityFormState => ({
@@ -198,6 +211,7 @@ function ActivityDetailPage() {
   const [registrationForm, setRegistrationForm] = useState<ActivityRegistrationPayload>(emptyRegistration);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadDetail = useCallback(async () => {
@@ -349,6 +363,20 @@ function ActivityDetailPage() {
       setMessage(err instanceof Error ? err.message : "Không import được danh sách đăng ký.");
     } finally {
       event.target.value = "";
+    }
+  };
+
+  const downloadRegistrationTemplate = async () => {
+    setDownloadingTemplate(true);
+    setMessage("");
+    try {
+      const blob = await activityApi.downloadRegistrationImportTemplate();
+      downloadBlob(blob, IMPORT_TEMPLATE_FILENAME);
+      setMessage("Đã tải file mẫu import danh sách tham gia.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tải được file mẫu import.");
+    } finally {
+      setDownloadingTemplate(false);
     }
   };
 
@@ -567,11 +595,22 @@ function ActivityDetailPage() {
           {isLimitedActivity && (
             <Card>
               <p className="text-sm font-semibold text-primary">Import danh sách đăng ký</p>
-              <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
-                <FileUp className="h-5 w-5" />
-                Chọn file Excel
-                <input accept=".xlsx,.xls" className="sr-only" onChange={importRegistrations} type="file" />
-              </label>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
+                  <FileUp className="h-5 w-5" />
+                  Chọn file Excel
+                  <input accept=".xlsx,.xls" className="sr-only" onChange={importRegistrations} type="file" />
+                </label>
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:opacity-60"
+                  disabled={downloadingTemplate}
+                  onClick={downloadRegistrationTemplate}
+                  type="button"
+                >
+                  <Download className="h-5 w-5" />
+                  {downloadingTemplate ? "Đang tải..." : "Tải file mẫu"}
+                </button>
+              </div>
               <p className="mt-3 text-xs text-on-surface-variant">Cột 1: MSSV, cột 2: họ tên.</p>
             </Card>
           )}

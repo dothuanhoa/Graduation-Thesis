@@ -6,6 +6,7 @@ services:
     image: postgres:16-alpine
     container_name: user-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: user_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -20,6 +21,7 @@ services:
     image: postgres:16-alpine
     container_name: notification-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: notification_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -34,6 +36,7 @@ services:
     image: postgres:16-alpine
     container_name: auth-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: auth_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -48,6 +51,7 @@ services:
     image: postgres:16-alpine
     container_name: activity-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: activity_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -62,6 +66,7 @@ services:
     image: postgres:16-alpine
     container_name: exam-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: exam_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -75,6 +80,8 @@ services:
   redis:
     image: redis:alpine
     container_name: redis
+    environment:
+      TZ: Asia/Ho_Chi_Minh
     ports:
       - "6379:6379"
     volumes:
@@ -86,6 +93,7 @@ services:
     image: postgres:16-alpine
     container_name: certification-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: certification_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -102,6 +110,9 @@ services:
   discovery-server:
     build: ./discovery-server
     container_name: discovery-server
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
     ports:
       - "8761:8761"
     networks:
@@ -113,6 +124,8 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
@@ -128,6 +141,8 @@ services:
     ports:
       - "8083:8083"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=auth-db
       - DB_PORT=5432
@@ -154,6 +169,10 @@ services:
       - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
       - PASSWORD_RESET_TOKEN_TTL_MINUTES=${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
       - PASSWORD_RESET_MONTHLY_LIMIT=${PASSWORD_RESET_MONTHLY_LIMIT:-2}
+      - ADMIN_BOOTSTRAP_ENABLED=${ADMIN_BOOTSTRAP_ENABLED:-false}
+      - ADMIN_BOOTSTRAP_USERNAME=${ADMIN_BOOTSTRAP_USERNAME:-}
+      - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL:-}
+      - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD:-}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - auth-db
@@ -168,6 +187,8 @@ services:
     ports:
       - "8081:8081"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=user-db
       - DB_PORT=5432
@@ -189,6 +210,8 @@ services:
     ports:
       - "8084:8084"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=notification-db
       - DB_PORT=5432
@@ -213,6 +236,8 @@ services:
     ports:
       - "8085:8085"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=certification-db
       - DB_PORT=5432
@@ -236,6 +261,8 @@ services:
     ports:
       - "8086:8085"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=activity-db
       - DB_PORT=5432
@@ -255,6 +282,8 @@ services:
     ports:
       - "8087:8087"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=exam-db
       - DB_PORT=5432

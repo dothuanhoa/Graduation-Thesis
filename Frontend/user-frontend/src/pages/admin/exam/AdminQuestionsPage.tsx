@@ -7,6 +7,7 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { examApi, type ExamResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 
 type Row = TableRow & {
   id: string;
@@ -16,7 +17,7 @@ type Row = TableRow & {
   status: StatusType;
 };
 
-const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString("vi-VN") : "N/A");
+const formatDateTime = (value?: string) => formatVietnamDateTime(value);
 
 const columns: Column<Row>[] = [
   { header: "Kỳ thi", key: "title" },

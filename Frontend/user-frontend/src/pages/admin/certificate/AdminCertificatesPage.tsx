@@ -13,6 +13,7 @@ import {
   type ConfirmationRequest,
   type RequestStatus,
 } from "../../../services/api";
+import { formatVietnamDate, formatVietnamDateTime } from "../../../utils/dateTime";
 import { includesSearch } from "../../../utils/search";
 
 type RequestRow = TableRow & {
@@ -31,12 +32,10 @@ const toRow = (item: ConfirmationRequest): RequestRow => ({
   studentId: item.studentId || (item.studentProfile?.studentId ?? "N/A"),
   formTypeName: item.formTypeName,
   status: item.status,
-  appointmentDate: item.appointmentDate
-    ? new Date(item.appointmentDate).toLocaleDateString("vi-VN")
-    : "Chưa hẹn",
+  appointmentDate: item.appointmentDate ? formatVietnamDate(item.appointmentDate) : "Chưa hẹn",
   proofFileUrl: item.proofFileUrl || "",
   originalStatus: item.status,
-  createdAt: item.createdAt ? new Date(item.createdAt).toLocaleString() : "",
+  createdAt: item.createdAt ? formatVietnamDateTime(item.createdAt) : "",
 });
 
 const columns: Column<RequestRow>[] = [
@@ -73,6 +72,7 @@ const columns: Column<RequestRow>[] = [
 const requestStatusOptions: Array<{ value: RequestStatus; label: string }> = [
   { value: "PENDING", label: "Chờ xử lý" },
   { value: "PROCESSING", label: "Đang xử lý" },
+  { value: "PRINTED", label: "Đã in" },
   { value: "NEEDS_INFO", label: "Cần bổ sung" },
   { value: "COMPLETED", label: "Hoàn tất" },
   { value: "REJECTED", label: "Từ chối" },
@@ -241,6 +241,7 @@ function AdminCertificatesPage() {
               { value: "", label: "Tất cả trạng thái" },
               { value: "PENDING", label: "Chờ xử lý" },
               { value: "PROCESSING", label: "Đang xử lý" },
+              { value: "PRINTED", label: "Đã in" },
               { value: "REJECTED", label: "Từ chối" },
               { value: "COMPLETED", label: "Hoàn tất" },
               { value: "NEEDS_INFO", label: "Cần bổ sung" },

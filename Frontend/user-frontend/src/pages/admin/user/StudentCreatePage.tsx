@@ -1,6 +1,7 @@
 import { Save } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
@@ -8,6 +9,19 @@ import PageHeader from "../../../components/PageHeader";
 import { classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfilePayload } from "../../../services/api";
 import { defaultStudentGroups } from "../../../utils/studentGroups";
 import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
+
+const studentStatusOptions: Array<{ value: NonNullable<UserProfilePayload["studentStatus"]>; label: string }> = [
+  { value: "STUDYING", label: "Đang học" },
+  { value: "RESERVED", label: "Bảo lưu" },
+  { value: "SUSPENDED", label: "Đình chỉ" },
+  { value: "GRADUATED", label: "Đã tốt nghiệp" },
+];
+
+const genderOptions: Array<{ value: NonNullable<UserProfilePayload["gender"]>; label: string }> = [
+  { value: "MALE", label: "Nam" },
+  { value: "FEMALE", label: "Nữ" },
+  { value: "OTHER", label: "Khác" },
+];
 
 function StudentCreatePage() {
   const navigate = useNavigate();
@@ -25,7 +39,31 @@ function StudentCreatePage() {
   const [classes, setClasses] = useState<ClassResponse[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [classId, setClassId] = useState("");
+  const [classSearch, setClassSearch] = useState("");
   const [studentGroupId, setStudentGroupId] = useState("1");
+
+  const classOptions: AutocompleteOption[] = classes.map((clazz) => ({
+    value: clazz.id,
+    label: clazz.classCode,
+    description: [clazz.faculty?.facultyCode, clazz.academicYear?.yearName].filter(Boolean).join(" · "),
+    searchText: `${clazz.id} ${clazz.classCode} ${clazz.faculty?.facultyCode ?? ""} ${clazz.faculty?.facultyName ?? ""} ${clazz.academicYear?.yearName ?? ""}`,
+  }));
+
+  const resolveClassByInput = (value: string) => {
+    const cleanValue = value.trim().toLowerCase();
+    if (!cleanValue) return undefined;
+    return classes.find((clazz) =>
+      [clazz.id, clazz.classCode, `${clazz.classCode} - ${clazz.faculty?.facultyCode ?? ""}`]
+        .map((item) => String(item ?? "").trim().toLowerCase())
+        .includes(cleanValue),
+    );
+  };
+
+  const updateClassSearch = (value: string) => {
+    setClassSearch(value);
+    const matchedClass = resolveClassByInput(value);
+    setClassId(matchedClass?.id ?? "");
+  };
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -50,10 +88,16 @@ function StudentCreatePage() {
     setLoading(true);
 
     try {
+      const matchedClass = resolveClassByInput(classSearch);
+      if (classSearch.trim() && !matchedClass) {
+        setMessage("Vui lòng chọn lớp từ danh sách gợi ý để tránh sai mã lớp.");
+        return;
+      }
+
       const validated = userProfileSchema.parse(formData);
       const payload: UserProfilePayload = {
         ...validated,
-        clazz: classId ? { id: classId } : undefined,
+        clazz: matchedClass || classId ? { id: matchedClass?.id ?? classId } : undefined,
         studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
       };
       await userApi.create(payload);
@@ -105,41 +149,53 @@ function StudentCreatePage() {
             type="date"
             value={formData.dob}
           />
-          <FormField
-            as="select"
-            label="Giới tính"
-            onChange={(event) => updateField("gender", event.target.value)}
-            options={["MALE", "FEMALE", "OTHER"]}
-            value={formData.gender}
-          />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">Giới tính</span>
+            <select
+              className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+              onChange={(event) => updateField("gender", event.target.value)}
+              value={formData.gender}
+            >
+              {genderOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <FormField
             label="Số điện thoại"
             onChange={(event) => updateField("contactPhone", event.target.value)}
             placeholder="090..."
             value={formData.contactPhone}
           />
-          <FormField
-            as="select"
-            label="Trạng thái sinh viên"
-            onChange={(event) => updateField("studentStatus", event.target.value)}
-            options={["STUDYING", "RESERVED", "SUSPENDED", "GRADUATED"]}
-            value={formData.studentStatus}
-          />
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-semibold text-on-surface">Lớp</span>
+            <span className="text-sm font-semibold text-on-surface">Trạng thái sinh viên</span>
             <select
               className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
-              onChange={(event) => setClassId(event.target.value)}
-              value={classId}
+              onChange={(event) => updateField("studentStatus", event.target.value)}
+              value={formData.studentStatus}
             >
-              <option value="">Chưa phân lớp</option>
-              {classes.map((clazz) => (
-                <option key={clazz.id} value={clazz.id}>
-                  {clazz.classCode}{clazz.faculty ? ` - ${clazz.faculty.facultyCode}` : ""}
+              {studentStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
           </label>
+          <AutocompleteInput
+            emptyMessage="Không tìm thấy lớp phù hợp."
+            hint="Bỏ trống nếu sinh viên chưa phân lớp."
+            label="Lớp"
+            onChange={updateClassSearch}
+            onSelect={(option) => {
+              setClassId(option.value);
+              setClassSearch(option.label);
+            }}
+            options={classOptions}
+            placeholder="Nhập mã lớp, VD: D22_TH01"
+            value={classSearch}
+          />
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-semibold text-on-surface">Nhóm sinh viên</span>
             <select

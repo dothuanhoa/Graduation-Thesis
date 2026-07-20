@@ -124,7 +124,7 @@ public class OrganizationService {
     }
 
     public List<AcademicYearResponse> getAcademicYears() {
-        return academicYearRepository.findAllByOrderByStartYearDescYearNameAsc()
+        return academicYearRepository.findAllByOrderByYearNameAsc()
                 .stream()
                 .map(this::toAcademicYearResponse)
                 .toList();

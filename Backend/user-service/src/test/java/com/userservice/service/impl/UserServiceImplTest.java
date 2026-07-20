@@ -100,7 +100,7 @@ class UserServiceImplTest {
 
         when(studentGroupRepository.findById(2)).thenReturn(Optional.of(targetGroup));
         when(classRepository.findById(11L)).thenReturn(Optional.of(sourceClass));
-        when(userProfileRepository.findByClazzId(11L)).thenReturn(List.of(student));
+        when(userProfileRepository.findByClazzIdOrderByStudentIdAsc(11L)).thenReturn(List.of(student));
         when(userProfileRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = userService.updateStudentGroups(request);

@@ -8,19 +8,12 @@ import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
-import { notificationApi, type NotificationResponse } from "../../../services/api";
+import { notificationApi, userApi, type NotificationResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
 import { sanitizeRichHtml } from "../../../utils/html";
 import { getStoredReadNotificationIds, rememberReadNotification } from "../../../utils/notificationReadState";
 
-const formatDateTime = (value?: string) => {
-  if (!value) return "Chưa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace("T", " ");
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-};
+const formatDateTime = (value?: string) => formatVietnamDateTime(value, "Chưa cập nhật");
 
 const toNotice = (item: NotificationResponse, readIds = new Set<string>()): StudentNotice => ({
   id: item.id,
@@ -54,7 +47,8 @@ function StudentNotificationDetailPage() {
     setMessage("");
 
     try {
-      const data = await notificationApi.listMine();
+      const profile = await userApi.getByStudentId(username, { suppressToast: true });
+      const data = await notificationApi.listMineForProfile(profile);
       const readIds = getStoredReadNotificationIds(username);
       const found = data.map((item) => toNotice(item, readIds)).find((item) => item.id === notificationId);
       const selected = found ?? null;

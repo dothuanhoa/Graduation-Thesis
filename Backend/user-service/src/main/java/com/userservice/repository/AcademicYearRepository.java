@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AcademicYearRepository extends JpaRepository<AcademicYear, Long> {
-    List<AcademicYear> findAllByOrderByStartYearDescYearNameAsc();
+    List<AcademicYear> findAllByOrderByYearNameAsc();
     Optional<AcademicYear> findByYearNameIgnoreCase(String yearName);
     boolean existsByYearNameIgnoreCase(String yearName);
     boolean existsByYearNameIgnoreCaseAndIdNot(String yearName, Long id);

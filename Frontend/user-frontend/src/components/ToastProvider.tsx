@@ -31,10 +31,10 @@ const variantIcons: Record<ToastVariant, typeof CheckCircle2> = {
 };
 
 const defaultTitles: Record<ToastVariant, string> = {
-  success: "Thành công / Success",
-  error: "Không thành công / Failed",
-  info: "Thông tin / Info",
-  warning: "Cần chú ý / Notice",
+  success: "Thành công",
+  error: "Không thành công",
+  info: "Thông tin",
+  warning: "Cần chú ý",
 };
 
 function createToast(payload: ToastPayload): ToastItem {

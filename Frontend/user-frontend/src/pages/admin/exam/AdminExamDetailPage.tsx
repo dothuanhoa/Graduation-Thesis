@@ -22,20 +22,14 @@ import {
   type StudentGroupResponse,
   type UserProfile,
 } from "../../../services/api";
+import { formatVietnamDateTime, toApiLocalDateTime, toDateTimeLocalInput } from "../../../utils/dateTime";
 import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
 import ExamTargetEditor from "./ExamTargetEditor";
 import { createEmptyExamTarget } from "./examTargetUtils";
 
-const toDateTimeLocal = (value?: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-
-const toApiDateTime = (value: string) => (value ? (value.length === 16 ? `${value}:00` : value) : "");
-const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString("vi-VN") : "N/A");
+const toDateTimeLocal = toDateTimeLocalInput;
+const toApiDateTime = toApiLocalDateTime;
+const formatDateTime = (value?: string) => formatVietnamDateTime(value);
 
 const emptyExamForm: ExamPayload = {
   title: "",
