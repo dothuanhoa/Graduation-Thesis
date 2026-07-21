@@ -4,8 +4,8 @@ const serviceWordPattern = /\bservice\b/gi;
 
 export function sanitizeServiceMessage(message: string) {
   return message
-    .replace(serviceNamePattern, "hệ thống")
-    .replace(serviceWordPattern, "hệ thống")
+    .replace(serviceNamePattern, "Hệ thống")
+    .replace(serviceWordPattern, "Hệ thống")
     .replace(/\s+/g, " ")
     .trim();
 }
