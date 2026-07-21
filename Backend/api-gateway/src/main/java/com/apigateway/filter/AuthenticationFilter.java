@@ -2,9 +2,11 @@ package com.apigateway.filter;
 
 import com.apigateway.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +19,9 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Autowired
     private org.springframework.data.redis.core.ReactiveStringRedisTemplate redisTemplate;
 
+    @Value("${app.gateway.secret:dev-local-gateway-secret}")
+    private String gatewaySecret;
+
     public AuthenticationFilter() {
         super(Config.class);
     }
@@ -24,6 +29,10 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
+            if (exchange.getRequest().getMethod() == HttpMethod.OPTIONS) {
+                return chain.filter(exchange);
+            }
+
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
@@ -44,7 +53,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             try {
                 jwtUtil.validateToken(token);
                 userId = jwtUtil.extractSubject(token);
-                role = jwtUtil.extractClaim(token, "role");
+                role = normalizeRole(jwtUtil.extractClaim(token, "role"));
             } catch (Exception e) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
@@ -61,8 +70,15 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
                         // An toàn -> Trích xuất ID và Role đưa vào Header
                         var mutatedRequest = exchange.getRequest().mutate()
-                                .header("X-User-Code", userId)
-                                .header("X-User-Role", role != null ? role : "STUDENT")
+                                .headers(headers -> {
+                                    headers.remove("X-User-Code");
+                                    headers.remove("X-User-Role");
+                                    headers.remove("X-Internal-Secret");
+                                    headers.remove("X-Gateway-Secret");
+                                    headers.set("X-User-Code", userId);
+                                    headers.set("X-User-Role", role != null ? role : "STUDENT");
+                                    headers.set("X-Gateway-Secret", gatewaySecret);
+                                })
                                 .build();
 
                         return chain.filter(exchange.mutate().request(mutatedRequest).build());
@@ -71,5 +87,18 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     }
 
     public static class Config {
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "STUDENT";
+        }
+
+        String normalizedRole = role.trim().toUpperCase();
+        if (normalizedRole.startsWith("ROLE_")) {
+            normalizedRole = normalizedRole.substring("ROLE_".length());
+        }
+
+        return normalizedRole;
     }
 }

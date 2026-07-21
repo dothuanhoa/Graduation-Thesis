@@ -7,31 +7,50 @@ type SidebarProps = {
   utilityItems?: NavItem[];
   title?: string;
   subtitle?: string;
+  collapsed?: boolean;
+  isMobile?: boolean;
+  onNavigate?: () => void;
 };
 
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-3 rounded-lg border-l-4 px-4 py-3 text-sm font-semibold transition ${
+const linkClass = (collapsed: boolean) =>
+({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 rounded-lg border-l-4 py-3 text-sm font-semibold transition ${
+    collapsed ? "justify-center px-2" : "px-4"
+  } ${
     isActive
       ? "border-primary bg-secondary-container text-primary"
       : "border-transparent text-on-surface-variant hover:bg-surface-container-high"
   }`;
 
-function Sidebar({ items, utilityItems = [], title = "Quản lý CTSV", subtitle = "Hệ thống quản trị" }: SidebarProps) {
+function Sidebar({
+  items,
+  utilityItems = [],
+  title = "Quản lý CTSV",
+  subtitle = "Hệ thống quản trị",
+  collapsed = false,
+  isMobile = false,
+  onNavigate,
+}: SidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
+    onNavigate?.();
     navigate("/login", { replace: true });
   };
 
   return (
-    <aside className="hidden h-screen w-sidebar-width flex-shrink-0 flex-col border-r border-outline-variant bg-surface-container-lowest px-4 py-padding-page shadow-sm md:flex">
-      <div className="mb-10 flex items-center gap-3 px-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-container">
+    <aside
+      className={`${isMobile ? "flex h-full w-full" : "sticky top-0 hidden h-screen md:flex"} ${
+        collapsed && !isMobile ? "w-20 px-3" : "w-sidebar-width px-4"
+      } flex-shrink-0 flex-col border-r border-outline-variant bg-surface-container-lowest py-padding-page shadow-sm transition-all duration-200`}
+    >
+      <div className={`mb-8 flex items-center gap-3 ${collapsed && !isMobile ? "justify-center px-0" : "px-4"}`}>
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-primary-container">
           <img alt="STU" className="h-9 w-9 object-contain" src="/Logo_STU.png" />
         </div>
-        <div className="min-w-0">
+        <div className={`min-w-0 ${collapsed && !isMobile ? "hidden" : ""}`}>
           <p className="truncate text-xl font-bold text-primary">{title}</p>
           <p className="truncate text-sm text-on-surface-variant">{subtitle}</p>
         </div>
@@ -40,9 +59,9 @@ function Sidebar({ items, utilityItems = [], title = "Quản lý CTSV", subtitle
         {items.map((item) => {
           const Icon = item.icon;
           return (
-            <NavLink key={item.path} className={linkClass} to={item.path}>
+            <NavLink key={item.path} aria-label={item.label} className={linkClass(collapsed && !isMobile)} onClick={onNavigate} title={collapsed && !isMobile ? item.label : undefined} to={item.path}>
               <Icon className="h-5 w-5" />
-              <span>{item.label}</span>
+              <span className={collapsed && !isMobile ? "sr-only" : ""}>{item.label}</span>
             </NavLink>
           );
         })}
@@ -55,20 +74,23 @@ function Sidebar({ items, utilityItems = [], title = "Quản lý CTSV", subtitle
               return (
                 <button
                   key={item.path}
-                  className="flex items-center gap-3 rounded-lg border-l-4 border-transparent px-4 py-3 text-left text-sm font-semibold text-on-surface-variant transition hover:bg-surface-container-high"
+                  className={`flex items-center gap-3 rounded-lg border-l-4 border-transparent py-3 text-left text-sm font-semibold text-on-surface-variant transition hover:bg-surface-container-high ${
+                    collapsed && !isMobile ? "justify-center px-2" : "px-4"
+                  }`}
                   onClick={handleLogout}
+                  title={collapsed && !isMobile ? item.label : undefined}
                   type="button"
                 >
                   <Icon className="h-5 w-5" />
-                  <span>{item.label}</span>
+                  <span className={collapsed && !isMobile ? "sr-only" : ""}>{item.label}</span>
                 </button>
               );
             }
 
             return (
-              <NavLink key={item.path} className={linkClass} to={item.path}>
+              <NavLink key={item.path} aria-label={item.label} className={linkClass(collapsed && !isMobile)} onClick={onNavigate} title={collapsed && !isMobile ? item.label : undefined} to={item.path}>
                 <Icon className="h-5 w-5" />
-                <span>{item.label}</span>
+                <span className={collapsed && !isMobile ? "sr-only" : ""}>{item.label}</span>
               </NavLink>
             );
           })}

@@ -36,4 +36,277 @@
   .panel {
     @apply rounded-xl border border-outline-variant bg-surface-container-lowest shadow-panel;
   }
+
+  .certificate-page {
+    @apply mx-auto w-full bg-white text-[13.5px] leading-6 text-slate-900 shadow-panel;
+    max-width: 210mm;
+    min-height: 297mm;
+    padding: 18mm 20mm 16mm;
+    font-family: "Times New Roman", Times, serif;
+  }
+
+  .certificate-body {
+    @apply mt-5;
+  }
+
+  .certificate-body p {
+    margin: 0 0 5px;
+  }
+
+  .certificate-input {
+    @apply mx-0.5 inline-block border-0 border-b border-slate-500 bg-transparent px-0.5 py-0 align-baseline text-slate-950 outline-none focus:border-primary focus:bg-primary/5;
+    min-height: 18px;
+  }
+
+  .certificate-line {
+    @apply mx-0.5 inline-block border-b border-slate-500 px-0.5 align-baseline text-slate-950;
+    min-height: 18px;
+  }
+
+  .certificate-checkbox {
+    width: 11px;
+    height: 11px;
+    margin: 0 2px 0 0;
+    appearance: none;
+    border: 1px solid #94a3b8;
+    background: #fff;
+    display: inline-grid;
+    place-content: center;
+    vertical-align: -1px;
+  }
+
+  .certificate-checkbox:checked::after {
+    content: "X";
+    color: #020617;
+    font-family: Arial, sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .certificate-plain-text {
+    display: inline;
+    margin-left: 0.22em;
+    margin-right: 0.22em;
+    padding: 0;
+  }
+
+  .certificate-admin-inline-field {
+    min-width: 2ch;
+    max-width: 52ch;
+    margin-left: 0.22em;
+    margin-right: 0.22em;
+  }
+
+  .certificate-admin-date-part {
+    min-width: 0;
+    margin-left: 0.22em;
+    margin-right: 0.22em;
+    text-align: center;
+  }
+
+  .certificate-admin-page .certificate-line {
+    border-bottom-color: transparent;
+  }
+
+  .certificate-admin-page .certificate-input {
+    background: rgba(241, 245, 249, 0.55);
+    border-bottom-color: #cbd5e1;
+  }
+
+  .certificate-school-confirmation p {
+    margin-bottom: 3px;
+  }
+
+  .certificate-school-confirmation .certificate-input,
+  .certificate-school-confirmation .certificate-line {
+    margin-left: 1px;
+    margin-right: 1px;
+    padding-left: 1px;
+    padding-right: 1px;
+  }
+
+  .certificate-signature {
+    width: 58%;
+    margin: 16px 0 0 auto;
+    text-align: center;
+  }
+
+  .certificate-sign-name {
+    margin-top: 58px !important;
+   }
+
+  .certificate-school-confirmation {
+    border-top: 1px solid #cbd5e1;
+    padding-top: 18px;
+  }
+
+  .certificate-principal {
+    width: 56%;
+    margin: 12px 0 0 auto;
+    text-align: center;
+  }
+
+  .certificate-signature p:first-child,
+  .certificate-principal p:first-child {
+    white-space: nowrap;
+  }
+
+  .certificate-signature .certificate-line,
+  .certificate-principal .certificate-line {
+    border-bottom-color: transparent;
+  }
+
+  .bulk-print-area {
+    display: none;
+  }
+
+  .rich-html-content {
+    @apply text-sm leading-7 text-on-surface;
+  }
+
+  .rich-html-content > * + * {
+    margin-top: 0.85rem;
+  }
+
+  .rich-html-content h1,
+  .rich-html-content h2,
+  .rich-html-content h3 {
+    @apply font-bold text-on-surface;
+    line-height: 1.3;
+  }
+
+  .rich-html-content h1 {
+    font-size: 1.55rem;
+  }
+
+  .rich-html-content h2 {
+    font-size: 1.25rem;
+  }
+
+  .rich-html-content h3 {
+    font-size: 1.1rem;
+  }
+
+  .rich-html-content ul,
+  .rich-html-content ol {
+    margin-left: 1.25rem;
+    padding-left: 1rem;
+  }
+
+  .rich-html-content ul {
+    list-style: disc;
+  }
+
+  .rich-html-content ol {
+    list-style: decimal;
+  }
+
+  .rich-html-content a {
+    @apply font-semibold text-primary underline underline-offset-2;
+  }
+
+  .rich-html-content blockquote {
+    @apply border-l-4 border-outline-variant pl-4 text-on-surface-variant;
+  }
+
+  .rich-html-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+
+  .rich-html-content figure {
+    margin: 0;
+  }
+
+  .rich-html-content figcaption {
+    @apply mt-2 text-center text-xs text-on-surface-variant;
+  }
+  .rich-html-content table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 0.5rem;
+  }
+
+  .rich-html-content th,
+  .rich-html-content td {
+    @apply border border-outline-variant px-3 py-2 text-left align-top;
+  }
+
+  .rich-html-content th {
+    @apply bg-surface-container font-bold;
+  }
+
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    background: white;
+  }
+
+  .bulk-print-area {
+    display: block;
+  }
+
+  .print-area .certificate-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-area .certificate-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .certificate-page {
+    box-shadow: none;
+    max-width: none;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 18mm 20mm 16mm;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+
+  .certificate-input {
+    border-color: #334155;
+    color: #020617;
+    background: transparent !important;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .certificate-admin-page .certificate-input,
+  .certificate-admin-page .certificate-line {
+    border-bottom-color: transparent;
+    background: transparent !important;
+  }
+
+  .certificate-checkbox {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .certificate-sign-name {
+    margin-top: 72px !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
 }

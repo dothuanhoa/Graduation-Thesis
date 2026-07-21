@@ -1,0 +1,30 @@
+server:
+  port: 8087
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:exam-db}:${DB_PORT:5432}/${DB_NAME:exam_db}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:root}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+  sql:
+    init:
+      mode: always
+      separator: "@@"
+  jpa:
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/

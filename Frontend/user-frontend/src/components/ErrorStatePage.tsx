@@ -1,5 +1,6 @@
-import { ArrowLeft, Home, LockKeyhole, SearchX } from "lucide-react";
+﻿import { Home, LockKeyhole, SearchX } from "lucide-react";
 import { Link } from "react-router-dom";
+import BackButton from "./BackButton";
 
 type ErrorStatePageProps = {
   code: "403" | "404";
@@ -10,7 +11,12 @@ type ErrorStatePageProps = {
 };
 
 function FloatingTile({ className, delay = "0s" }: { className: string; delay?: string }) {
-  return <div className={`absolute rounded-lg border border-white/50 bg-white/75 shadow-panel backdrop-blur ${className}`} style={{ animation: `tile-float 4s ${delay} ease-in-out infinite` }} />;
+  return (
+    <div
+      className={`absolute rounded-lg border border-white/50 bg-white/75 shadow-panel backdrop-blur ${className}`}
+      style={{ animation: `tile-float 4s ${delay} ease-in-out infinite` }}
+    />
+  );
 }
 
 function ErrorScene({ code, variant }: { code: ErrorStatePageProps["code"]; variant: ErrorStatePageProps["variant"] }) {
@@ -85,14 +91,7 @@ function ErrorStatePage({ backPath, code, description, title, variant }: ErrorSt
                 <Home className="h-5 w-5" />
                 Về dashboard
               </Link>
-              <button
-                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
-                onClick={() => window.history.back()}
-                type="button"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                Quay lại
-              </button>
+              <BackButton onClick={() => window.history.back()}>Quay lại</BackButton>
             </div>
           </div>
         </section>

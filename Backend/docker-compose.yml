@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ==========================================
   # 1. INFRASTRUCTURE (Databases & Cache)
@@ -8,11 +6,12 @@ services:
     image: postgres:16-alpine
     container_name: user-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: user_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
     networks:
@@ -22,11 +21,12 @@ services:
     image: postgres:16-alpine
     container_name: notification-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: notification_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_notification_data:/var/lib/postgresql/data
     networks:
@@ -36,23 +36,71 @@ services:
     image: postgres:16-alpine
     container_name: auth-db
     environment:
+      TZ: Asia/Ho_Chi_Minh
       POSTGRES_DB: auth_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
+  activity-db:
+    image: postgres:16-alpine
+    container_name: activity-db
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      POSTGRES_DB: activity_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - postgres_activity_data:/var/lib/postgresql/data
+    networks:
+      - micro_network
+
+  exam-db:
+    image: postgres:16-alpine
+    container_name: exam-db
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      POSTGRES_DB: exam_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - postgres_exam_data:/var/lib/postgresql/data
     networks:
       - micro_network
 
   redis:
     image: redis:alpine
     container_name: redis
+    environment:
+      TZ: Asia/Ho_Chi_Minh
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - micro_network
+
+  certification-db:
+    image: postgres:16-alpine
+    container_name: certification-db
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      POSTGRES_DB: certification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - postgres_certification_data:/var/lib/postgresql/data
     networks:
       - micro_network
 
@@ -62,8 +110,11 @@ services:
   discovery-server:
     build: ./discovery-server
     container_name: discovery-server
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
     ports:
-      - "8761:8761"
+      - "127.0.0.1:8761:8761"
     networks:
       - micro_network
 
@@ -73,8 +124,12 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET is required}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - discovery-server
@@ -85,9 +140,11 @@ services:
   auth-service:
     build: ./auth-service
     container_name: auth-service
-    ports:
-      - "8083:8083"
+    expose:
+      - "8083"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=auth-db
       - DB_PORT=5432
@@ -96,6 +153,35 @@ services:
       - DB_PASS=root
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - APP_JWT_ACCESS_TOKEN_TTL_MINUTES=${APP_JWT_ACCESS_TOKEN_TTL_MINUTES:-15}
+      - APP_AUTH_REFRESH_TOKEN_TTL_DAYS=${APP_AUTH_REFRESH_TOKEN_TTL_DAYS:-7}
+      - APP_AUTH_REFRESH_COOKIE_SECURE=${APP_AUTH_REFRESH_COOKIE_SECURE:-false}
+      - APP_AUTH_REFRESH_COOKIE_SAME_SITE=${APP_AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:?INTERNAL_SERVICE_SECRET is required}
+      - GATEWAY_INTERNAL_SECRET=${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET is required}
+      - MAIL_ENABLED=${MAIL_ENABLED:-false}
+      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_FROM=${MAIL_FROM:-no-reply@stu.edu.vn}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Cong sinh vien STU}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
+      - MAIL_STARTTLS_ENABLE=${MAIL_STARTTLS_ENABLE:-true}
+      - MAIL_QUEUE_CAPACITY=${MAIL_QUEUE_CAPACITY:-20000}
+      - MAIL_WORKER_COUNT=${MAIL_WORKER_COUNT:-1}
+      - MAIL_SEND_DELAY_MS=${MAIL_SEND_DELAY_MS:-1000}
+      - MAIL_MAX_RETRIES=${MAIL_MAX_RETRIES:-2}
+      - MAIL_RETRY_DELAY_MS=${MAIL_RETRY_DELAY_MS:-5000}
+      - STUDENT_EMAIL_DOMAIN=${STUDENT_EMAIL_DOMAIN:-student.edu.vn}
+      - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}
+      - PASSWORD_RESET_TOKEN_TTL_MINUTES=${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
+      - PASSWORD_RESET_MONTHLY_LIMIT=${PASSWORD_RESET_MONTHLY_LIMIT:-2}
+      - ADMIN_BOOTSTRAP_ENABLED=${ADMIN_BOOTSTRAP_ENABLED:-false}
+      - ADMIN_BOOTSTRAP_USERNAME=${ADMIN_BOOTSTRAP_USERNAME:-}
+      - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL:-}
+      - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD:-}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - auth-db
@@ -107,15 +193,20 @@ services:
   user-service:
     build: ./user-service
     container_name: user-service
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=user-db
       - DB_PORT=5432
       - DB_NAME=user_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=root
+      - AUTH_SERVICE_URL=http://auth-service:8083
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:?INTERNAL_SERVICE_SECRET is required}
+      - STUDENT_EMAIL_DOMAIN=${STUDENT_EMAIL_DOMAIN:-student.edu.vn}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - user-db
@@ -126,18 +217,96 @@ services:
   notification-service:
     build: ./notification-service
     container_name: notification-service
-    ports:
-      - "8084:8084"
+    expose:
+      - "8084"
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
       - SPRING_PROFILES_ACTIVE=prod
       - DB_HOST=notification-db
       - DB_PORT=5432
       - DB_NAME=notification_db
       - DB_USER=postgres
       - DB_PASS=root
+      - NOTIFICATION_UPLOAD_DIR=/app/frontend-public/notification
+      - NOTIFICATION_UPLOAD_PUBLIC_URL_PREFIX=/notification
+      - NOTIFICATION_IMAGE_MAX_SIZE_BYTES=5242880
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - notification-db
+      - discovery-server
+    volumes:
+      - ../Frontend/user-frontend/public/notification:/app/frontend-public/notification
+    networks:
+      - micro_network
+
+  certification-service:
+    build: ./certification-service
+    container_name: certification-service
+    expose:
+      - "8085"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=certification-db
+      - DB_PORT=5432
+      - DB_NAME=certification_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - APP_UPLOAD_DIR=/app/frontend-public/certification
+      - APP_UPLOAD_PUBLIC_URL_PREFIX=/certification
+      - APP_UPLOAD_MAX_SIZE_BYTES=${APP_UPLOAD_MAX_SIZE_BYTES:-10485760}
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - certification-db
+      - discovery-server
+    volumes:
+      - ../Frontend/user-frontend/public/certification:/app/frontend-public/certification
+    networks:
+      - micro_network
+
+  activity-service:
+    build: ./activity-service
+    container_name: activity-service
+    expose:
+      - "8085"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=activity-db
+      - DB_PORT=5432
+      - DB_NAME=activity_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - activity-db
+      - discovery-server
+    networks:
+      - micro_network
+
+  exam-service:
+    build: ./exam-service
+    container_name: exam-service
+    expose:
+      - "8087"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Ho_Chi_Minh
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=exam-db
+      - DB_PORT=5432
+      - DB_NAME=exam_db
+      - DB_USER=postgres
+      - DB_PASS=root
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    depends_on:
+      - exam-db
+      - redis
       - discovery-server
     networks:
       - micro_network
@@ -146,6 +315,9 @@ volumes:
   postgres_user_data:
   postgres_notification_data:
   postgres_auth_data:
+  postgres_activity_data:
+  postgres_certification_data:
+  postgres_exam_data:
   redis_data:
 
 networks:

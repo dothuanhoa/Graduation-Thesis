@@ -1,0 +1,7 @@
+**/.gradle/
+**/build/
+**/bin/
+**/dist/
+**/node_modules/
+**/.env
+**/.env.local

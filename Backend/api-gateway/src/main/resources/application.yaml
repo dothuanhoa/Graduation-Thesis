@@ -1,6 +1,12 @@
 server:
   port: 8000
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  gateway:
+    secret: ${GATEWAY_INTERNAL_SECRET:dev-local-gateway-secret}
+
 spring:
   application:
     name: api-gateway
@@ -10,11 +16,38 @@ spring:
       port: ${REDIS_PORT:6379}
   cloud:
     gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        corsConfigurations:
+          "[/**]":
+            allowedOriginPatterns:
+              - "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            exposedHeaders:
+              - Authorization
+              - Content-Type
+            allowCredentials: true
+            maxAge: 3600
       routes:
         - id: auth-internal-route
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/internal/**
+          filters:
+            - AuthenticationFilter
+
+        - id: auth-admin-route
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/admin/**
           filters:
             - AuthenticationFilter
 
@@ -34,6 +67,27 @@ spring:
           uri: lb://NOTIFICATION-SERVICE
           predicates:
             - Path=/api/notifications/**
+          filters:
+            - AuthenticationFilter
+
+        - id: certification-service-route
+          uri: lb://CERTIFICATION-SERVICE
+          predicates:
+            - Path=/api/certifications/**
+          filters:
+            - AuthenticationFilter
+
+        - id: activity-service-route
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/api/activities/**
+          filters:
+            - AuthenticationFilter
+
+        - id: exam-service-route
+          uri: lb://EXAM-SERVICE
+          predicates:
+            - Path=/api/exams/**
           filters:
             - AuthenticationFilter
 
@@ -59,6 +113,25 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/notification-service, /v3/api-docs
 
+        - id: openapi-certification
+          uri: lb://CERTIFICATION-SERVICE
+          predicates:
+            - Path=/v3/api-docs/certification-service
+          filters:
+            - RewritePath=/v3/api-docs/certification-service, /v3/api-docs
+        - id: openapi-activity
+          uri: lb://ACTIVITY-SERVICE
+          predicates:
+            - Path=/v3/api-docs/activity-service
+          filters:
+            - RewritePath=/v3/api-docs/activity-service, /v3/api-docs
+        - id: openapi-exam
+          uri: lb://EXAM-SERVICE
+          predicates:
+            - Path=/v3/api-docs/exam-service
+          filters:
+            - RewritePath=/v3/api-docs/exam-service, /v3/api-docs
+
 eureka:
   client:
     service-url:
@@ -74,3 +147,9 @@ springdoc:
         url: /v3/api-docs/user-service
       - name: Notification Service
         url: /v3/api-docs/notification-service
+      - name: Certification Service
+        url: /v3/api-docs/certification-service
+      - name: Activity Service
+        url: /v3/api-docs/activity-service
+      - name: Exam Service
+        url: /v3/api-docs/exam-service

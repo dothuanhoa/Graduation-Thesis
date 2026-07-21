@@ -10,13 +10,8 @@ import {
   GraduationCap,
   LayoutDashboard,
   ListChecks,
-  LogOut,
-  Medal,
   MessageSquare,
   NotebookTabs,
-  ScrollText,
-  Settings,
-  ShieldCheck,
   UserCog,
   Users,
 } from "lucide-react";
@@ -29,6 +24,7 @@ export type StatusType =
   | "PUBLISHED"
   | "PENDING"
   | "PROCESSING"
+  | "PRINTED"
   | "APPROVED"
   | "REJECTED"
   | "COMPLETED"
@@ -41,7 +37,9 @@ export type StatusType =
   | "URGENT"
   | "NORMAL"
   | "EXPIRED"
-  | "REVOKED";
+  | "REVOKED"
+  | "CANCELLED"
+  | "NEEDS_INFO";
 
 export type NavItem = {
   label: string;
@@ -61,21 +59,14 @@ export type TableRow = Record<string, string | number | StatusType>;
 
 export const adminNav: NavItem[] = [
   { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
-  { label: "Tổ chức", path: "/admin/faculties", icon: Building2 },
+  { label: "Khoa", path: "/admin/faculties", icon: Building2 },
+  { label: "Niên khóa", path: "/admin/academic-years", icon: BookOpenCheck },
+  { label: "Lớp", path: "/admin/classes", icon: GraduationCap },
   { label: "Sinh viên", path: "/admin/students", icon: Users },
   { label: "Thông báo", path: "/admin/notifications", icon: Bell },
   { label: "Kỳ thi", path: "/admin/exams", icon: NotebookTabs },
   { label: "Hoạt động", path: "/admin/activities", icon: CalendarCheck },
   { label: "Đơn từ", path: "/admin/certificates", icon: FileCheck2 },
-  { label: "Khen thưởng", path: "/admin/rewards", icon: Medal },
-  { label: "Cài đặt", path: "/admin/settings", icon: Settings },
-];
-
-export const adminUtilityNav: NavItem[] = [
-  { label: "Phân quyền", path: "/admin/roles", icon: ShieldCheck },
-  { label: "Người dùng", path: "/admin/users", icon: UserCog },
-  { label: "Nhật ký", path: "/admin/audit-logs", icon: ScrollText },
-  { label: "Đăng xuất", path: "/login", icon: LogOut },
 ];
 
 export const studentNav: NavItem[] = [
@@ -153,55 +144,199 @@ export const students = [
 ];
 
 export const faculties: TableRow[] = [
-  { code: "CNTT", name: "Công nghệ thông tin", manager: "TS. Lê Minh", students: 4280, status: "ACTIVE" },
-  { code: "QTKD", name: "Quản trị kinh doanh", manager: "ThS. Nguyễn Lan", students: 2310, status: "ACTIVE" },
-  { code: "NNA", name: "Ngoại ngữ", manager: "ThS. Trần Mai", students: 1480, status: "ACTIVE" },
+  {
+    code: "CNTT",
+    name: "Công nghệ thông tin",
+    manager: "TS. Lê Minh",
+    students: 4280,
+    status: "ACTIVE",
+  },
+  {
+    code: "QTKD",
+    name: "Quản trị kinh doanh",
+    manager: "ThS. Nguyễn Lan",
+    students: 2310,
+    status: "ACTIVE",
+  },
+  {
+    code: "NNA",
+    name: "Ngoại ngữ",
+    manager: "ThS. Trần Mai",
+    students: 1480,
+    status: "ACTIVE",
+  },
 ];
 
 export const classes: TableRow[] = [
-  { code: "K64-CNPM", faculty: "CNTT", year: "2021-2025", students: 72, status: "ACTIVE" },
-  { code: "K65-ATTT", faculty: "CNTT", year: "2022-2026", students: 64, status: "ACTIVE" },
-  { code: "K63-NNA", faculty: "NNA", year: "2020-2024", students: 58, status: "INACTIVE" },
+  {
+    code: "K64-CNPM",
+    faculty: "CNTT",
+    year: "2021-2025",
+    students: 72,
+    status: "ACTIVE",
+  },
+  {
+    code: "K65-ATTT",
+    faculty: "CNTT",
+    year: "2022-2026",
+    students: 64,
+    status: "ACTIVE",
+  },
+  {
+    code: "K63-NNA",
+    faculty: "NNA",
+    year: "2020-2024",
+    students: 58,
+    status: "INACTIVE",
+  },
 ];
 
 export const notifications: TableRow[] = [
-  { title: "Mở đăng ký điểm rèn luyện học kỳ 1", target: "Toàn trường", priority: "URGENT", status: "PUBLISHED" },
-  { title: "Lịch nghỉ Tết Nguyên Đán", target: "Sinh viên", priority: "NORMAL", status: "DRAFT" },
-  { title: "Nộp minh chứng hoạt động", target: "Khoa CNTT", priority: "URGENT", status: "PUBLISHED" },
+  {
+    title: "Mở đăng ký điểm rèn luyện học kỳ 1",
+    target: "Toàn trường",
+    priority: "URGENT",
+    status: "PUBLISHED",
+  },
+  {
+    title: "Lịch nghỉ Tết Nguyên Đán",
+    target: "Sinh viên",
+    priority: "NORMAL",
+    status: "DRAFT",
+  },
+  {
+    title: "Nộp minh chứng hoạt động",
+    target: "Khoa CNTT",
+    priority: "URGENT",
+    status: "PUBLISHED",
+  },
 ];
 
 export const exams: TableRow[] = [
-  { title: "Trắc nghiệm Quy chế học vụ", window: "01/07 - 05/07", duration: "30 phút", status: "ACTIVE" },
-  { title: "Kiểm tra Sinh hoạt công dân", window: "10/07 - 12/07", duration: "30 phút", status: "UPCOMING" },
-  { title: "An toàn thông tin cơ bản", window: "15/06 - 18/06", duration: "45 phút", status: "COMPLETED" },
+  {
+    title: "Trắc nghiệm Quy chế học vụ",
+    window: "01/07 - 05/07",
+    duration: "30 phút",
+    status: "ACTIVE",
+  },
+  {
+    title: "Kiểm tra Sinh hoạt công dân",
+    window: "10/07 - 12/07",
+    duration: "30 phút",
+    status: "UPCOMING",
+  },
+  {
+    title: "An toàn thông tin cơ bản",
+    window: "15/06 - 18/06",
+    duration: "45 phút",
+    status: "COMPLETED",
+  },
 ];
 
 export const activities: TableRow[] = [
-  { title: "Workshop Kỹ năng mềm", time: "15/10 08:00", location: "Hội trường A", reward: "+5", status: "UPCOMING" },
-  { title: "Hiến máu tình nguyện", time: "20/10 07:30", location: "Sân D3", reward: "+10", status: "ONGOING" },
-  { title: "Ngày hội việc làm STU", time: "22/10 13:00", location: "Nhà thi đấu", reward: "+5", status: "COMPLETED" },
+  {
+    title: "Workshop Kỹ năng mềm",
+    time: "15/10 08:00",
+    location: "Hội trường A",
+    reward: "+5",
+    status: "UPCOMING",
+  },
+  {
+    title: "Hiến máu tình nguyện",
+    time: "20/10 07:30",
+    location: "Sân D3",
+    reward: "+10",
+    status: "ONGOING",
+  },
+  {
+    title: "Ngày hội việc làm STU",
+    time: "22/10 13:00",
+    location: "Nhà thi đấu",
+    reward: "+5",
+    status: "COMPLETED",
+  },
 ];
 
 export const certificates: TableRow[] = [
-  { code: "GXN-24001", student: "Nguyễn Văn An", type: "Hoãn nghĩa vụ quân sự", createdAt: "20/06/2026", status: "PENDING" },
-  { code: "GXN-24002", student: "Trần Thị Bình", type: "Vay vốn sinh viên", createdAt: "18/06/2026", status: "PROCESSING" },
-  { code: "GXN-24003", student: "Lê Hoàng", type: "Xác nhận sinh viên", createdAt: "16/06/2026", status: "APPROVED" },
+  {
+    code: "GXN-24001",
+    student: "Nguyễn Văn An",
+    type: "Hoãn nghĩa vụ quân sự",
+    createdAt: "20/06/2026",
+    status: "PENDING",
+  },
+  {
+    code: "GXN-24002",
+    student: "Trần Thị Bình",
+    type: "Vay vốn sinh viên",
+    createdAt: "18/06/2026",
+    status: "PROCESSING",
+  },
+  {
+    code: "GXN-24003",
+    student: "Lê Hoàng",
+    type: "Xác nhận sinh viên",
+    createdAt: "16/06/2026",
+    status: "APPROVED",
+  },
 ];
 
 export const rewards: TableRow[] = [
-  { code: "KT-001", student: "Nguyễn Văn An", title: "Sinh viên 5 tốt cấp trường", date: "12/06/2026", status: "APPROVED" },
-  { code: "KT-002", student: "Phạm Minh Đức", title: "Thành tích nghiên cứu khoa học", date: "08/06/2026", status: "PENDING" },
+  {
+    code: "KT-001",
+    student: "Nguyễn Văn An",
+    title: "Sinh viên 5 tốt cấp trường",
+    date: "12/06/2026",
+    status: "APPROVED",
+  },
+  {
+    code: "KT-002",
+    student: "Phạm Minh Đức",
+    title: "Thành tích nghiên cứu khoa học",
+    date: "08/06/2026",
+    status: "PENDING",
+  },
 ];
 
 export const discipline: TableRow[] = [
-  { code: "KL-001", student: "Lê Hoàng", reason: "Vắng sinh hoạt công dân", level: "Nhắc nhở", status: "PROCESSING" },
-  { code: "KL-002", student: "Trần Quốc Việt", reason: "Vi phạm quy chế thi", level: "Cảnh cáo", status: "COMPLETED" },
+  {
+    code: "KL-001",
+    student: "Lê Hoàng",
+    reason: "Vắng sinh hoạt công dân",
+    level: "Nhắc nhở",
+    status: "PROCESSING",
+  },
+  {
+    code: "KL-002",
+    student: "Trần Quốc Việt",
+    reason: "Vi phạm quy chế thi",
+    level: "Cảnh cáo",
+    status: "COMPLETED",
+  },
 ];
 
 export const auditLogs: TableRow[] = [
-  { actor: "admin", action: "Tạo thông báo", target: "TB-2026-12", time: "08:30 23/06/2026", status: "COMPLETED" },
-  { actor: "ctsv01", action: "Duyệt đơn", target: "GXN-24003", time: "09:12 23/06/2026", status: "APPROVED" },
-  { actor: "checker02", action: "Điểm danh", target: "HD-001", time: "10:05 23/06/2026", status: "COMPLETED" },
+  {
+    actor: "admin",
+    action: "Tạo thông báo",
+    target: "TB-2026-12",
+    time: "08:30 23/06/2026",
+    status: "COMPLETED",
+  },
+  {
+    actor: "ctsv01",
+    action: "Duyệt đơn",
+    target: "GXN-24003",
+    time: "09:12 23/06/2026",
+    status: "APPROVED",
+  },
+  {
+    actor: "checker02",
+    action: "Điểm danh",
+    target: "HD-001",
+    time: "10:05 23/06/2026",
+    status: "COMPLETED",
+  },
 ];
 
 export const adminModuleMeta: Record<string, ModuleMeta> = {

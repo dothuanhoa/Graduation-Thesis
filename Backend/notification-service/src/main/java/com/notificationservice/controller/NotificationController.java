@@ -67,11 +67,9 @@ public class NotificationController {
     // ----- STUDENT APIs -----
     @GetMapping("/my")
     public ResponseEntity<List<NotificationResponse>> getMyNotifications(
-            @RequestHeader(value = "X-User-Code", defaultValue = "UNKNOWN") String userId,
-            @RequestParam(required = false, defaultValue = "") String facultyId,
-            @RequestParam(required = false, defaultValue = "") String classId) {
+            @RequestHeader(value = "X-User-Code", defaultValue = "UNKNOWN") String userId) {
             
-        return ResponseEntity.ok(notificationService.getMyNotifications(userId, facultyId, classId));
+        return ResponseEntity.ok(notificationService.getMyNotifications(userId));
     }
 
     @PostMapping("/{id}/read")

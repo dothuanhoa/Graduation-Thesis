@@ -1,6 +1,7 @@
-import { ArrowLeft, CheckCheck, ExternalLink, Paperclip, RefreshCw } from "lucide-react";
+import { CheckCheck, ExternalLink, Paperclip, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
@@ -8,18 +9,13 @@ import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentNotice } from "../../../data/studentPortalData";
 import { notificationApi, userApi, type NotificationResponse } from "../../../services/api";
+import { formatVietnamDateTime } from "../../../utils/dateTime";
+import { sanitizeRichHtml } from "../../../utils/html";
+import { getStoredReadNotificationIds, rememberReadNotification } from "../../../utils/notificationReadState";
 
-const formatDateTime = (value?: string) => {
-  if (!value) return "Chưa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 16).replace("T", " ");
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-};
+const formatDateTime = (value?: string) => formatVietnamDateTime(value, "Chưa cập nhật");
 
-const toNotice = (item: NotificationResponse): StudentNotice => ({
+const toNotice = (item: NotificationResponse, readIds = new Set<string>()): StudentNotice => ({
   id: item.id,
   title: item.title,
   content: item.content,
@@ -28,13 +24,13 @@ const toNotice = (item: NotificationResponse): StudentNotice => ({
   time: formatDateTime(item.startDate),
   endTime: formatDateTime(item.endDate),
   priority: item.priority as StatusType,
-  isRead: Boolean(item.isRead),
+  isRead: Boolean(item.isRead || readIds.has(String(item.id))),
   fromApi: true,
 });
 
 function StudentNotificationDetailPage() {
-  const { id } = useParams();
   const { username } = useAuth();
+  const { id } = useParams();
   const notificationId = useMemo(() => id || "", [id]);
   const [notice, setNotice] = useState<StudentNotice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,12 +47,10 @@ function StudentNotificationDetailPage() {
     setMessage("");
 
     try {
-      const currentProfile = username ? await userApi.getByStudentId(username) : null;
-      const data = await notificationApi.listMine({
-        facultyId: currentProfile?.clazz?.faculty?.facultyCode || currentProfile?.clazz?.faculty?.facultyName || "",
-        classId: currentProfile?.clazz?.classCode || (currentProfile?.clazz?.id ? String(currentProfile.clazz.id) : ""),
-      });
-      const found = data.map(toNotice).find((item) => item.id === notificationId);
+      const profile = await userApi.getByStudentId(username, { suppressToast: true });
+      const data = await notificationApi.listMineForProfile(profile);
+      const readIds = getStoredReadNotificationIds(username);
+      const found = data.map((item) => toNotice(item, readIds)).find((item) => item.id === notificationId);
       const selected = found ?? null;
 
       setNotice(selected);
@@ -67,8 +61,13 @@ function StudentNotificationDetailPage() {
       }
 
       if (selected.fromApi && !selected.isRead) {
-        await notificationApi.markAsRead(selected.id);
-        setNotice({ ...selected, isRead: true });
+        try {
+          await notificationApi.markAsRead(selected.id);
+          rememberReadNotification(username, selected.id);
+          setNotice({ ...selected, isRead: true });
+        } catch {
+          setNotice(selected);
+        }
       }
     } catch (err) {
       setNotice(null);
@@ -93,6 +92,7 @@ function StudentNotificationDetailPage() {
       if (notice.fromApi) {
         await notificationApi.markAsRead(notice.id);
       }
+      rememberReadNotification(username, notice.id);
       setNotice({ ...notice, isRead: true });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không đánh dấu đã đọc được.");
@@ -103,14 +103,11 @@ function StudentNotificationDetailPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Chi tiết thông báo"
-        subtitle="Đọc nội dung thông báo từ notification-service và kiểm tra thời hạn áp dụng."
+        subtitle="Đọc nội dung thông báo và kiểm tra thời hạn áp dụng."
       />
 
       <div className="flex flex-wrap gap-3">
-        <Link className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" to="/student/notifications">
-          <ArrowLeft className="h-5 w-5" />
-          Quay lại
-        </Link>
+        <BackButton to="/student/notifications">Quay lại</BackButton>
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadNotification} type="button">
           <RefreshCw className="h-5 w-5" />
           Tải lại
@@ -133,8 +130,8 @@ function StudentNotificationDetailPage() {
               {notice.source} · Bắt đầu {notice.time}
             </p>
             <div
-              className="mt-7 max-w-none rounded-lg border border-outline-variant bg-surface-container-lowest p-5 leading-7 text-on-surface"
-              dangerouslySetInnerHTML={{ __html: notice.content || "Thông báo chưa có nội dung chi tiết." }}
+              className="rich-html-content mt-7 max-w-none rounded-lg border border-outline-variant bg-surface-container-lowest p-5 text-on-surface"
+              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(notice.content || "Thông báo chưa có nội dung chi tiết.") }}
             />
           </Card>
 

@@ -1,5 +1,8 @@
 package com.userservice.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -7,10 +10,12 @@ import lombok.Data;
 @Entity
 @Table(name = "classes")
 @Data
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Clazz {
     
     @Id
     @Tsid
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Column(name = "class_code", nullable = false, unique = true, length = 50)
