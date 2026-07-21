@@ -107,6 +107,56 @@ class UserServiceImplTest {
     }
 
     @Test
+    void updateSyncsChangedEmailToAuthService() {
+        StudentGroup currentGroup = group(1, "1", "Dau khoa");
+        UserProfile existing = student(1L, "DH52201258", null);
+        existing.setEmail("old@student.edu.vn");
+        existing.setStudentGroup(currentGroup);
+        existing.setStudentStatus(UserProfile.StudentStatus.STUDYING);
+
+        UserProfile request = new UserProfile();
+        request.setStudentId("DH52201258");
+        request.setFullName("Tran Thanh Hoai Phuc");
+        request.setEmail("NEW@student.edu.vn");
+        request.setStudentStatus(UserProfile.StudentStatus.STUDYING);
+
+        when(userProfileRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfile saved = userService.update(1L, request);
+
+        assertThat(saved.getEmail()).isEqualTo("new@student.edu.vn");
+        ArgumentCaptor<AuthServiceClient.UpdateEmailRequest> requestCaptor =
+                ArgumentCaptor.forClass(AuthServiceClient.UpdateEmailRequest.class);
+        verify(authServiceClient).updateEmail(eq("ADMIN"), eq("DH52201258"), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getEmail()).isEqualTo("new@student.edu.vn");
+    }
+
+    @Test
+    void deleteRemovesAuthAccountBeforeDeletingProfile() {
+        UserProfile existing = student(1L, "DH52201258", null);
+        when(userProfileRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        userService.delete(1L);
+
+        verify(authServiceClient).deleteAccount("ADMIN", "DH52201258");
+        verify(userProfileRepository).delete(existing);
+    }
+
+    @Test
+    void deleteAllRemovesAuthAccountsBeforeDeletingProfiles() {
+        UserProfile first = student(1L, "DH52201258", null);
+        UserProfile second = student(2L, "DH52201259", null);
+        when(userProfileRepository.findAllById(any())).thenReturn(List.of(first, second));
+
+        var response = userService.deleteAll(List.of(1L, 2L));
+
+        assertThat(response.getUpdatedCount()).isEqualTo(2);
+        verify(authServiceClient).deleteAccounts("ADMIN", List.of("DH52201258", "DH52201259"));
+        verify(userProfileRepository).deleteAll(List.of(first, second));
+    }
+
+    @Test
     void updateStudentGroupsCanUseClassScope() {
         StudentGroup targetGroup = group(2, "2", "Giua khoa");
         Clazz sourceClass = clazz(11L, "D22_TH05", Clazz.Status.ACTIVE);

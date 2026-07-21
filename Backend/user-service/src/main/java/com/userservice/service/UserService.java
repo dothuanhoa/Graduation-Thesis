@@ -20,6 +20,7 @@ public interface UserService {
     UserProfile save(UserProfile userProfile, boolean sendMail);
     UserProfile update(Long id, UserProfile userProfile);
     void delete(Long id);
+    BulkStudentUpdateResponse deleteAll(List<Long> studentIds);
     String bulkImport(List<StudentImportRow> rows);
     String bulkImport(List<StudentImportRow> rows, boolean sendMail);
     String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer);

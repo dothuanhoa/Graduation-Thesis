@@ -108,6 +108,29 @@ public class AuthService {
         System.out.println("Created single account: " + cleanUsername + ", send mail: " + sendMail);
     }
 
+    @Transactional
+    public void updateStudentEmail(String username, String email) {
+        String cleanUsername = username == null ? "" : username.trim();
+        if (cleanUsername.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên đăng nhập không được để trống");
+        }
+
+        AuthUser user = authUserRepository.findByUsername(cleanUsername)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tài khoản không tồn tại"));
+        if (user.getRole() == AuthUser.Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể cập nhật email sinh viên cho tài khoản quản trị");
+        }
+
+        String accountEmail = resolveEmailForInternalRegister(email, cleanUsername);
+        if (sameEmail(user.getEmail(), accountEmail)) {
+            return;
+        }
+
+        user.setEmail(accountEmail);
+        authUserRepository.save(user);
+        System.out.println("Updated student auth email for: " + cleanUsername + " -> " + accountEmail);
+    }
+
     public TokenResponse login(LoginRequest request) {
         if (redisService.isLockedOut(request.getUsername())) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau 15 phút.");
@@ -309,6 +332,44 @@ public class AuthService {
         authUserRepository.save(user);
         redisService.revokeAccess(username);
         accountEmailService.sendAccountLockedEmail(user.getEmail(), user.getUsername());
+    }
+
+    @Transactional
+    public int deleteStudentAccounts(List<String> usernames) {
+        List<String> cleanUsernames = usernames == null ? List.of() : usernames.stream()
+                .filter(username -> username != null && !username.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        if (cleanUsernames.isEmpty()) {
+            return 0;
+        }
+
+        List<AuthUser> users = authUserRepository.findByUsernameIn(cleanUsernames);
+        List<AuthUser> studentUsers = new ArrayList<>();
+        List<String> adminUsernames = new ArrayList<>();
+        for (AuthUser user : users) {
+            if (user.getRole() == AuthUser.Role.ADMIN) {
+                adminUsernames.add(user.getUsername());
+            } else {
+                studentUsers.add(user);
+            }
+        }
+
+        if (!adminUsernames.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể xóa tài khoản quản trị: " + adminUsernames);
+        }
+
+        if (studentUsers.isEmpty()) {
+            return 0;
+        }
+
+        studentUsers.forEach(user -> redisService.revokeAccess(user.getUsername()));
+        passwordResetTokenRepository.deleteByUserIn(studentUsers);
+        authUserRepository.deleteAll(studentUsers);
+        System.out.println("Deleted student auth accounts: " + studentUsers.size() + "/" + cleanUsernames.size());
+        return studentUsers.size();
     }
 
     public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {

@@ -105,6 +105,69 @@ class AuthServiceTest {
     }
 
     @Test
+    void updateStudentEmailDoesNotResetPasswordOrSendMail() {
+        AuthUser user = activeStudent("DH52201258", "old@student.edu.vn");
+        when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.of(user));
+        when(authUserRepository.findByEmail("new@student.edu.vn")).thenReturn(Optional.empty());
+
+        authService.updateStudentEmail("DH52201258", "NEW@student.edu.vn");
+
+        assertThat(user.getEmail()).isEqualTo("new@student.edu.vn");
+        assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
+        assertThat(user.getStatus()).isEqualTo(AuthUser.Status.ACTIVE);
+        verify(authUserRepository).save(user);
+        verify(passwordEncoder, never()).encode(any());
+        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+        verify(accountEmailService, never()).sendResetPasswordEmail(any(), any(), any());
+    }
+
+    @Test
+    void updateStudentEmailRejectsEmailOwnedByAnotherAccount() {
+        AuthUser user = activeStudent("DH52201258", "old@student.edu.vn");
+        AuthUser owner = activeStudent("DH52200001", "new@student.edu.vn");
+        when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.of(user));
+        when(authUserRepository.findByEmail("new@student.edu.vn")).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> authService.updateStudentEmail("DH52201258", "new@student.edu.vn"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        assertThat(user.getEmail()).isEqualTo("old@student.edu.vn");
+        verify(authUserRepository, never()).save(any());
+    }
+
+    @Test
+    void deleteStudentAccountsRemovesTokensAndRevokesSessionsBeforeDeletingUsers() {
+        AuthUser first = activeStudent("DH52201258", "first@student.edu.vn");
+        AuthUser second = activeStudent("DH52201259", "second@student.edu.vn");
+        when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of(first, second));
+
+        int deletedCount = authService.deleteStudentAccounts(List.of("DH52201258", "DH52201259"));
+
+        assertThat(deletedCount).isEqualTo(2);
+        verify(redisService).revokeAccess("DH52201258");
+        verify(redisService).revokeAccess("DH52201259");
+        verify(passwordResetTokenRepository).deleteByUserIn(List.of(first, second));
+        verify(authUserRepository).deleteAll(List.of(first, second));
+    }
+
+    @Test
+    void deleteStudentAccountsRejectsAdminAccount() {
+        AuthUser admin = activeStudent("admin", "admin@stu.edu.vn");
+        admin.setRole(AuthUser.Role.ADMIN);
+        when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of(admin));
+
+        assertThatThrownBy(() -> authService.deleteStudentAccounts(List.of("admin")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(passwordResetTokenRepository, never()).deleteByUserIn(anyCollection());
+        verify(authUserRepository, never()).deleteAll(anyCollection());
+    }
+
+    @Test
     void bulkRegisterDeduplicatesAccountsAndUsesDefaultStudentEmail() {
         when(authUserRepository.findByUsernameIn(anyCollection())).thenReturn(List.of());
         when(authUserRepository.findByEmailIn(anyCollection())).thenReturn(List.of());

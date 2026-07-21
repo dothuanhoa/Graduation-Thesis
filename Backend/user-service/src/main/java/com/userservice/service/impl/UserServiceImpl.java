@@ -208,6 +208,7 @@ public class UserServiceImpl implements UserService {
                 throw new BadRequestException("MSSV không được thay đổi sau khi tạo hồ sơ.");
             }
 
+            String previousEmail = normalizeEmail(user.getEmail());
             UserProfile.StudentStatus previousStatus = user.getStudentStatus();
             UserProfile.StudentStatus targetStatus = userDetails.getStudentStatus();
             Clazz targetClazz = resolveClazz(userDetails);
@@ -215,7 +216,8 @@ public class UserServiceImpl implements UserService {
             ensureClassHasRoom(user, targetClazz, 1);
             user.setFullName(userDetails.getFullName());
             user.setStudentId(user.getStudentId());
-            user.setEmail(resolveStudentEmail(user.getStudentId(), userDetails.getEmail()));
+            String targetEmail = resolveStudentEmail(user.getStudentId(), userDetails.getEmail());
+            user.setEmail(targetEmail);
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
             user.setContactPhone(userDetails.getContactPhone());
@@ -223,6 +225,7 @@ public class UserServiceImpl implements UserService {
             user.setStudentGroup(targetGroup);
             user.setStudentStatus(targetStatus);
             UserProfile savedUser = userProfileRepository.save(user);
+            syncAuthEmailForStudent(savedUser.getStudentId(), previousEmail, savedUser.getEmail());
             syncAuthAccessForStudentStatus(savedUser.getStudentId(), previousStatus, targetStatus);
             return savedUser;
         }).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
@@ -286,11 +289,24 @@ public class UserServiceImpl implements UserService {
         );
     }
 
+    @Transactional
     public void delete(Long id) {
-        if (!userProfileRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id);
-        }
-        userProfileRepository.deleteById(id);
+        UserProfile student = userProfileRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
+
+        syncDeleteAuthAccountsForStudents(List.of(student));
+        userProfileRepository.delete(student);
+    }
+
+    @Transactional
+    public BulkStudentUpdateResponse deleteAll(List<Long> studentIds) {
+        List<UserProfile> students = loadStudentsByIds(studentIds);
+        syncDeleteAuthAccountsForStudents(students);
+        userProfileRepository.deleteAll(students);
+        return new BulkStudentUpdateResponse(
+                students.size(),
+                "Đã xóa " + students.size() + " sinh viên và tài khoản đăng nhập tương ứng."
+        );
     }
 
     @Transactional
@@ -376,6 +392,43 @@ public class UserServiceImpl implements UserService {
                 profile.getStudentId(),
                 resolveStudentEmail(profile.getStudentId(), profile.getEmail())
         ));
+    }
+
+    private void syncAuthEmailForStudent(String studentId, String previousEmail, String currentEmail) {
+        if (isBlank(studentId)) {
+            return;
+        }
+
+        String normalizedCurrentEmail = normalizeEmail(currentEmail);
+        if (Objects.equals(normalizeEmail(previousEmail), normalizedCurrentEmail)) {
+            return;
+        }
+
+        authServiceClient.updateEmail(
+                INTERNAL_ADMIN_ROLE,
+                clean(studentId),
+                new AuthServiceClient.UpdateEmailRequest(normalizedCurrentEmail)
+        );
+    }
+
+    private void syncDeleteAuthAccountsForStudents(List<UserProfile> students) {
+        List<String> studentCodes = students.stream()
+                .map(UserProfile::getStudentId)
+                .map(this::clean)
+                .filter(studentId -> !studentId.isBlank())
+                .distinct()
+                .toList();
+
+        if (studentCodes.isEmpty()) {
+            return;
+        }
+
+        if (studentCodes.size() == 1) {
+            authServiceClient.deleteAccount(INTERNAL_ADMIN_ROLE, studentCodes.get(0));
+            return;
+        }
+
+        authServiceClient.deleteAccounts(INTERNAL_ADMIN_ROLE, studentCodes);
     }
 
     private void syncAuthAccessForStudentStatus(

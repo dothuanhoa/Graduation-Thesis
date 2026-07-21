@@ -3,6 +3,7 @@ package com.userservice.controller;
 import com.userservice.domain.StudentGroup;
 import com.userservice.domain.UserProfile;
 import com.userservice.dto.BulkStudentClassRequest;
+import com.userservice.dto.BulkStudentDeleteRequest;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentStatusRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
@@ -144,6 +145,18 @@ public class UserController {
             return forbidden();
         }
         BulkStudentUpdateResponse response = userService.updateStudentGroups(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/bulk/delete")
+    public ResponseEntity<Object> deleteUsers(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @Valid @RequestBody BulkStudentDeleteRequest request
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        BulkStudentUpdateResponse response = userService.deleteAll(request.getStudentIds());
         return ResponseEntity.ok(response);
     }
 

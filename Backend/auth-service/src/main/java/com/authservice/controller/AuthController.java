@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -53,6 +54,37 @@ public class AuthController {
             @RequestBody java.util.List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
         authService.bulkRegister(accounts, sendMail);
         return ResponseEntity.ok("Import thành công!");
+    }
+
+    @PostMapping("/internal/email/{username}")
+    public ResponseEntity<String> updateStudentEmail(
+            @RequestHeader("X-User-Role") String role,
+            @PathVariable String username,
+            @RequestBody RegisterRequest request
+    ) {
+        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        authService.updateStudentEmail(username, request.getEmail());
+        return ResponseEntity.ok("Đã cập nhật email tài khoản thành công!");
+    }
+
+    @DeleteMapping("/internal/account/{username}")
+    public ResponseEntity<String> deleteStudentAccount(
+            @RequestHeader("X-User-Role") String role,
+            @PathVariable String username
+    ) {
+        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        int deletedCount = authService.deleteStudentAccounts(List.of(username));
+        return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
+    }
+
+    @PostMapping("/internal/accounts/delete")
+    public ResponseEntity<String> deleteStudentAccounts(
+            @RequestHeader("X-User-Role") String role,
+            @RequestBody List<String> usernames
+    ) {
+        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        int deletedCount = authService.deleteStudentAccounts(usernames);
+        return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
     }
 
     @PostMapping("/login")

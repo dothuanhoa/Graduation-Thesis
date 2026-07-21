@@ -40,7 +40,7 @@ type StudentFilterState = {
   status: string;
 };
 
-type BulkMode = "class" | "status" | "group" | null;
+type BulkMode = "class" | "status" | "group" | "delete" | null;
 
 type SuggestionInputProps = {
   id: string;
@@ -229,13 +229,13 @@ function StudentListPage() {
   }, [loadStudents]);
 
   const handleDelete = async (row: StudentRow) => {
-    if (!window.confirm(`Xóa hồ sơ sinh viên ${row.name}?`)) return;
+    if (!window.confirm(`Xóa hồ sơ sinh viên ${row.name}? Tài khoản đăng nhập tương ứng cũng sẽ bị xóa.`)) return;
 
     try {
       await userApi.remove(row.id);
       setStudents((current) => current.filter((student) => student.id !== row.id));
       setSelectedStudentIds((current) => current.filter((id) => id !== row.id));
-      setMessage("Đã xóa sinh viên.");
+      setMessage("Đã xóa sinh viên và tài khoản đăng nhập tương ứng.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không xóa được sinh viên.");
     }
@@ -439,6 +439,30 @@ function StudentListPage() {
     }
   };
 
+  const deleteSelectedStudents = async () => {
+    if (selectedStudentIds.length === 0) {
+      setError("Vui lòng chọn ít nhất một sinh viên cần xóa.");
+      return;
+    }
+
+    const selectedCount = selectedStudentIds.length;
+    if (!window.confirm(`Xóa ${selectedCount} sinh viên đã chọn? Tài khoản đăng nhập tương ứng cũng sẽ bị xóa.`)) return;
+
+    setSavingBulk(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await userApi.removeMany(selectedStudentIds);
+      setMessage(response.message || `Đã xóa ${selectedCount} sinh viên và tài khoản đăng nhập tương ứng.`);
+      cancelBulkMode();
+      await loadStudents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không xóa được sinh viên đã chọn.");
+    } finally {
+      setSavingBulk(false);
+    }
+  };
+
   const updateSelectedGroup = async () => {
     if (!bulkGroupId) {
       setError("Vui lòng chọn nhóm sinh viên cần chuyển đến.");
@@ -544,6 +568,16 @@ function StudentListPage() {
           <CheckCircle2 className="h-5 w-5" />
           Cập nhật trạng thái
         </button>
+        <button
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold ${
+            bulkMode === "delete" ? "bg-error text-on-primary" : "border border-outline-variant text-error hover:bg-error-container"
+          }`}
+          onClick={() => startBulkMode("delete")}
+          type="button"
+        >
+          <Trash2 className="h-5 w-5" />
+          Xóa nhiều
+        </button>
       </div>
 
       <Card>
@@ -629,7 +663,13 @@ function StudentListPage() {
           <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-3">
               <div className="rounded-lg bg-primary-fixed p-3 text-primary">
-                {bulkMode === "status" ? <CheckCircle2 className="h-5 w-5" /> : <Users className="h-5 w-5" />}
+                {bulkMode === "delete" ? (
+                  <Trash2 className="h-5 w-5 text-error" />
+                ) : bulkMode === "status" ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <Users className="h-5 w-5" />
+                )}
               </div>
               <div>
                 <p className="text-sm font-semibold text-primary">Thao tác hàng loạt</p>
@@ -638,13 +678,19 @@ function StudentListPage() {
                     ? "Chuyển nhiều sinh viên vào lớp"
                     : bulkMode === "group"
                       ? "Chuyển nhóm sinh viên"
-                      : "Cập nhật trạng thái sinh viên"}
+                      : bulkMode === "delete"
+                        ? "Xóa nhiều sinh viên"
+                        : "Cập nhật trạng thái sinh viên"}
                 </h2>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
                   <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-sm font-bold text-on-primary">
                     Đã chọn {selectedStudentIds.length} sinh viên
                   </span>
-                  <span>Tick sinh viên cần xử lý rồi chọn thông tin cập nhật.</span>
+                  <span>
+                    {bulkMode === "delete"
+                      ? "Tick sinh viên cần xóa. Hồ sơ và tài khoản đăng nhập tương ứng sẽ bị xóa."
+                      : "Tick sinh viên cần xử lý rồi chọn thông tin cập nhật."}
+                  </span>
                 </div>
               </div>
             </div>
@@ -832,6 +878,24 @@ function StudentListPage() {
                   Cập nhật
                 </button>
               </div>
+            </div>
+          )}
+
+          {bulkMode === "delete" && (
+            <div className="rounded-lg border border-error-container bg-error-container/40 p-4">
+              <p className="font-semibold text-error">Xóa sinh viên đã chọn</p>
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                Thao tác này sẽ xóa hồ sơ sinh viên trong user-service và xóa tài khoản đăng nhập tương ứng trong auth-service.
+              </p>
+              <button
+                className="mt-4 inline-flex h-[46px] items-center justify-center gap-2 rounded-lg bg-error px-4 font-semibold text-on-primary disabled:opacity-60"
+                disabled={savingBulk || selectedStudentIds.length === 0}
+                onClick={deleteSelectedStudents}
+                type="button"
+              >
+                <Trash2 className="h-5 w-5" />
+                Xóa {selectedStudentIds.length} sinh viên
+              </button>
             </div>
           )}
         </Card>

@@ -835,6 +835,12 @@ export const userApi = {
       method: "DELETE",
     });
   },
+  removeMany(studentIds: Array<string | number>) {
+    return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/delete", {
+      method: "POST",
+      body: JSON.stringify({ studentIds }),
+    });
+  },
   assignStudentsToClass(studentIds: Array<string | number>, classId: string | number) {
     return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/class", {
       method: "PATCH",
