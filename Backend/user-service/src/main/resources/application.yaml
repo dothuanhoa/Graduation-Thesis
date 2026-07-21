@@ -29,6 +29,8 @@ server:
   port: 8081
 
 app:
+  internal:
+    secret: ${INTERNAL_SERVICE_SECRET:dev-local-internal-secret}
   student:
     email-domain: ${STUDENT_EMAIL_DOMAIN:student.edu.vn}
 

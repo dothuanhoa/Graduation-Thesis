@@ -12,8 +12,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -30,6 +30,10 @@ public class FileController {
             Map<String, String> response = new HashMap<>();
             response.put("fileUrl", fileUrl);
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();
         }
@@ -50,9 +54,9 @@ public class FileController {
     private ResponseEntity<Resource> buildFileResponse(String fileName) {
         try {
             Resource resource = fileService.loadFileAsResource(fileName);
-            String contentType = Files.probeContentType(resource.getFile().toPath());
-            if (contentType == null) {
-                contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+            MediaType mediaType = resolveSafeMediaType(resource.getFilename());
+            if (mediaType == null) {
+                return ResponseEntity.notFound().build();
             }
 
             String disposition = ContentDisposition.inline()
@@ -61,11 +65,26 @@ public class FileController {
                     .toString();
 
             return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
+                    .contentType(mediaType)
                     .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                    .header("X-Content-Type-Options", "nosniff")
                     .body(resource);
         } catch (IOException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    private MediaType resolveSafeMediaType(String fileName) {
+        String normalizedFileName = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (normalizedFileName.endsWith(".pdf")) {
+            return MediaType.APPLICATION_PDF;
+        }
+        if (normalizedFileName.endsWith(".jpg") || normalizedFileName.endsWith(".jpeg")) {
+            return MediaType.IMAGE_JPEG;
+        }
+        if (normalizedFileName.endsWith(".png")) {
+            return MediaType.IMAGE_PNG;
+        }
+        return null;
     }
 }

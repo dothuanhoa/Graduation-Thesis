@@ -69,7 +69,7 @@ class UserServiceImplTest {
         assertThat(saved.getEmail()).isEqualTo("dh52201258@student.edu.vn");
         assertThat(saved.getStudentGroup()).isSameAs(defaultGroup);
         ArgumentCaptor<AuthServiceClient.RegisterRequest> requestCaptor = ArgumentCaptor.forClass(AuthServiceClient.RegisterRequest.class);
-        verify(authServiceClient).registerAccount(eq(true), requestCaptor.capture());
+        verify(authServiceClient).registerAccount(eq("ADMIN"), eq(true), requestCaptor.capture());
         assertThat(requestCaptor.getValue().getUsername()).isEqualTo("DH52201258");
         assertThat(requestCaptor.getValue().getEmail()).isEqualTo("dh52201258@student.edu.vn");
     }
@@ -88,7 +88,7 @@ class UserServiceImplTest {
         userService.save(profile, false);
 
         ArgumentCaptor<AuthServiceClient.RegisterRequest> requestCaptor = ArgumentCaptor.forClass(AuthServiceClient.RegisterRequest.class);
-        verify(authServiceClient).registerAccount(eq(false), requestCaptor.capture());
+        verify(authServiceClient).registerAccount(eq("ADMIN"), eq(false), requestCaptor.capture());
         assertThat(requestCaptor.getValue().getUsername()).isEqualTo("DH52201258");
     }
 

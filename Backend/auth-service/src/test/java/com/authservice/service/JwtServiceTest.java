@@ -7,7 +7,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtServiceTest {
-    private final JwtService jwtService = new JwtService();
+    private static final String TEST_JWT_SECRET = "bXktdGVzdC1qd3Qtc2VjcmV0LW15LXRlc3Qtand0LXNlY3JldA==";
+
+    private final JwtService jwtService = new JwtService(TEST_JWT_SECRET, 15);
 
     @Test
     void generatedAccessTokenCanBeParsedFromBearerHeader() {

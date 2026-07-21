@@ -1,6 +1,12 @@
 server:
   port: 8000
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  gateway:
+    secret: ${GATEWAY_INTERNAL_SECRET:dev-local-gateway-secret}
+
 spring:
   application:
     name: api-gateway
@@ -35,6 +41,13 @@ spring:
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/internal/**
+          filters:
+            - AuthenticationFilter
+
+        - id: auth-admin-route
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/admin/**
           filters:
             - AuthenticationFilter
 

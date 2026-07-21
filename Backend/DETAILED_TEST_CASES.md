@@ -113,9 +113,9 @@ Tài liệu này thiết kế test case ở mức đủ chi tiết để dùng c
 | AUTH-026 | Bulk register duplicate | File có MSSV trùng tài khoản cũ | Bulk register | Không tạo trùng; trả danh sách skipped | P1 |
 | AUTH-027 | Mail nội dung | Có cấu hình SMTP/Mailgun hợp lệ | Tạo account/reset/lock/unlock/change password | Email tiếng Việt có dấu, không lỗi font, không lộ hash | P0 |
 | AUTH-028 | Mail lỗi provider | Provider mail trả lỗi tạm thời | Trigger gửi mail | Có retry/log lỗi; API chính không lưu dữ liệu nửa vời | P1 |
-| AUTH-029 | Revoke | ADMIN gọi internal revoke username | POST `/api/auth/internal/revoke/{username}` | Tài khoản chuyển inactive/locked, gửi mail khóa tài khoản | P0 |
-| AUTH-030 | Unlock | ADMIN gọi internal unlock username | POST `/api/auth/internal/unlock/{username}` | Tài khoản active lại, gửi mail mở khóa | P0 |
-| AUTH-031 | Reset by admin | ADMIN gọi reset password nội bộ | POST `/api/auth/internal/reset-password/{username}` | Sinh mật khẩu mới, gửi mail, mật khẩu cũ không dùng được | P0 |
+| AUTH-029 | Revoke | ADMIN gọi qua gateway để khóa username | POST `/api/auth/admin/revoke/{username}` | Tài khoản chuyển inactive/locked, gửi mail khóa tài khoản | P0 |
+| AUTH-030 | Unlock | ADMIN gọi qua gateway để mở khóa username | POST `/api/auth/admin/unlock/{username}` | Tài khoản active lại, gửi mail mở khóa | P0 |
+| AUTH-031 | Reset by admin | ADMIN gọi qua gateway để reset password | POST `/api/auth/admin/reset-password/{username}` | Sinh mật khẩu mới, gửi mail, mật khẩu cũ không dùng được | P0 |
 | AUTH-032 | Bảo mật DB | Sau tạo/đổi mật khẩu | Kiểm tra DB | Password được hash, không lưu plaintext | P0 |
 | AUTH-033 | Bảo mật log | Gọi login/reset/bulk register | Kiểm tra log | Không log password, token reset, refresh token | P1 |
 ## 5. User Service

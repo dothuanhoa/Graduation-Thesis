@@ -769,17 +769,17 @@ export const authApi = {
     });
   },
   revokeUser(username: string) {
-    return apiRequest<string>(`/api/auth/internal/revoke/${encodeURIComponent(username)}`, {
+    return apiRequest<string>(`/api/auth/admin/revoke/${encodeURIComponent(username)}`, {
       method: "POST",
     });
   },
   unlockUser(username: string) {
-    return apiRequest<string>(`/api/auth/internal/unlock/${encodeURIComponent(username)}`, {
+    return apiRequest<string>(`/api/auth/admin/unlock/${encodeURIComponent(username)}`, {
       method: "POST",
     });
   },
   resetPassword(username: string) {
-    return apiRequest<string>(`/api/auth/internal/reset-password/${encodeURIComponent(username)}`, {
+    return apiRequest<string>(`/api/auth/admin/reset-password/${encodeURIComponent(username)}`, {
       method: "POST",
     });
   },

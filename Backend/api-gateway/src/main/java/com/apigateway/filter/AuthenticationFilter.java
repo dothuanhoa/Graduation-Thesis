@@ -2,6 +2,7 @@ package com.apigateway.filter;
 
 import com.apigateway.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,9 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
     @Autowired
     private org.springframework.data.redis.core.ReactiveStringRedisTemplate redisTemplate;
+
+    @Value("${app.gateway.secret:dev-local-gateway-secret}")
+    private String gatewaySecret;
 
     public AuthenticationFilter() {
         super(Config.class);
@@ -66,8 +70,15 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
                         // An toàn -> Trích xuất ID và Role đưa vào Header
                         var mutatedRequest = exchange.getRequest().mutate()
-                                .header("X-User-Code", userId)
-                                .header("X-User-Role", role != null ? role : "STUDENT")
+                                .headers(headers -> {
+                                    headers.remove("X-User-Code");
+                                    headers.remove("X-User-Role");
+                                    headers.remove("X-Internal-Secret");
+                                    headers.remove("X-Gateway-Secret");
+                                    headers.set("X-User-Code", userId);
+                                    headers.set("X-User-Role", role != null ? role : "STUDENT");
+                                    headers.set("X-Gateway-Secret", gatewaySecret);
+                                })
                                 .build();
 
                         return chain.filter(exchange.mutate().request(mutatedRequest).build());

@@ -10,20 +10,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
+import feign.RequestInterceptor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 
 import java.util.List;
 
-@FeignClient(name = "auth-service", url = "${auth.service.url:}")
+@FeignClient(
+        name = "auth-service",
+        url = "${auth.service.url:}",
+        configuration = AuthServiceClient.InternalAuthHeaderConfig.class
+)
 public interface AuthServiceClient {
 
     @PostMapping("/api/auth/internal/register")
     String registerAccount(
+            @RequestHeader("X-User-Role") String role,
             @RequestParam("sendMail") boolean sendMail,
             @RequestBody RegisterRequest request
     );
 
     @PostMapping("/api/auth/internal/bulk-register")
     String bulkRegisterAccount(
+            @RequestHeader("X-User-Role") String role,
             @RequestParam("sendMail") boolean sendMail,
             @RequestBody java.util.List<com.userservice.dto.BulkRegisterMessage.UserAccountDTO> accounts
     );
@@ -60,5 +69,14 @@ public interface AuthServiceClient {
     @NoArgsConstructor
     class UpdateEmailRequest {
         private String email;
+    }
+
+    class InternalAuthHeaderConfig {
+        @Bean
+        RequestInterceptor internalAuthHeaderInterceptor(
+                @Value("${app.internal.secret:dev-local-internal-secret}") String internalSecret
+        ) {
+            return template -> template.header("X-Internal-Secret", internalSecret);
+        }
     }
 }

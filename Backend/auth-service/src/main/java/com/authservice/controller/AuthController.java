@@ -18,6 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +30,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
     private static final String REFRESH_TOKEN_COOKIE = "refreshToken";
-    private static final Duration REFRESH_TOKEN_MAX_AGE = Duration.ofDays(7);
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_SYSTEM = "SYSTEM";
 
     private final AuthService authService;
 
@@ -38,20 +41,39 @@ public class AuthController {
     @Value("${app.auth.refresh-cookie.same-site:Lax}")
     private String refreshCookieSameSite;
 
+    @Value("${app.auth.refresh-token-ttl-days:7}")
+    private long refreshTokenTtlDays;
+
+    @Value("${app.internal.secret:dev-local-internal-secret}")
+    private String internalServiceSecret;
+
+    @Value("${app.gateway.secret:dev-local-gateway-secret}")
+    private String gatewaySecret;
+
     // API này sau này sẽ bị giới hạn chỉ cho nội bộ gọi (từ user-service)
     @PostMapping("/internal/register")
     public ResponseEntity<String> register(
+            @RequestHeader(value = "X-User-Role", defaultValue = "") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
             @RequestBody RegisterRequest request
     ) {
+        if (!isInternalRequest(internalSecret) || !isAdminOrSystem(role)) {
+            return forbidden();
+        }
         authService.internalRegister(request.getUsername(), request.getEmail(), sendMail);
         return ResponseEntity.ok("Khởi tạo tài khoản thành công!");
     }
 
     @PostMapping("/internal/bulk-register")
     public ResponseEntity<String> bulkRegister(
+            @RequestHeader(value = "X-User-Role", defaultValue = "") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
             @RequestBody java.util.List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
+        if (!isInternalRequest(internalSecret) || !isAdminOrSystem(role)) {
+            return forbidden();
+        }
         authService.bulkRegister(accounts, sendMail);
         return ResponseEntity.ok("Import thành công!");
     }
@@ -59,10 +81,11 @@ public class AuthController {
     @PostMapping("/internal/email/{username}")
     public ResponseEntity<String> updateStudentEmail(
             @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @PathVariable String username,
             @RequestBody RegisterRequest request
     ) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         authService.updateStudentEmail(username, request.getEmail());
         return ResponseEntity.ok("Đã cập nhật email tài khoản thành công!");
     }
@@ -70,9 +93,10 @@ public class AuthController {
     @DeleteMapping("/internal/account/{username}")
     public ResponseEntity<String> deleteStudentAccount(
             @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @PathVariable String username
     ) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         int deletedCount = authService.deleteStudentAccounts(List.of(username));
         return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
     }
@@ -80,9 +104,10 @@ public class AuthController {
     @PostMapping("/internal/accounts/delete")
     public ResponseEntity<String> deleteStudentAccounts(
             @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @RequestBody List<String> usernames
     ) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         int deletedCount = authService.deleteStudentAccounts(usernames);
         return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
     }
@@ -149,24 +174,70 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới."));
     }
 
-    // API dành cho Admin
+    // API dành cho Admin qua Gateway
+    @PostMapping("/admin/revoke/{username}")
+    public ResponseEntity<String> adminRevokeAccess(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Gateway-Secret", defaultValue = "") String gatewaySecretHeader,
+            @PathVariable String username
+    ) {
+        if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        authService.revokeUser(username);
+        return ResponseEntity.ok("Đã khóa tài khoản thành công");
+    }
+
+    @PostMapping("/admin/unlock/{username}")
+    public ResponseEntity<String> adminUnlockAccess(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Gateway-Secret", defaultValue = "") String gatewaySecretHeader,
+            @PathVariable String username
+    ) {
+        if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        authService.unlockUser(username);
+        return ResponseEntity.ok("Đã mở khóa tài khoản thành công");
+    }
+
+    @PostMapping("/admin/reset-password/{username}")
+    public ResponseEntity<String> adminResetPassword(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Gateway-Secret", defaultValue = "") String gatewaySecretHeader,
+            @PathVariable String username
+    ) {
+        if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        authService.resetPassword(username);
+        return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
+    }
+
+    // API nội bộ dành cho service-to-service
     @PostMapping("/internal/revoke/{username}")
-    public ResponseEntity<String> revokeAccess(@RequestHeader("X-User-Role") String role, @PathVariable String username) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+    public ResponseEntity<String> revokeAccess(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
+            @PathVariable String username
+    ) {
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         authService.revokeUser(username);
         return ResponseEntity.ok("Đã khóa tài khoản thành công");
     }
 
     @PostMapping("/internal/unlock/{username}")
-    public ResponseEntity<String> unlockAccess(@RequestHeader("X-User-Role") String role, @PathVariable String username) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+    public ResponseEntity<String> unlockAccess(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
+            @PathVariable String username
+    ) {
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         authService.unlockUser(username);
         return ResponseEntity.ok("Đã mở khóa tài khoản thành công");
     }
 
     @PostMapping("/internal/reset-password/{username}")
-    public ResponseEntity<String> resetPassword(@RequestHeader("X-User-Role") String role, @PathVariable String username) {
-        if (!"ADMIN".equals(role)) return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+    public ResponseEntity<String> resetPassword(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
+            @PathVariable String username
+    ) {
+        if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         authService.resetPassword(username);
         return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
     }
@@ -183,7 +254,7 @@ public class AuthController {
                 .secure(refreshCookieSecure)
                 .sameSite(refreshCookieSameSite)
                 .path("/api/auth")
-                .maxAge(REFRESH_TOKEN_MAX_AGE)
+                .maxAge(Duration.ofDays(Math.max(1, refreshTokenTtlDays)))
                 .build();
     }
 
@@ -195,5 +266,48 @@ public class AuthController {
                 .path("/api/auth")
                 .maxAge(Duration.ZERO)
                 .build();
+    }
+
+    private boolean isAdminOrSystem(String role) {
+        String normalizedRole = normalizeRole(role);
+        return ROLE_ADMIN.equals(normalizedRole) || ROLE_SYSTEM.equals(normalizedRole);
+    }
+
+    private boolean isAdmin(String role) {
+        return ROLE_ADMIN.equals(normalizeRole(role));
+    }
+
+    private boolean isInternalRequest(String providedSecret) {
+        return secretMatches(internalServiceSecret, providedSecret);
+    }
+
+    private boolean isGatewayRequest(String providedSecret) {
+        return secretMatches(gatewaySecret, providedSecret);
+    }
+
+    private boolean secretMatches(String expectedSecret, String providedSecret) {
+        if (expectedSecret == null || expectedSecret.isBlank()
+                || providedSecret == null || providedSecret.isBlank()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expectedSecret.getBytes(StandardCharsets.UTF_8),
+                providedSecret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "";
+        }
+        String normalizedRole = role.trim().toUpperCase();
+        if (normalizedRole.startsWith("ROLE_")) {
+            normalizedRole = normalizedRole.substring("ROLE_".length());
+        }
+        return normalizedRole;
+    }
+
+    private ResponseEntity<String> forbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
     }
 }

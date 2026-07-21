@@ -18,6 +18,7 @@ import com.userservice.repository.StudentGroupRepository;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.OrganizationService;
 import com.userservice.service.UserService;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,8 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
     private static final int PROFILE_BATCH_SIZE = 250;
     private static final int AUTH_BATCH_SIZE = 100;
+    private static final int AUTH_SYNC_MAX_ATTEMPTS = 3;
+    private static final long AUTH_SYNC_RETRY_DELAY_MS = 200L;
     private static final int MAX_STUDENTS_PER_CLASS = 120;
     private static final String DEFAULT_STUDENT_GROUP_CODE = "1";
     private static final String INTERNAL_ADMIN_ROLE = "ADMIN";
@@ -90,18 +93,22 @@ public class UserServiceImpl implements UserService {
         return savedProfile;
     }
 
+    @Transactional
     public String bulkImport(List<StudentImportRow> rows) {
         return bulkImport(rows, true);
     }
 
+    @Transactional
     public String bulkImport(List<StudentImportRow> rows, boolean sendMail) {
         return bulkImport(rows, null, sendMail);
     }
 
+    @Transactional
     public String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer) {
         return bulkImport(rows, progressConsumer, true);
     }
 
+    @Transactional
     public String bulkImport(List<StudentImportRow> rows, Consumer<StudentImportProgress> progressConsumer, boolean sendMail) {
         OrganizationImportSummary organizationSummary = new OrganizationImportSummary();
         List<UserProfile> newProfiles = new ArrayList<>();
@@ -182,7 +189,10 @@ public class UserServiceImpl implements UserService {
 
         for (int start = 0; start < pendingAccounts.size(); start += AUTH_BATCH_SIZE) {
             int end = Math.min(start + AUTH_BATCH_SIZE, pendingAccounts.size());
-            authServiceClient.bulkRegisterAccount(sendMail, pendingAccounts.subList(start, end));
+            List<BulkRegisterMessage.UserAccountDTO> accountBatch = pendingAccounts.subList(start, end);
+            runAuthSync("import tài khoản sinh viên", () ->
+                    authServiceClient.bulkRegisterAccount(INTERNAL_ADMIN_ROLE, sendMail, accountBatch)
+            );
             authProcessed = end;
             String progressMessage = sendMail
                     ? "Đang tạo tài khoản đăng nhập và gửi email: "
@@ -388,10 +398,12 @@ public class UserServiceImpl implements UserService {
     }
 
     private void createAuthAccount(UserProfile profile, boolean sendMail) {
-        authServiceClient.registerAccount(sendMail, new AuthServiceClient.RegisterRequest(
-                profile.getStudentId(),
-                resolveStudentEmail(profile.getStudentId(), profile.getEmail())
-        ));
+        runAuthSync("tạo tài khoản sinh viên", () ->
+                authServiceClient.registerAccount(INTERNAL_ADMIN_ROLE, sendMail, new AuthServiceClient.RegisterRequest(
+                        profile.getStudentId(),
+                        resolveStudentEmail(profile.getStudentId(), profile.getEmail())
+                ))
+        );
     }
 
     private void syncAuthEmailForStudent(String studentId, String previousEmail, String currentEmail) {
@@ -404,10 +416,12 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        authServiceClient.updateEmail(
-                INTERNAL_ADMIN_ROLE,
-                clean(studentId),
-                new AuthServiceClient.UpdateEmailRequest(normalizedCurrentEmail)
+        runAuthSync("cập nhật email đăng nhập", () ->
+                authServiceClient.updateEmail(
+                        INTERNAL_ADMIN_ROLE,
+                        clean(studentId),
+                        new AuthServiceClient.UpdateEmailRequest(normalizedCurrentEmail)
+                )
         );
     }
 
@@ -424,11 +438,15 @@ public class UserServiceImpl implements UserService {
         }
 
         if (studentCodes.size() == 1) {
-            authServiceClient.deleteAccount(INTERNAL_ADMIN_ROLE, studentCodes.get(0));
+            runAuthSync("xóa tài khoản đăng nhập", () ->
+                    authServiceClient.deleteAccount(INTERNAL_ADMIN_ROLE, studentCodes.get(0))
+            );
             return;
         }
 
-        authServiceClient.deleteAccounts(INTERNAL_ADMIN_ROLE, studentCodes);
+        runAuthSync("xóa tài khoản đăng nhập hàng loạt", () ->
+                authServiceClient.deleteAccounts(INTERNAL_ADMIN_ROLE, studentCodes)
+        );
     }
 
     private void syncAuthAccessForStudentStatus(
@@ -441,12 +459,16 @@ public class UserServiceImpl implements UserService {
         }
 
         if (targetStatus == UserProfile.StudentStatus.SUSPENDED) {
-            authServiceClient.revokeAccess(INTERNAL_ADMIN_ROLE, clean(studentId));
+            runAuthSync("khóa tài khoản sinh viên bị đình chỉ", () ->
+                    authServiceClient.revokeAccess(INTERNAL_ADMIN_ROLE, clean(studentId))
+            );
             return;
         }
 
         if (previousStatus == UserProfile.StudentStatus.SUSPENDED) {
-            authServiceClient.unlockAccess(INTERNAL_ADMIN_ROLE, clean(studentId));
+            runAuthSync("mở khóa tài khoản sinh viên", () ->
+                    authServiceClient.unlockAccess(INTERNAL_ADMIN_ROLE, clean(studentId))
+            );
         }
     }
 
@@ -639,6 +661,58 @@ public class UserServiceImpl implements UserService {
         int rowProgress = totalRows == 0 ? 70 : (processedRows * 70) / totalRows;
         int authProgress = authTotal == 0 ? 0 : (authProcessed * 30) / authTotal;
         return Math.min(99, rowProgress + authProgress);
+    }
+
+    private void runAuthSync(String actionLabel, Runnable action) {
+        RuntimeException lastException = null;
+        for (int attempt = 1; attempt <= AUTH_SYNC_MAX_ATTEMPTS; attempt++) {
+            try {
+                action.run();
+                return;
+            } catch (RuntimeException ex) {
+                lastException = ex;
+                if (attempt >= AUTH_SYNC_MAX_ATTEMPTS || !shouldRetryAuthSync(ex)) {
+                    break;
+                }
+                waitBeforeAuthRetry(attempt);
+            }
+        }
+
+        throw new BadRequestException(authSyncErrorMessage(actionLabel, lastException));
+    }
+
+    private boolean shouldRetryAuthSync(RuntimeException ex) {
+        if (ex instanceof FeignException feignException) {
+            int status = feignException.status();
+            return status == -1 || status >= 500;
+        }
+        return false;
+    }
+
+    private void waitBeforeAuthRetry(int attempt) {
+        try {
+            Thread.sleep(AUTH_SYNC_RETRY_DELAY_MS * attempt);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new BadRequestException("Không thể đồng bộ tài khoản đăng nhập vì tiến trình bị gián đoạn.");
+        }
+    }
+
+    private String authSyncErrorMessage(String actionLabel, RuntimeException ex) {
+        String baseMessage = "Không đồng bộ được tài khoản đăng nhập khi " + actionLabel + ". Vui lòng thử lại.";
+        if (ex instanceof FeignException feignException) {
+            int status = feignException.status();
+            if (status == 403) {
+                return "Auth-service từ chối thao tác " + actionLabel + ". Vui lòng kiểm tra quyền gọi nội bộ.";
+            }
+            if (status == 404) {
+                return "Không tìm thấy tài khoản đăng nhập khi " + actionLabel + ". Vui lòng kiểm tra lại MSSV.";
+            }
+            if (status >= 400 && status < 500) {
+                return "Dữ liệu tài khoản đăng nhập không hợp lệ khi " + actionLabel + ". Vui lòng kiểm tra lại thông tin.";
+            }
+        }
+        return baseMessage;
     }
 
     private String clean(String value) {

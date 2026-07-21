@@ -20,3 +20,11 @@ spring:
 eureka:
   client:
     enabled: false
+
+app:
+  jwt:
+    secret: bXktdGVzdC1qd3Qtc2VjcmV0LW15LXRlc3Qtand0LXNlY3JldA==
+  internal:
+    secret: test-internal-service-secret
+  gateway:
+    secret: test-gateway-internal-secret

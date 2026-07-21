@@ -12,7 +12,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtUtilTest {
-    private final JwtUtil jwtUtil = new JwtUtil();
+    private static final String TEST_JWT_SECRET = "bXktdGVzdC1qd3Qtc2VjcmV0LW15LXRlc3Qtand0LXNlY3JldA==";
+
+    private final JwtUtil jwtUtil = new JwtUtil(TEST_JWT_SECRET);
 
     @Test
     void extractsSubjectAndRoleFromValidToken() {
@@ -36,7 +38,7 @@ class JwtUtilTest {
     }
 
     private SecretKey signingKey() {
-        byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(JwtUtil.SECRET);
+        byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(TEST_JWT_SECRET);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

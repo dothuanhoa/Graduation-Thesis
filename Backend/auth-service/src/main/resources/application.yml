@@ -33,12 +33,23 @@ spring:
             enable: ${MAIL_STARTTLS_ENABLE:true}
 
 app:
+  internal:
+    secret: ${INTERNAL_SERVICE_SECRET:dev-local-internal-secret}
+  gateway:
+    secret: ${GATEWAY_INTERNAL_SECRET:dev-local-gateway-secret}
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-ttl-minutes: ${APP_JWT_ACCESS_TOKEN_TTL_MINUTES:15}
   admin-bootstrap:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
     username: ${ADMIN_BOOTSTRAP_USERNAME:}
     email: ${ADMIN_BOOTSTRAP_EMAIL:}
     password: ${ADMIN_BOOTSTRAP_PASSWORD:}
   auth:
+    refresh-token-ttl-days: ${APP_AUTH_REFRESH_TOKEN_TTL_DAYS:7}
+    refresh-cookie:
+      secure: ${APP_AUTH_REFRESH_COOKIE_SECURE:false}
+      same-site: ${APP_AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
     password-reset:
       url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
       token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
