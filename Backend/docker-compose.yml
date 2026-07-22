@@ -312,6 +312,23 @@ services:
     networks:
       - micro_network
 
+  k6:
+    image: grafana/k6:latest
+    profiles:
+      - load-test
+    working_dir: /scripts
+    entrypoint: ["k6"]
+    environment:
+      - BASE_URL=${K6_BASE_URL:-http://api-gateway:8000}
+      - EXAM_ID=${K6_EXAM_ID:-1}
+      - VUS=${K6_VUS:-3000}
+    volumes:
+      - ./load-tests:/scripts
+    depends_on:
+      - api-gateway
+    networks:
+      - micro_network
+
 volumes:
   postgres_user_data:
   postgres_notification_data:
