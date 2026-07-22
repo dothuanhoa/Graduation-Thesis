@@ -8,6 +8,7 @@ import com.authservice.dto.TokenResponse;
 import com.authservice.repository.AuthUserRepository;
 import com.authservice.repository.PasswordResetTokenRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final ZoneId PASSWORD_RESET_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -59,6 +61,9 @@ public class AuthService {
 
     @Value("${app.auth.password-reset.monthly-limit:2}")
     private int passwordResetMonthlyLimit;
+
+    @Value("${app.auth.log-temporary-credentials:false}")
+    private boolean logTemporaryCredentials;
 
     public void internalRegister(String username, String email) {
         internalRegister(username, email, true);
@@ -102,6 +107,7 @@ public class AuthService {
         user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
 
         authUserRepository.save(user);
+        logTemporaryCredential("Created single student account", cleanUsername, randomPass);
         if (sendMail) {
             accountEmailService.sendInitialPasswordEmail(accountEmail, cleanUsername, randomPass);
         }
@@ -489,6 +495,7 @@ public class AuthService {
         authUserRepository.save(user);
 
         redisService.revokeAccess(username);
+        logTemporaryCredential("Admin reset password", username, randomPass);
         accountEmailService.sendResetPasswordEmail(user.getEmail(), username, randomPass);
         System.out.println("Admin reset password for " + username);
     }
@@ -634,6 +641,7 @@ public class AuthService {
         authUserRepository.save(user);
         redisService.unlockUser(user.getUsername());
         redisService.revokeAccess(user.getUsername());
+        logTemporaryCredential("Issued temporary password for student account", user.getUsername(), randomPass);
         if (sendMail) {
             accountEmailService.sendInitialPasswordEmail(accountEmail, user.getUsername(), randomPass);
         }
@@ -651,6 +659,13 @@ public class AuthService {
 
     private String generateTemporaryPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private void logTemporaryCredential(String action, String username, String rawPassword) {
+        if (!logTemporaryCredentials) {
+            return;
+        }
+        log.warn("[TEMP_CREDENTIAL] {}. username={}, password={}", action, username, rawPassword);
     }
 
     private boolean sameEmail(String left, String right) {

@@ -46,6 +46,7 @@ app:
     email: ${ADMIN_BOOTSTRAP_EMAIL:}
     password: ${ADMIN_BOOTSTRAP_PASSWORD:}
   auth:
+    log-temporary-credentials: ${APP_AUTH_LOG_TEMPORARY_CREDENTIALS:false}
     refresh-token-ttl-days: ${APP_AUTH_REFRESH_TOKEN_TTL_DAYS:7}
     refresh-cookie:
       secure: ${APP_AUTH_REFRESH_COOKIE_SECURE:false}
