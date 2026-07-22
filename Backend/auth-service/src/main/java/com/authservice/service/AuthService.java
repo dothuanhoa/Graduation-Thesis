@@ -449,7 +449,7 @@ public class AuthService {
         authUserRepository.saveAll(users);
         if (sendMail) {
             createdCredentials.forEach(credential ->
-                    accountEmailService.sendInitialPasswordEmail(
+                    accountEmailService.sendInitialPasswordEmailQuiet(
                             credential.email(),
                             credential.username(),
                             credential.rawPassword()

@@ -182,7 +182,7 @@ class AuthServiceTest {
         verify(authUserRepository).saveAll(usersCaptor.capture());
         assertThat(usersCaptor.getValue()).hasSize(1);
         assertThat(usersCaptor.getValue().get(0).getEmail()).isEqualTo("dh52201258@student.edu.vn");
-        verify(accountEmailService).sendInitialPasswordEmail(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
+        verify(accountEmailService).sendInitialPasswordEmailQuiet(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
     }
 
     @Test
@@ -199,7 +199,7 @@ class AuthServiceTest {
         verify(authUserRepository).saveAll(usersCaptor.capture());
         assertThat(usersCaptor.getValue()).hasSize(1);
         assertThat(usersCaptor.getValue().get(0).getEmail()).isEqualTo("student@example.edu.vn");
-        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+        verify(accountEmailService, never()).sendInitialPasswordEmailQuiet(any(), any(), any());
     }
 
     @Test
@@ -218,7 +218,7 @@ class AuthServiceTest {
         assertThat(existing.getPasswordHash()).isEqualTo("encoded-password");
         assertThat(existing.getStatus()).isEqualTo(AuthUser.Status.ACTIVE);
         verify(passwordEncoder, never()).encode(any());
-        verify(accountEmailService, never()).sendInitialPasswordEmail(any(), any(), any());
+        verify(accountEmailService, never()).sendInitialPasswordEmailQuiet(any(), any(), any());
     }
 
     @Test
@@ -240,7 +240,7 @@ class AuthServiceTest {
         assertThat(existing.getStatus()).isEqualTo(AuthUser.Status.REQUIRE_CHANGE_PWD);
         verify(redisService).unlockUser("DH52201258");
         verify(redisService).revokeAccess("DH52201258");
-        verify(accountEmailService).sendInitialPasswordEmail(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
+        verify(accountEmailService).sendInitialPasswordEmailQuiet(eq("dh52201258@student.edu.vn"), eq("DH52201258"), any());
     }
 
     private AuthUser activeStudent(String username, String email) {

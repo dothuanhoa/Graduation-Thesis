@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 @Service
 @RequiredArgsConstructor
 public class AccountEmailService {
+    private static final ThreadLocal<Boolean> EMAIL_LOG_DETAILS = ThreadLocal.withInitial(() -> true);
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
 
@@ -40,6 +41,21 @@ public class AccountEmailService {
 
     @Async("accountEmailTaskExecutor")
     public void sendInitialPasswordEmail(String email, String username, String rawPassword) {
+        sendInitialPasswordEmail(email, username, rawPassword, true);
+    }
+
+    @Async("accountEmailTaskExecutor")
+    public void sendInitialPasswordEmailQuiet(String email, String username, String rawPassword) {
+        EMAIL_LOG_DETAILS.set(false);
+        try {
+            sendInitialPasswordEmail(email, username, rawPassword, false);
+        } finally {
+            EMAIL_LOG_DETAILS.remove();
+        }
+    }
+
+    private void sendInitialPasswordEmail(String email, String username, String rawPassword, boolean logDetails) {
+        EMAIL_LOG_DETAILS.set(logDetails);
         sendPlainTextEmail(
                 email,
                 username,
@@ -119,24 +135,33 @@ public class AccountEmailService {
 
     private void sendPlainTextEmail(String email, String username, String subject, String body) {
         if (!StringUtils.hasText(email)) {
-            log.warn("Skip account email for {} because recipient email is empty.", username);
+            if (shouldLogEmailDetails()) {
+                log.warn("Skip account email for {} because recipient email is empty.", username);
+            }
             return;
         }
 
         if (!mailEnabled) {
-            log.info("Mail sending is disabled. Skip account email for {} to {}.", username, email);
+            if (shouldLogEmailDetails()) {
+                log.info("Mail sending is disabled. Skip account email for {} to {}.", username, email);
+            }
             return;
         }
 
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null) {
-            log.warn("Skip account email for {} because JavaMailSender is not configured.", username);
+            if (shouldLogEmailDetails()) {
+                log.warn("Skip account email for {} because JavaMailSender is not configured.", username);
+            }
             return;
         }
 
         int attempts = Math.max(1, maxRetries + 1);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
+                if (shouldLogEmailDetails()) {
+                    log.info("Sending account email for {} to {}. Subject: {}", username, email, subject);
+                }
                 waitBeforeSend();
                 var message = mailSender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
@@ -149,20 +174,28 @@ public class AccountEmailService {
                 helper.setSubject(subject);
                 helper.setText(body, false);
                 mailSender.send(message);
-                log.info("Account email sent for {} to {}.", username, email);
+                if (shouldLogEmailDetails()) {
+                    log.info("Account email sent for {} to {}.", username, email);
+                }
                 return;
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                log.warn("Account email sending interrupted for {} to {}.", username, email);
+                if (shouldLogEmailDetails()) {
+                    log.warn("Account email sending interrupted for {} to {}.", username, email);
+                }
                 return;
             } catch (Exception ex) {
                 if (attempt >= attempts) {
-                    log.error("Could not send account email for {} to {} after {} attempt(s).", username, email, attempts, ex);
+                    if (shouldLogEmailDetails()) {
+                        log.error("Could not send account email for {} to {} after {} attempt(s).", username, email, attempts, ex);
+                    }
                     return;
                 }
 
-                log.warn("Could not send account email for {} to {} on attempt {}/{}. Retrying.",
-                        username, email, attempt, attempts, ex);
+                if (shouldLogEmailDetails()) {
+                    log.warn("Could not send account email for {} to {} on attempt {}/{}. Retrying.",
+                            username, email, attempt, attempts, ex);
+                }
                 waitBeforeRetry(username, email);
             }
         }
@@ -183,8 +216,14 @@ public class AccountEmailService {
             Thread.sleep(retryDelayMs);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            log.warn("Account email retry interrupted for {} to {}.", username, email);
+            if (shouldLogEmailDetails()) {
+                log.warn("Account email retry interrupted for {} to {}.", username, email);
+            }
         }
+    }
+
+    private boolean shouldLogEmailDetails() {
+        return Boolean.TRUE.equals(EMAIL_LOG_DETAILS.get());
     }
 
     private String buildCredentialBody(String intro, String username, String rawPassword) {
