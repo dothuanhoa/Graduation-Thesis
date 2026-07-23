@@ -70,12 +70,7 @@ function login(student) {
   };
 }
 
-function getOrStartExam(headers) {
-  const stateRes = http.get(`${BASE_URL}/api/exams/${EXAM_ID}/state`, { headers });
-  if (stateRes.status === 200) {
-    return stateRes;
-  }
-
+function startOrResumeExam(headers) {
   const startRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/start`, null, { headers });
   check(startRes, {
     "start exam ok": (response) => response.status === 200,
@@ -151,7 +146,7 @@ export default function (data) {
     "load my exams ok": (response) => response.status === 200,
   });
 
-  const examStateRes = getOrStartExam(headers);
+  const examStateRes = startOrResumeExam(headers);
   if (examStateRes.status !== 200) {
     return;
   }
