@@ -1,33 +1,41 @@
 ﻿import { CalendarDays, ExternalLink, MapPin, TicketCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { activityApi, type ActivityResponse } from "../../../services/api";
+import { activityApi, ApiError, type ActivityResponse } from "../../../services/api";
 import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
 
 function StudentActivityDetailPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const loadActivity = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/404", { replace: true });
+      return;
+    }
     setLoading(true);
     setMessage("");
     try {
       const data = await activityApi.get(id);
       setActivity(data);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setActivity(null);
       setMessage(err instanceof Error ? err.message : "Không tải được chi tiết hoạt động.");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

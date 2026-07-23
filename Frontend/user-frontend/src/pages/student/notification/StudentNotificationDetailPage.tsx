@@ -1,6 +1,6 @@
 import { CheckCheck, ExternalLink, Paperclip, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
@@ -30,6 +30,7 @@ const toNotice = (item: NotificationResponse, readIds = new Set<string>()): Stud
 
 function StudentNotificationDetailPage() {
   const { username } = useAuth();
+  const navigate = useNavigate();
   const { id } = useParams();
   const notificationId = useMemo(() => id || "", [id]);
   const [notice, setNotice] = useState<StudentNotice | null>(null);
@@ -38,8 +39,7 @@ function StudentNotificationDetailPage() {
 
   const loadNotification = useCallback(async () => {
     if (!notificationId) {
-      setMessage("Mã thông báo không hợp lệ.");
-      setLoading(false);
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -56,7 +56,7 @@ function StudentNotificationDetailPage() {
       setNotice(selected);
 
       if (!selected) {
-        setMessage("Không tìm thấy thông báo hoặc thông báo đã hết hạn.");
+        navigate("/404", { replace: true });
         return;
       }
 
@@ -75,7 +75,7 @@ function StudentNotificationDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [notificationId, username]);
+  }, [navigate, notificationId, username]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

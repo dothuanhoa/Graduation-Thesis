@@ -9,6 +9,7 @@ import PaginationControls from "../../../components/PaginationControls";
 import StatusBadge from "../../../components/StatusBadge";
 import { usePaginatedList } from "../../../hooks/usePaginatedList";
 import {
+  ApiError,
   activityApi,
   userApi,
   type ActivityCategory,
@@ -23,6 +24,7 @@ import {
   type UserProfile,
 } from "../../../services/api";
 import { activityCategoryLabels, activityParticipationLabels, formatDateTime, toApiDateTime, toInputDateTime } from "../../../utils/activityUi";
+import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 import { toUserFacingMessage } from "../../../utils/messages";
 import { emitToast } from "../../../utils/toastBus";
 import { activitySchema, checkerSchema, registrationSchema } from "../../../validation/activitySchemas";
@@ -215,7 +217,10 @@ function ActivityDetailPage() {
   const [message, setMessage] = useState("");
 
   const loadDetail = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/404", { replace: true });
+      return;
+    }
     setLoading(true);
     setMessage("");
     try {
@@ -229,6 +234,10 @@ function ActivityDetailPage() {
       setRegistrations(registrationData);
       setCheckers(checkerData);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không tải được chi tiết hoạt động.");
     } finally {
       setLoading(false);
@@ -358,9 +367,17 @@ function ActivityDetailPage() {
       setRegistrations(registrationData);
       setActivity(updated);
       setForm(toForm(updated));
-      setMessage(`Import xong: ${result.imported} dòng thành công, ${result.skipped} dòng bỏ qua.`);
+      const errorDetails = (result.errors || []).slice(0, 5).join(" | ");
+      const moreErrors = result.errors && result.errors.length > 5 ? ` Còn ${result.errors.length - 5} lỗi khác.` : "";
+      const importMessage = result.skipped > 0
+        ? `Import xong: ${result.imported} dòng thành công, ${result.skipped} dòng chưa nhập được.${errorDetails ? ` Chi tiết: ${errorDetails}.${moreErrors}` : ""}`
+        : `Import thành công ${result.imported} dòng.`;
+      setMessage(importMessage);
+      emitToast({ variant: result.skipped > 0 ? "error" : "success", message: importMessage });
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không import được danh sách đăng ký.");
+      const failMessage = err instanceof Error ? err.message : "Không import được danh sách đăng ký.";
+      setMessage(failMessage);
+      emitToast({ variant: "error", message: failMessage });
     } finally {
       event.target.value = "";
     }
@@ -380,6 +397,44 @@ function ActivityDetailPage() {
     }
   };
 
+
+  const exportActivityDetail = () => {
+    if (!activity) return;
+
+    const participationType = activity.participationType || "LIMITED";
+    const attended = registrations.filter((registration) => registration.attended).length;
+    const notAttended = participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : Math.max(registrations.length - attended, 0);
+
+    exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`, [
+      {
+        name: "Tong ket",
+        rows: [
+          ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
+          ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
+          ["H\u00ecnh th\u1ee9c", activityParticipationLabels[participationType]],
+          ["Th\u1eddi gian b\u1eaft \u0111\u1ea7u", formatDateTime(activity.startTime)],
+          ["Th\u1eddi gian k\u1ebft th\u00fac", formatDateTime(activity.endTime)],
+          ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
+          ["S\u1ed1 sinh vi\u00ean trong danh s\u00e1ch", participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : registrations.length],
+          ["S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", attended],
+          ["S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", notAttended],
+        ],
+      },
+      {
+        name: "Danh sach",
+        rows: [
+          ["MSSV", "H\u1ecd t\u00ean", "Tr\u1ea1ng th\u00e1i", "Th\u1eddi gian \u0111i\u1ec3m danh"],
+          ...registrations.map((registration) => [
+            registration.studentCode,
+            registration.fullName,
+            registration.attended ? "\u0110\u00e3 \u0111i\u1ec3m danh" : "Ch\u01b0a \u0111i\u1ec3m danh",
+            registration.checkinTime ? formatDateTime(registration.checkinTime) : "",
+          ]),
+        ],
+      },
+    ]);
+    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
+  };
   const addRegistration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id) return;
@@ -498,6 +553,10 @@ function ActivityDetailPage() {
       <div className="flex flex-wrap items-center gap-3">
         <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
         <StatusBadge status={activity.status} />
+        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container" onClick={exportActivityDetail} type="button">
+          <Download className="h-5 w-5" />
+          {"Xu\u1ea5t Excel"}
+        </button>
       </div>
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}

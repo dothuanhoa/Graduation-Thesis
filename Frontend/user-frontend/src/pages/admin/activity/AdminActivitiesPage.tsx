@@ -1,4 +1,4 @@
-import { CalendarPlus, Eye, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarPlus, Download, Eye, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import DataTable, { type Column } from "../../../components/DataTable";
@@ -9,6 +9,7 @@ import type { StatusType, TableRow } from "../../../data/mockData";
 import { activityApi, type ActivityResponse } from "../../../services/api";
 import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
 import { includesSearch } from "../../../utils/search";
+import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 
 type ActivityRow = TableRow & {
   id: string;
@@ -93,6 +94,42 @@ function AdminActivitiesPage() {
     [filteredActivities],
   );
 
+
+  const exportActivitySummary = () => {
+    if (filteredActivities.length === 0) {
+      setMessage("Kh\u00f4ng c\u00f3 ho\u1ea1t \u0111\u1ed9ng ph\u00f9 h\u1ee3p \u0111\u1ec3 xu\u1ea5t Excel.");
+      return;
+    }
+
+    const sortedActivities = [...filteredActivities].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(new Date().toISOString().slice(0, 10))}.xlsx`, [
+      {
+        name: "Tong ket",
+        rows: [
+          ["Ho\u1ea1t \u0111\u1ed9ng", "Lo\u1ea1i", "H\u00ecnh th\u1ee9c", "Th\u1eddi gian", "\u0110\u1ecba \u0111i\u1ec3m", "S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a", "S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd", "S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", "S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", "Tr\u1ea1ng th\u00e1i"],
+          ...sortedActivities.map((activity) => {
+            const participationType = activity.participationType || "LIMITED";
+            const registered = activity.registrationCount ?? 0;
+            const attended = activity.attendedCount ?? 0;
+            const notAttended = participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : Math.max(registered - attended, 0);
+            return [
+              activity.title,
+              activityCategoryLabels[activity.category],
+              activityParticipationLabels[participationType],
+              formatActivityRange(activity.startTime, activity.endTime),
+              activity.location || "",
+              participationType === "OPEN" ? "Kh\u00f4ng gi\u1edbi h\u1ea1n" : activity.capacity ?? "",
+              registered,
+              attended,
+              notAttended,
+              activity.status,
+            ];
+          }),
+        ],
+      },
+    ]);
+    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
+  };
   const removeActivity = async (row: ActivityRow) => {
     if (!window.confirm(`Xóa hoạt động "${row.title}"? Chỉ hoạt động sắp diễn ra mới được xóa.`)) return;
 
@@ -121,6 +158,10 @@ function AdminActivitiesPage() {
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadActivities} type="button">
           <RefreshCw className="h-5 w-5" />
           Tải lại
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={exportActivitySummary} type="button">
+          <Download className="h-5 w-5" />
+          {"Xu\u1ea5t Excel"}
         </button>
       </div>
 

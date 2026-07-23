@@ -1,11 +1,14 @@
-import { FileUp, Loader2, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
+import { Download, FileUp, Loader2, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
+import PaginationControls from "../../../components/PaginationControls";
 import {
+  ApiError,
   classApi,
   examApi,
   facultyApi,
@@ -23,6 +26,10 @@ import {
   type UserProfile,
 } from "../../../services/api";
 import { formatVietnamDateTime, toApiLocalDateTime, toDateTimeLocalInput } from "../../../utils/dateTime";
+import { usePaginatedList } from "../../../hooks/usePaginatedList";
+import { buildExamResultRows } from "../../../utils/examResults";
+import { includesSearch } from "../../../utils/search";
+import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
 import ExamTargetEditor from "./ExamTargetEditor";
 import { createEmptyExamTarget } from "./examTargetUtils";
@@ -51,13 +58,6 @@ const emptyQuestionForm: QuestionPayload = {
     { content: "", correct: false },
     { content: "", correct: false },
   ],
-};
-
-const attemptLabel: Record<string, string> = {
-  NOT_STARTED: "Chưa bắt đầu",
-  IN_PROGRESS: "Đang làm",
-  SUBMITTED: "Đã nộp",
-  LOCKED: "Bị khóa",
 };
 
 const normalizeExamTargets = (exam: ExamResponse): ExamTargetPayload[] => {
@@ -112,6 +112,7 @@ const examTargetSummary = (exam?: ExamResponse | null) => {
 
 function AdminExamDetailPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [exam, setExam] = useState<ExamResponse | null>(null);
   const [examForm, setExamForm] = useState<ExamPayload>(emptyExamForm);
   const [classes, setClasses] = useState<ClassResponse[]>([]);
@@ -122,6 +123,8 @@ function AdminExamDetailPage() {
   const [attempts, setAttempts] = useState<AttemptResponse[]>([]);
   const [questionForm, setQuestionForm] = useState<QuestionPayload>(emptyQuestionForm);
   const [questionSearch, setQuestionSearch] = useState("");
+  const [resultKeyword, setResultKeyword] = useState("");
+  const [resultClassFilter, setResultClassFilter] = useState("");
   const [editingQuestionId, setEditingQuestionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -154,11 +157,15 @@ function AdminExamDetailPage() {
       setQuestions(questionData);
       setAttempts(attemptData);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không tải được chi tiết kỳ thi.");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void loadData(), 0);
@@ -188,13 +195,44 @@ function AdminExamDetailPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadReferences]);
 
+  const examResultRows = useMemo(() => buildExamResultRows(exam, attempts, students), [attempts, exam, students]);
+
+  const resultClassOptions = useMemo(
+    () => [...new Set(examResultRows.map((row) => row.classCode).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi")),
+    [examResultRows],
+  );
+
+  const resultClassAutocompleteOptions = useMemo<AutocompleteOption[]>(
+    () => resultClassOptions.map((classCode) => ({ value: classCode, label: classCode, description: "Lớp thi" })),
+    [resultClassOptions],
+  );
+
+  const filteredExamResultRows = useMemo(() => {
+    const keyword = resultKeyword.trim();
+    const classKeyword = resultClassFilter.trim();
+    return examResultRows.filter((row) => {
+      const matchesKeyword = includesSearch(`${row.studentCode} ${row.fullName} ${row.classCode}`, keyword);
+      const matchesClass = !classKeyword || includesSearch(row.classCode, classKeyword);
+      return matchesKeyword && matchesClass;
+    });
+  }, [examResultRows, resultClassFilter, resultKeyword]);
+
+  const {
+    pageItems: paginatedExamResultRows,
+    pageIndex: resultPageIndex,
+    pageSize: resultPageSize,
+    totalItems: resultTotalItems,
+    setPageIndex: setResultPageIndex,
+    setPageSize: setResultPageSize,
+  } = usePaginatedList(filteredExamResultRows);
+
   const resultStats = useMemo(() => {
-    const submitted = attempts.filter((attempt) => attempt.status === "SUBMITTED");
+    const submitted = examResultRows.filter((row) => row.status === "SUBMITTED");
     const average = submitted.length
-      ? submitted.reduce((sum, attempt) => sum + (attempt.score || 0), 0) / submitted.length
+      ? submitted.reduce((sum, row) => sum + (row.score || 0), 0) / submitted.length
       : 0;
-    return { submitted: submitted.length, total: attempts.length, average: Math.round(average * 100) / 100 };
-  }, [attempts]);
+    return { submitted: submitted.length, total: examResultRows.length, average: Math.round(average * 100) / 100 };
+  }, [examResultRows]);
 
   const filteredQuestions = useMemo(() => {
     const keyword = questionSearch.trim().toLowerCase();
@@ -369,6 +407,50 @@ function AdminExamDetailPage() {
     }
   };
 
+  const downloadQuestionImportTemplate = () => {
+    exportXlsxFile(`mau-import-cau-hoi-${safeFileName(exam?.title || "ky-thi")}.xlsx`, [
+      {
+        name: "Mau cau hoi",
+        rows: [
+          ["C\u00e2u h\u1ecfi", "A", "B", "C", "D", "\u0110\u00e1p \u00e1n \u0111\u00fang"],
+          ["Sinh vi\u00ean c\u1ea7n l\u00e0m g\u00ec tr\u01b0\u1edbc khi tham gia k\u1ef3 thi tr\u1ef1c tuy\u1ebfn?", "\u0110\u0103ng nh\u1eadp \u0111\u00fang t\u00e0i kho\u1ea3n c\u00e1 nh\u00e2n", "M\u01b0\u1ee3n t\u00e0i kho\u1ea3n c\u1ee7a b\u1ea1n", "B\u1ecf qua h\u01b0\u1edbng d\u1eabn", "T\u1eaft m\u1ea1ng tr\u01b0\u1edbc khi thi", "A"],
+          ["\u0110\u00e1p \u00e1n \u0111\u00fang trong file import ph\u1ea3i nh\u1eadp nh\u01b0 th\u1ebf n\u00e0o?", "A/B/C/D", "N\u1ed9i dung \u0111\u1ea7y \u0111\u1ee7", "S\u1ed1 th\u1ee9 t\u1ef1", "B\u1ecf tr\u1ed1ng", "A"],
+        ],
+      },
+    ]);
+    setMessage("\u0110\u00e3 t\u1ea3i file m\u1eabu import c\u00e2u h\u1ecfi.");
+  };
+
+  const exportExamResults = () => {
+    const rows = filteredExamResultRows;
+    if (rows.length === 0) {
+      setMessage("Kh\u00f4ng c\u00f3 k\u1ebft qu\u1ea3 ph\u00f9 h\u1ee3p \u0111\u1ec3 xu\u1ea5t Excel.");
+      return;
+    }
+
+    exportXlsxFile(`ket-qua-thi-${safeFileName(exam?.title || "ky-thi")}.xlsx`, [
+      {
+        name: "Ket qua thi",
+        rows: [
+          ["K\u1ef3 thi", "MSSV", "H\u1ecd t\u00ean", "L\u1edbp", "Khoa", "Tr\u1ea1ng th\u00e1i", "\u0110i\u1ec3m", "\u0110\u00fang/T\u1ed5ng", "Vi ph\u1ea1m", "B\u1eaft \u0111\u1ea7u l\u00fac", "N\u1ed9p l\u00fac"],
+          ...rows.map((row) => [
+            row.examTitle,
+            row.studentCode,
+            row.fullName,
+            row.classCode,
+            row.facultyName,
+            row.statusLabel,
+            row.score ?? "",
+            row.correctText,
+            row.violationCount,
+            formatDateTime(row.startedAt),
+            formatDateTime(row.submittedAt),
+          ]),
+        ],
+      },
+    ]);
+    setMessage("\u0110\u00e3 xu\u1ea5t file Excel k\u1ebft qu\u1ea3 thi.");
+  };
   const setCorrectOption = (index: number) => {
     setQuestionForm((current) => ({
       ...current,
@@ -397,13 +479,13 @@ function AdminExamDetailPage() {
           <form className="mt-5 grid gap-4" onSubmit={saveExam}>
             <FormField label="Tên kỳ thi" onChange={(event) => setExamForm((current) => ({ ...current, title: event.target.value }))} required value={examForm.title} />
             <FormField as="textarea" label="Mô tả / hướng dẫn" onChange={(event) => setExamForm((current) => ({ ...current, description: event.target.value }))} value={examForm.description || ""} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <FormField label="Thời lượng" min={1} onChange={(event) => setExamForm((current) => ({ ...current, durationMins: Number(event.target.value) }))} type="number" value={examForm.durationMins} />
               <FormField label="Số câu bốc" min={1} onChange={(event) => setExamForm((current) => ({ ...current, questionCount: Number(event.target.value) }))} type="number" value={examForm.questionCount} />
             </div>
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-semibold text-on-surface">Trạng thái</span>
-              <select className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm focus-ring" onChange={(event) => setExamForm((current) => ({ ...current, status: event.target.value as ExamStatus }))} value={examForm.status}>
+              <select className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring" onChange={(event) => setExamForm((current) => ({ ...current, status: event.target.value as ExamStatus }))} value={examForm.status}>
                 <option value="INACTIVE">Ngưng</option>
                 <option value="ACTIVE">Hoạt động</option>
               </select>
@@ -442,16 +524,18 @@ function AdminExamDetailPage() {
           </Card>
         </div>
 
-          <Card>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-on-surface">Ngân hàng câu hỏi</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">File Excel import: Câu hỏi | A | B | C | D | Đáp án đúng.</p>
-              </div>
+        <Card>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-on-surface">Ngân hàng câu hỏi</h2>
+              <p className="mt-1 text-sm text-on-surface-variant">File Excel import: Câu hỏi | A | B | C | D | Đáp án đúng.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <label className={`inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary ${importingQuestions ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
                 {importingQuestions ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
                 {importingQuestions ? "Đang import..." : "Import Excel"}
                 <input
+                  accept=".xlsx,.xls"
                   className="hidden"
                   disabled={importingQuestions}
                   onChange={(event) => {
@@ -459,81 +543,80 @@ function AdminExamDetailPage() {
                     event.target.value = "";
                   }}
                   type="file"
-                  accept=".xlsx,.xls"
                 />
               </label>
+              <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container" onClick={downloadQuestionImportTemplate} type="button">
+                <Download className="h-5 w-5" />
+                Tải file mẫu
+              </button>
             </div>
+          </div>
 
-            {(importingQuestions || importStatus) && (
-              <div className="mt-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="font-semibold text-on-surface">{importStatus}</span>
-                  <span className="font-bold text-primary">{importProgress}%</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-surface-container-high">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
-                    style={{ width: `${importProgress}%` }}
-                  />
-                </div>
+          {(importingQuestions || importStatus) && (
+            <div className="mt-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold text-on-surface">{importStatus}</span>
+                <span className="font-bold text-primary">{importProgress}%</span>
               </div>
-            )}
+              <div className="h-3 overflow-hidden rounded-full bg-surface-container-high">
+                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${importProgress}%` }} />
+              </div>
+            </div>
+          )}
 
-            <form className="mt-5 grid gap-4 rounded-xl border border-outline-variant p-4" onSubmit={saveQuestion}>
-              <FormField as="textarea" label={editingQuestionId ? "Sửa nội dung câu hỏi" : "Thêm câu hỏi mới"} onChange={(event) => setQuestionForm((current) => ({ ...current, content: event.target.value }))} required value={questionForm.content} />
-              <div className="grid gap-3 md:grid-cols-2">
-                {questionForm.options.map((option, index) => (
-                  <label key={index} className="flex gap-3 rounded-lg border border-outline-variant p-3">
-                    <input checked={option.correct} className="mt-3 h-4 w-4 text-primary focus-ring" name="correctOption" onChange={() => setCorrectOption(index)} type="radio" />
-                    <span className="flex-1">
-                      <span className="mb-1 block text-sm font-semibold text-on-surface">Đáp án {String.fromCharCode(65 + index)}</span>
-                      <input
-                        className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm focus-ring"
-                        onChange={(event) => setQuestionForm((current) => ({
-                          ...current,
-                          options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, content: event.target.value } : item),
-                        }))}
-                        value={option.content}
-                      />
-                    </span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" type="submit">
-                  <Plus className="h-5 w-5" />
-                  {editingQuestionId ? "Lưu câu hỏi" : "Thêm câu hỏi"}
+          <form className="mt-5 grid gap-4 rounded-xl border border-outline-variant p-4" onSubmit={saveQuestion}>
+            <FormField as="textarea" label={editingQuestionId ? "Sửa nội dung câu hỏi" : "Thêm câu hỏi mới"} onChange={(event) => setQuestionForm((current) => ({ ...current, content: event.target.value }))} required value={questionForm.content} />
+            <div className="grid gap-3 md:grid-cols-2">
+              {questionForm.options.map((option, index) => (
+                <label key={index} className="flex gap-3 rounded-lg border border-outline-variant p-3">
+                  <input checked={option.correct} className="mt-3 h-4 w-4 text-primary focus-ring" name="correctOption" onChange={() => setCorrectOption(index)} type="radio" />
+                  <span className="flex-1">
+                    <span className="mb-1 block text-sm font-semibold text-on-surface">Đáp án {String.fromCharCode(65 + index)}</span>
+                    <input
+                      className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                      onChange={(event) => setQuestionForm((current) => ({
+                        ...current,
+                        options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, content: event.target.value } : item),
+                      }))}
+                      value={option.content}
+                    />
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" type="submit">
+                <Plus className="h-5 w-5" />
+                {editingQuestionId ? "Lưu câu hỏi" : "Thêm câu hỏi"}
+              </button>
+              {editingQuestionId && (
+                <button className="rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={resetQuestionForm} type="button">
+                  Hủy sửa
                 </button>
-                {editingQuestionId && (
-                  <button className="rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={resetQuestionForm} type="button">
-                    Hủy sửa
-                  </button>
-                )}
-              </div>
-            </form>
-
-            <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant pt-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-on-surface">Danh sách câu hỏi</h3>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Hiển thị {filteredQuestions.length}/{questions.length} câu hỏi.
-                </p>
-              </div>
-              <label className="relative w-full lg:max-w-md">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-on-surface-variant" />
-                <input
-                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-3 pl-10 pr-3 text-sm text-on-surface placeholder:text-outline focus-ring"
-                  onChange={(event) => setQuestionSearch(event.target.value)}
-                  placeholder="Tìm theo nội dung câu hỏi hoặc đáp án"
-                  value={questionSearch}
-                />
-              </label>
+              )}
             </div>
+          </form>
 
-            <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-2">
-              {filteredQuestions.map((question) => {
-                const index = questions.findIndex((item) => item.id === question.id);
-                return (
+          <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant pt-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-on-surface">Danh sách câu hỏi</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">Hiển thị {filteredQuestions.length}/{questions.length} câu hỏi.</p>
+            </div>
+            <label className="relative w-full lg:max-w-md">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-3 pl-10 pr-3 text-sm text-on-surface placeholder:text-outline focus-ring"
+                onChange={(event) => setQuestionSearch(event.target.value)}
+                placeholder="Tìm theo nội dung câu hỏi hoặc đáp án"
+                value={questionSearch}
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-2">
+            {filteredQuestions.map((question) => {
+              const index = questions.findIndex((item) => item.id === question.id);
+              return (
                 <div key={question.id} className="rounded-xl border border-outline-variant p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -555,49 +638,98 @@ function AdminExamDetailPage() {
                     ))}
                   </div>
                 </div>
-                );
-              })}
-              {questions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Chưa có câu hỏi nào.</p>}
-              {questions.length > 0 && filteredQuestions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Không tìm thấy câu hỏi phù hợp.</p>}
-            </div>
-          </Card>
+              );
+            })}
+            {questions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Chưa có câu hỏi nào.</p>}
+            {questions.length > 0 && filteredQuestions.length === 0 && <p className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">Không tìm thấy câu hỏi phù hợp.</p>}
+          </div>
+        </Card>
 
-          <Card>
-            <div className="mb-4 flex items-center justify-between">
+        <Card>
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
               <h2 className="text-xl font-bold text-on-surface">Kết quả sinh viên</h2>
-              <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-primary" onClick={loadData} type="button">
+              <p className="mt-1 text-sm text-on-surface-variant">Lọc theo lớp, tên hoặc MSSV; danh sách bao gồm cả sinh viên chưa thi.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container" onClick={exportExamResults} type="button">
+                <Download className="h-4 w-4" />
+                Xuất Excel
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container" onClick={() => void loadData()} type="button">
                 <RefreshCw className="h-4 w-4" />
                 Tải lại
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="bg-surface-container-low">
-                  <tr>
-                    <th className="px-4 py-3">Sinh viên</th>
-                    <th className="px-4 py-3">Điểm</th>
-                    <th className="px-4 py-3">Đúng/Tổng</th>
-                    <th className="px-4 py-3">Vi phạm</th>
-                    <th className="px-4 py-3">Trạng thái</th>
-                    <th className="px-4 py-3">Nộp lúc</th>
+          </div>
+
+          <div className="mb-4 grid gap-3 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-on-surface">Từ khóa</span>
+              <span className="relative block">
+                <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2.5 pl-10 pr-3 text-sm text-on-surface placeholder:text-outline focus-ring"
+                  onChange={(event) => setResultKeyword(event.target.value)}
+                  placeholder="Tìm MSSV, họ tên hoặc lớp"
+                  value={resultKeyword}
+                />
+              </span>
+            </label>
+            <AutocompleteInput
+              emptyMessage="Không tìm thấy lớp phù hợp."
+              label="Lớp"
+              onChange={setResultClassFilter}
+              onSelect={(option) => setResultClassFilter(option.value)}
+              options={resultClassAutocompleteOptions}
+              placeholder="Nhập hoặc chọn lớp"
+              value={resultClassFilter}
+            />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <thead className="bg-surface-container-low">
+                <tr>
+                  <th className="px-4 py-3">MSSV</th>
+                  <th className="px-4 py-3">Họ tên</th>
+                  <th className="px-4 py-3">Lớp</th>
+                  <th className="px-4 py-3">Điểm</th>
+                  <th className="px-4 py-3">Đúng/Tổng</th>
+                  <th className="px-4 py-3">Vi phạm</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Nộp lúc</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedExamResultRows.map((row) => (
+                  <tr key={[row.studentCode, row.status, row.submittedAt || "none"].join("-")} className="border-t border-outline-variant">
+                    <td className="px-4 py-3 font-semibold text-on-surface">{row.studentCode}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.fullName}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.classCode}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.score ?? "-"}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.correctText}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.violationCount}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.statusLabel}</td>
+                    <td className="px-4 py-3 text-on-surface-variant">{row.submittedAt ? formatDateTime(row.submittedAt) : "-"}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {attempts.map((attempt) => (
-                    <tr key={attempt.id} className="border-t border-outline-variant">
-                      <td className="px-4 py-3 font-semibold text-on-surface">{attempt.userTsid}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{attempt.score ?? "N/A"}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{attempt.correctCount ?? 0}/{attempt.totalQuestions ?? 0}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{attempt.violationCount}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{attemptLabel[attempt.status] || attempt.status}</td>
-                      <td className="px-4 py-3 text-on-surface-variant">{formatDateTime(attempt.submittedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {attempts.length === 0 && <p className="border-t border-outline-variant px-4 py-6 text-center text-sm text-on-surface-variant">Chưa có lượt thi.</p>}
-            </div>
-          </Card>
+                ))}
+              </tbody>
+            </table>
+            {examResultRows.length === 0 && <p className="border-t border-outline-variant px-4 py-6 text-center text-sm text-on-surface-variant">Chưa có sinh viên nào trong đối tượng thi.</p>}
+            {examResultRows.length > 0 && filteredExamResultRows.length === 0 && <p className="border-t border-outline-variant px-4 py-6 text-center text-sm text-on-surface-variant">Không tìm thấy thí sinh phù hợp.</p>}
+          </div>
+          {filteredExamResultRows.length > 0 && (
+            <PaginationControls
+              itemLabel="thí sinh"
+              onPageChange={setResultPageIndex}
+              onPageSizeChange={setResultPageSize}
+              pageIndex={resultPageIndex}
+              pageSize={resultPageSize}
+              totalItems={resultTotalItems}
+            />
+          )}
+        </Card>
       </div>
     </div>
   );

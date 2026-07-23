@@ -1,10 +1,10 @@
 import { CheckCircle2, Clock, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
-import { examApi, type AttemptResponse } from "../../../services/api";
+import { ApiError, examApi, type AttemptResponse } from "../../../services/api";
 import { formatVietnamDateTime } from "../../../utils/dateTime";
 
 const formatDateTime = (value?: string) => formatVietnamDateTime(value);
@@ -18,22 +18,30 @@ const statusLabel: Record<string, string> = {
 
 function ExamResultPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [result, setResult] = useState<AttemptResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/404", { replace: true });
+      return;
+    }
     setLoading(true);
     setMessage("");
     try {
       setResult(await examApi.result(id));
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không tải được kết quả kỳ thi.");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void load(), 0);

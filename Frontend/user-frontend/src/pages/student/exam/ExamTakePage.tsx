@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
-import { examApi, type ExamStateResponse } from "../../../services/api";
+import { ApiError, examApi, type ExamStateResponse } from "../../../services/api";
 
 const formatTime = (seconds: number) => {
   const safe = Math.max(0, seconds);
@@ -24,7 +24,10 @@ function ExamTakePage() {
   const violationPendingRef = useRef(false);
 
   const loadExam = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/404", { replace: true });
+      return;
+    }
     setLoading(true);
     setMessage("");
     try {
@@ -35,6 +38,10 @@ function ExamTakePage() {
         navigate(`/student/exams/${id}/result`);
       }
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không vào được bài thi.");
     } finally {
       setLoading(false);

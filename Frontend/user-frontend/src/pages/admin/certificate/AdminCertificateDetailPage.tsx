@@ -1,6 +1,6 @@
 ﻿import { ExternalLink, Printer, Save } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import CertificateDocument from "../../../components/certificates/CertificateDocument";
@@ -9,6 +9,7 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType } from "../../../data/mockData";
 import {
+  ApiError,
   certificationRequestApi,
   type ConfirmationRequest,
   type RequestStatus,
@@ -25,6 +26,7 @@ const getMetadataText = (metadata: Record<string, unknown> | undefined, key: str
 
 function AdminCertificateDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [request, setRequest] = useState<ConfirmationRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,7 +39,10 @@ function AdminCertificateDetailPage() {
   });
 
   const loadRequest = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/404", { replace: true });
+      return;
+    }
     setLoading(true);
     setMessage("");
     try {
@@ -50,11 +55,15 @@ function AdminCertificateDetailPage() {
         metadata: data.metadata || {},
       });
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không tải được thông tin yêu cầu.");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

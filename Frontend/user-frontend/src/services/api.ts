@@ -569,6 +569,16 @@ const buildRequestHeaders = (headersInit: HeadersInit | undefined, body: BodyIni
   return headers;
 };
 
+const withErrorContext = (context: string | undefined, detail: string) => {
+  const cleanContext = (context || "").trim();
+  const cleanDetail = (detail || "").trim();
+
+  if (!cleanContext) return cleanDetail;
+  if (!cleanDetail || cleanDetail === cleanContext) return cleanContext;
+
+  return cleanContext + " Lý do: " + cleanDetail;
+};
+
 export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const { errorMessage, successMessage, suppressToast, skipAuthRefresh = false, ...requestInit } = init;
   const credentials = requestInit.credentials ?? "include";
@@ -627,7 +637,7 @@ export async function apiRequest<T>(path: string, init: ApiRequestInit = {}): Pr
 
   if (!res.ok) {
     const message = extractErrorMessage(data);
-    const userMessage = toUserFacingMessage(errorMessage || message);
+    const userMessage = toUserFacingMessage(withErrorContext(errorMessage, message));
     if (!suppressToast && res.status !== 401) {
       emitToast({ variant: "error", message: userMessage });
     }
@@ -699,7 +709,7 @@ export async function apiBlobRequest(path: string, init: ApiRequestInit = {}): P
   if (!res.ok) {
     const data = await parseResponse(res);
     const message = extractErrorMessage(data);
-    const userMessage = toUserFacingMessage(errorMessage || message);
+    const userMessage = toUserFacingMessage(withErrorContext(errorMessage, message));
     if (!suppressToast && res.status !== 401) {
       emitToast({ variant: "error", message: userMessage });
     }
@@ -771,16 +781,22 @@ export const authApi = {
   revokeUser(username: string) {
     return apiRequest<string>(`/api/auth/admin/revoke/${encodeURIComponent(username)}`, {
       method: "POST",
+      successMessage: "Đã khóa tài khoản " + username + ".",
+      errorMessage: "Không khóa được tài khoản " + username + ".",
     });
   },
   unlockUser(username: string) {
     return apiRequest<string>(`/api/auth/admin/unlock/${encodeURIComponent(username)}`, {
       method: "POST",
+      successMessage: "Đã mở khóa tài khoản " + username + ".",
+      errorMessage: "Không mở khóa được tài khoản " + username + ".",
     });
   },
   resetPassword(username: string) {
     return apiRequest<string>(`/api/auth/admin/reset-password/${encodeURIComponent(username)}`, {
       method: "POST",
+      successMessage: "Đã cấp lại mật khẩu cho tài khoản " + username + ".",
+      errorMessage: "Không cấp lại được mật khẩu cho tài khoản " + username + ".",
     });
   },
 };
@@ -821,29 +837,39 @@ export const userApi = {
     const searchParams = new URLSearchParams({ sendMail: String(options.sendMail ?? true) });
     return apiRequest<UserProfile>(`/api/users?${searchParams.toString()}`, {
       method: "POST",
+      successMessage: "Đã thêm sinh viên " + payload.studentId + ".",
+      errorMessage: "Không thêm được sinh viên " + payload.studentId + ".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string | number, payload: UserProfilePayload) {
     return apiRequest<UserProfile>(`/api/users/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật sinh viên " + payload.studentId + ".",
+      errorMessage: "Không cập nhật được sinh viên " + payload.studentId + ".",
       body: JSON.stringify(payload),
     });
   },
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/${id}`, {
       method: "DELETE",
+      successMessage: "Đã xóa sinh viên " + id + ".",
+      errorMessage: "Không xóa được sinh viên " + id + ".",
     });
   },
   removeMany(studentIds: Array<string | number>) {
     return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/delete", {
       method: "POST",
+      successMessage: "Đã xóa " + studentIds.length + " sinh viên đã chọn.",
+      errorMessage: "Không xóa được " + studentIds.length + " sinh viên đã chọn.",
       body: JSON.stringify({ studentIds }),
     });
   },
   assignStudentsToClass(studentIds: Array<string | number>, classId: string | number) {
     return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/class", {
       method: "PATCH",
+      successMessage: "Đã chuyển lớp cho " + studentIds.length + " sinh viên.",
+      errorMessage: "Không chuyển lớp được cho " + studentIds.length + " sinh viên.",
       body: JSON.stringify({
         studentIds,
         classId,
@@ -853,6 +879,8 @@ export const userApi = {
   updateStudentStatuses(studentIds: Array<string | number>, status: NonNullable<UserProfile["studentStatus"]>) {
     return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/status", {
       method: "PATCH",
+      successMessage: "Đã cập nhật trạng thái " + status + " cho " + studentIds.length + " sinh viên.",
+      errorMessage: "Không cập nhật được trạng thái cho " + studentIds.length + " sinh viên.",
       body: JSON.stringify({
         studentIds,
         status,
@@ -860,8 +888,11 @@ export const userApi = {
     });
   },
   updateStudentGroups(payload: BulkStudentGroupPayload) {
+    const selectedCount = payload.studentIds?.length ?? 0;
     return apiRequest<BulkStudentUpdateResponse>("/api/users/bulk/group", {
       method: "PATCH",
+      successMessage: selectedCount > 0 ? "Đã chuyển nhóm cho " + selectedCount + " sinh viên." : "Đã chuyển nhóm sinh viên theo phạm vi đã chọn.",
+      errorMessage: selectedCount > 0 ? "Không chuyển nhóm được cho " + selectedCount + " sinh viên." : "Không chuyển nhóm sinh viên theo phạm vi đã chọn.",
       body: JSON.stringify(payload),
     });
   },
@@ -876,6 +907,8 @@ export const userApi = {
     formData.append("sendMail", String(options.sendMail ?? true));
     return apiRequest<string>("/api/users/import", {
       method: "POST",
+      successMessage: "Đã import file sinh viên " + file.name + ".",
+      errorMessage: "Không import được file sinh viên " + file.name + ".",
       body: formData,
     });
   },
@@ -886,7 +919,8 @@ export const userApi = {
     return apiRequest<StudentImportJobStatus>("/api/users/import/jobs", {
       method: "POST",
       body: formData,
-      successMessage: "Đã bắt đầu import danh sách sinh viên.",
+      successMessage: "Đã bắt đầu import file sinh viên " + file.name + ".",
+      errorMessage: "Không bắt đầu được import file sinh viên " + file.name + ".",
     });
   },
   getImportJob(jobId: string) {
@@ -897,6 +931,8 @@ export const userApi = {
   updateMyContact(contactPhone: string) {
     return apiRequest<UserProfile>("/api/users/me/contacts", {
       method: "PATCH",
+      successMessage: "Đã cập nhật số điện thoại liên hệ.",
+      errorMessage: "Không cập nhật được số điện thoại liên hệ.",
       body: JSON.stringify({ contactPhone }),
     });
   },
@@ -911,24 +947,32 @@ export const facultyApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/faculties/import", {
       method: "POST",
+      successMessage: "Đã import file khoa " + file.name + ".",
+      errorMessage: "Không import được file khoa " + file.name + ".",
       body: formData,
     });
   },
   create(payload: FacultyPayload) {
     return apiRequest<FacultyResponse>("/api/users/faculties", {
       method: "POST",
+      successMessage: "Đã thêm khoa " + payload.facultyCode + ".",
+      errorMessage: "Không thêm được khoa " + payload.facultyCode + ".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string | number, payload: FacultyPayload) {
     return apiRequest<FacultyResponse>(`/api/users/faculties/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật khoa " + payload.facultyCode + ".",
+      errorMessage: "Không cập nhật được khoa " + payload.facultyCode + ".",
       body: JSON.stringify(payload),
     });
   },
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/faculties/${id}`, {
       method: "DELETE",
+      successMessage: "Đã xóa khoa " + id + ".",
+      errorMessage: "Không xóa được khoa " + id + ".",
     });
   },
 };
@@ -942,24 +986,32 @@ export const academicYearApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/academic-years/import", {
       method: "POST",
+      successMessage: "Đã import file niên khóa " + file.name + ".",
+      errorMessage: "Không import được file niên khóa " + file.name + ".",
       body: formData,
     });
   },
   create(payload: AcademicYearPayload) {
     return apiRequest<AcademicYearResponse>("/api/users/academic-years", {
       method: "POST",
+      successMessage: "Đã thêm niên khóa " + payload.yearName + ".",
+      errorMessage: "Không thêm được niên khóa " + payload.yearName + ".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string | number, payload: AcademicYearPayload) {
     return apiRequest<AcademicYearResponse>(`/api/users/academic-years/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật niên khóa " + payload.yearName + ".",
+      errorMessage: "Không cập nhật được niên khóa " + payload.yearName + ".",
       body: JSON.stringify(payload),
     });
   },
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/academic-years/${id}`, {
       method: "DELETE",
+      successMessage: "Đã xóa niên khóa " + id + ".",
+      errorMessage: "Không xóa được niên khóa " + id + ".",
     });
   },
 };
@@ -973,24 +1025,32 @@ export const classApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/classes/import", {
       method: "POST",
+      successMessage: "Đã import file lớp " + file.name + ".",
+      errorMessage: "Không import được file lớp " + file.name + ".",
       body: formData,
     });
   },
   create(payload: ClassPayload) {
     return apiRequest<ClassResponse>("/api/users/classes", {
       method: "POST",
+      successMessage: "Đã thêm lớp " + payload.classCode + ".",
+      errorMessage: "Không thêm được lớp " + payload.classCode + ".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string | number, payload: ClassPayload) {
     return apiRequest<ClassResponse>(`/api/users/classes/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật lớp " + payload.classCode + ".",
+      errorMessage: "Không cập nhật được lớp " + payload.classCode + ".",
       body: JSON.stringify(payload),
     });
   },
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/classes/${id}`, {
       method: "DELETE",
+      successMessage: "Đã xóa lớp " + id + ".",
+      errorMessage: "Không xóa được lớp " + id + ".",
     });
   },
 };
@@ -1002,18 +1062,24 @@ export const notificationApi = {
   create(payload: NotificationPayload) {
     return apiRequest<NotificationResponse>("/api/notifications", {
       method: "POST",
+      successMessage: "Đã tạo thông báo \"" + payload.title + "\".",
+      errorMessage: "Không tạo được thông báo \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string, payload: NotificationPayload) {
     return apiRequest<NotificationResponse>(`/api/notifications/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật thông báo \"" + payload.title + "\".",
+      errorMessage: "Không cập nhật được thông báo \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   revoke(id: string) {
     return apiRequest<void>(`/api/notifications/${id}`, {
       method: "DELETE",
+      successMessage: "Đã thu hồi thông báo.",
+      errorMessage: "Không thu hồi được thông báo.",
     });
   },
   listMine(params: { facultyId?: string; classId?: string } = {}, options: { suppressToast?: boolean } = {}) {
@@ -1045,7 +1111,7 @@ export const notificationImageApi = {
       method: "POST",
       body: formData,
       suppressToast: true,
-      errorMessage: "Khong tai duoc anh thong bao.",
+      errorMessage: "Không tải được ảnh thông báo.",
     });
   },
 };
@@ -1142,24 +1208,32 @@ export const activityApi = {
   create(payload: ActivityPayload) {
     return apiRequest<ActivityResponse>("/api/activities", {
       method: "POST",
+      successMessage: "Đã tạo hoạt động \"" + payload.title + "\".",
+      errorMessage: "Không tạo được hoạt động \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string, payload: ActivityPayload) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật hoạt động \"" + payload.title + "\".",
+      errorMessage: "Không cập nhật được hoạt động \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   updateStatus(id: string, status: ActivityStatus) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
       method: "PATCH",
+      successMessage: "Đã cập nhật trạng thái hoạt động thành " + status + ".",
+      errorMessage: "Không cập nhật được trạng thái hoạt động.",
       body: JSON.stringify({ status }),
     });
   },
   remove(id: string) {
     return apiRequest<void>(`/api/activities/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      successMessage: "Đã xóa hoạt động.",
+      errorMessage: "Không xóa được hoạt động.",
     });
   },
   importRegistrations(id: string, file: File) {
@@ -1168,6 +1242,8 @@ export const activityApi = {
     return apiRequest<ActivityImportResult>(`/api/activities/${encodeURIComponent(id)}/registrations/import`, {
       method: "POST",
       body: formData,
+      suppressToast: true,
+      errorMessage: "Không import được file người tham gia " + file.name + ".",
     });
   },
   downloadRegistrationImportTemplate() {
@@ -1181,17 +1257,23 @@ export const activityApi = {
   addRegistration(id: string, payload: ActivityRegistrationPayload) {
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/registrations`, {
       method: "POST",
+      successMessage: "Đã thêm sinh viên " + payload.studentCode + " vào danh sách tham gia.",
+      errorMessage: "Không thêm được sinh viên " + payload.studentCode + " vào danh sách tham gia.",
       body: JSON.stringify(payload),
     });
   },
   removeRegistration(activityId: string, registrationId: string) {
     return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/registrations/${encodeURIComponent(registrationId)}`, {
       method: "DELETE",
+      successMessage: "Đã gỡ sinh viên khỏi danh sách tham gia.",
+      errorMessage: "Không gỡ được sinh viên khỏi danh sách tham gia.",
     });
   },
   addChecker(id: string, payload: ActivityCheckerPayload) {
     return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {
       method: "POST",
+      successMessage: "Đã phân quyền quét mã cho " + payload.checkerCode + ".",
+      errorMessage: "Không phân quyền quét mã cho " + payload.checkerCode + ".",
       body: JSON.stringify(payload),
     });
   },
@@ -1201,11 +1283,15 @@ export const activityApi = {
   removeChecker(activityId: string, checkerId: string) {
     return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/checkers/${encodeURIComponent(checkerId)}`, {
       method: "DELETE",
+      successMessage: "Đã gỡ quyền quét mã.",
+      errorMessage: "Không gỡ được quyền quét mã.",
     });
   },
   checkin(id: string, studentCode: string, checkerCode: string) {
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/checkin`, {
       method: "POST",
+      successMessage: "Đã điểm danh sinh viên " + studentCode + ".",
+      errorMessage: "Không điểm danh được sinh viên " + studentCode + ".",
       headers: { "X-User-Code": checkerCode },
       body: JSON.stringify({ studentCode }),
     });
@@ -1222,24 +1308,32 @@ export const examApi = {
   create(payload: ExamPayload) {
     return apiRequest<ExamResponse>("/api/exams", {
       method: "POST",
+      successMessage: "Đã tạo kỳ thi \"" + payload.title + "\".",
+      errorMessage: "Không tạo được kỳ thi \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string, payload: ExamPayload) {
     return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật kỳ thi \"" + payload.title + "\".",
+      errorMessage: "Không cập nhật được kỳ thi \"" + payload.title + "\".",
       body: JSON.stringify(payload),
     });
   },
   updateStatus(id: string, status: ExamStatus) {
     return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}/status`, {
       method: "PATCH",
+      successMessage: "Đã cập nhật trạng thái kỳ thi thành " + status + ".",
+      errorMessage: "Không cập nhật được trạng thái kỳ thi.",
       body: JSON.stringify({ status }),
     });
   },
   remove(id: string) {
     return apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      successMessage: "Đã xóa kỳ thi.",
+      errorMessage: "Không xóa được kỳ thi.",
     });
   },
   listQuestions(examId: string) {
@@ -1248,18 +1342,24 @@ export const examApi = {
   createQuestion(examId: string, payload: QuestionPayload) {
     return apiRequest<QuestionResponse>(`/api/exams/${encodeURIComponent(examId)}/questions`, {
       method: "POST",
+      successMessage: "Đã thêm câu hỏi mới vào kỳ thi.",
+      errorMessage: "Không thêm được câu hỏi mới vào kỳ thi.",
       body: JSON.stringify(payload),
     });
   },
   updateQuestion(examId: string, questionId: string, payload: QuestionPayload) {
     return apiRequest<QuestionResponse>(`/api/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật câu hỏi trong kỳ thi.",
+      errorMessage: "Không cập nhật được câu hỏi trong kỳ thi.",
       body: JSON.stringify(payload),
     });
   },
   removeQuestion(examId: string, questionId: string) {
     return apiRequest<void>(`/api/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}`, {
       method: "DELETE",
+      successMessage: "Đã xóa câu hỏi khỏi kỳ thi.",
+      errorMessage: "Không xóa được câu hỏi khỏi kỳ thi.",
     });
   },
   importQuestions(examId: string, file: File) {
@@ -1267,6 +1367,8 @@ export const examApi = {
     formData.append("file", file);
     return apiRequest<QuestionImportResult>(`/api/exams/${encodeURIComponent(examId)}/questions/import`, {
       method: "POST",
+      successMessage: "Đã import file câu hỏi " + file.name + ".",
+      errorMessage: "Không import được file câu hỏi " + file.name + ".",
       body: formData,
     });
   },
@@ -1304,6 +1406,8 @@ export const examApi = {
   submit(id: string) {
     return apiRequest<ExamStateResponse>(`/api/exams/${encodeURIComponent(id)}/submit`, {
       method: "POST",
+      successMessage: "Đã nộp bài thi.",
+      errorMessage: "Không nộp được bài thi.",
     });
   },
   result(id: string) {
@@ -1321,18 +1425,24 @@ export const formTypeApi = {
   create(payload: FormTypePayload) {
     return apiRequest<FormType>("/api/certifications/form-types", {
       method: "POST",
+      successMessage: "Đã thêm loại đơn " + payload.name + ".",
+      errorMessage: "Không thêm được loại đơn " + payload.name + ".",
       body: JSON.stringify(payload),
     });
   },
   update(id: string, payload: FormTypePayload) {
     return apiRequest<FormType>(`/api/certifications/form-types/${id}`, {
       method: "PUT",
+      successMessage: "Đã cập nhật loại đơn " + payload.name + ".",
+      errorMessage: "Không cập nhật được loại đơn " + payload.name + ".",
       body: JSON.stringify(payload),
     });
   },
   remove(id: string) {
     return apiRequest<void>(`/api/certifications/form-types/${id}`, {
       method: "DELETE",
+      successMessage: "Đã xóa loại đơn.",
+      errorMessage: "Không xóa được loại đơn.",
     });
   },
 };
@@ -1341,6 +1451,8 @@ export const certificationRequestApi = {
   create(payload: CreateConfirmationRequestPayload) {
     return apiRequest<ConfirmationRequest>("/api/certifications/requests", {
       method: "POST",
+      successMessage: "Đã gửi đơn xác nhận.",
+      errorMessage: "Không gửi được đơn xác nhận.",
       body: JSON.stringify(payload),
     });
   },
@@ -1353,11 +1465,15 @@ export const certificationRequestApi = {
   cancelMine(id: string) {
     return apiRequest<void>(`/api/certifications/requests/my-requests/${id}/cancel`, {
       method: "PUT",
+      successMessage: "Đã hủy đơn " + id + ".",
+      errorMessage: "Không hủy được đơn " + id + ".",
     });
   },
   updateMineProof(id: string, proofFileUrl: string) {
     return apiRequest<ConfirmationRequest>(`/api/certifications/requests/my-requests/${id}/proof`, {
       method: "PUT",
+      successMessage: "Đã cập nhật file minh chứng cho đơn " + id + ".",
+      errorMessage: "Không cập nhật được file minh chứng cho đơn " + id + ".",
       body: JSON.stringify({ proofFileUrl }),
     });
   },
@@ -1370,12 +1486,16 @@ export const certificationRequestApi = {
   updateStatus(id: string, payload: UpdateStatusPayload) {
     return apiRequest<ConfirmationRequest>(`/api/certifications/requests/${id}/status`, {
       method: "PUT",
+      successMessage: "Đã cập nhật trạng thái đơn " + id + ".",
+      errorMessage: "Không cập nhật được trạng thái đơn " + id + ".",
       body: JSON.stringify(payload),
     });
   },
   bulkUpdateStatus(payload: BulkUpdateStatusPayload) {
     return apiRequest<ConfirmationRequest[]>("/api/certifications/requests/bulk/status", {
       method: "PUT",
+      successMessage: "Đã cập nhật " + payload.requestIds.length + " đơn đã chọn.",
+      errorMessage: "Không cập nhật được " + payload.requestIds.length + " đơn đã chọn.",
       body: JSON.stringify(payload),
     });
   },
@@ -1387,6 +1507,8 @@ export const fileApi = {
     formData.append("file", file);
     return apiRequest<{ fileUrl: string }>("/api/certifications/files/upload", {
       method: "POST",
+      successMessage: "Đã tải file minh chứng " + file.name + ".",
+      errorMessage: "Không tải được file minh chứng " + file.name + ".",
       body: formData,
     });
   },

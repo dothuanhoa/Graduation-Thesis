@@ -1,4 +1,4 @@
-import { CalendarClock, Edit3, Eye, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { CalendarClock, Download, Edit3, Eye, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
@@ -24,7 +24,9 @@ import {
   type UserProfile,
 } from "../../../services/api";
 import { formatVietnamDateTime, toApiLocalDateTime, toDateTimeLocalInput } from "../../../utils/dateTime";
+import { buildExamResultRows } from "../../../utils/examResults";
 import { includesSearch } from "../../../utils/search";
+import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 import { defaultStudentGroups, studentGroupName } from "../../../utils/studentGroups";
 import ExamTargetEditor from "./ExamTargetEditor";
 import { createEmptyExamTarget } from "./examTargetUtils";
@@ -332,6 +334,54 @@ function AdminExamsPage() {
     }
   };
 
+
+  const exportFilteredExamResults = async () => {
+    if (filteredExams.length === 0) {
+      setMessage("Kh\u00f4ng c\u00f3 k\u1ef3 thi ph\u00f9 h\u1ee3p \u0111\u1ec3 xu\u1ea5t Excel.");
+      return;
+    }
+
+    setMessage("\u0110ang chu\u1ea9n b\u1ecb file Excel k\u1ebft qu\u1ea3 k\u1ef3 thi...");
+    try {
+      const resultSets = await Promise.all(
+        filteredExams.map(async (exam) => ({
+          exam,
+          attempts: await examApi.listAttempts(exam.id),
+        })),
+      );
+      const resultRows = resultSets.flatMap(({ exam, attempts }) => buildExamResultRows(exam, attempts, students));
+
+      if (resultRows.length === 0) {
+        setMessage("Kh\u00f4ng c\u00f3 sinh vi\u00ean trong \u0111\u1ed1i t\u01b0\u1ee3ng c\u1ee7a c\u00e1c k\u1ef3 thi \u0111ang l\u1ecdc.");
+        return;
+      }
+
+      exportXlsxFile(`tong-ket-ky-thi-${safeFileName(new Date().toISOString().slice(0, 10))}.xlsx`, [
+        {
+          name: "Ket qua thi",
+          rows: [
+            ["K\u1ef3 thi", "MSSV", "H\u1ecd t\u00ean", "L\u1edbp", "Khoa", "Tr\u1ea1ng th\u00e1i", "\u0110i\u1ec3m", "\u0110\u00fang/T\u1ed5ng", "Vi ph\u1ea1m", "B\u1eaft \u0111\u1ea7u l\u00fac", "N\u1ed9p l\u00fac"],
+            ...resultRows.map((row) => [
+              row.examTitle,
+              row.studentCode,
+              row.fullName,
+              row.classCode,
+              row.facultyName,
+              row.statusLabel,
+              row.score ?? "",
+              row.correctText,
+              row.violationCount,
+              formatDateTime(row.startedAt),
+              formatDateTime(row.submittedAt),
+            ]),
+          ],
+        },
+      ]);
+      setMessage("\u0110\u00e3 xu\u1ea5t file Excel k\u1ebft qu\u1ea3 k\u1ef3 thi.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Kh\u00f4ng xu\u1ea5t \u0111\u01b0\u1ee3c file Excel k\u1ebft qu\u1ea3 k\u1ef3 thi.");
+    }
+  };
   return (
     <div className="space-y-gutter">
       <PageHeader
@@ -347,6 +397,10 @@ function AdminExamsPage() {
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadExams} type="button">
           <RefreshCw className="h-5 w-5" />
           Tải lại
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => void exportFilteredExamResults()} type="button">
+          <Download className="h-5 w-5" />
+          {"Xu\u1ea5t Excel"}
         </button>
       </div>
 

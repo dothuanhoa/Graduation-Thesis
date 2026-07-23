@@ -76,8 +76,7 @@ function NotificationEditPage() {
 
   const loadNotification = useCallback(async () => {
     if (!id) {
-      setMessage("Không tìm thấy thông báo cần chỉnh sửa.");
-      setLoading(false);
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -87,9 +86,7 @@ function NotificationEditPage() {
       const notifications = await notificationApi.listAdmin();
       const current = notifications.find((item) => String(item.id) === String(id));
       if (!current) {
-        setFormData(null);
-        setNotificationTitle("");
-        setMessage("Không tìm thấy thông báo cần chỉnh sửa.");
+        navigate("/404", { replace: true });
         return;
       }
       setFormData(toPayload(current));
@@ -100,7 +97,7 @@ function NotificationEditPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

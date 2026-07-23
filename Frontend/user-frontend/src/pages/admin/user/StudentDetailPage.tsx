@@ -7,7 +7,7 @@ import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { authApi, classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
+import { ApiError, authApi, classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
 import { defaultStudentGroups } from "../../../utils/studentGroups";
 import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
 
@@ -74,8 +74,7 @@ function StudentDetailPage() {
 
   const loadProfile = useCallback(async () => {
     if (!profileId) {
-      setMessage("ID sinh viên không hợp lệ.");
-      setLoading(false);
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -103,11 +102,15 @@ function StudentDetailPage() {
         studentStatus: data.studentStatus || "STUDYING",
       });
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        navigate("/404", { replace: true });
+        return;
+      }
       setMessage(err instanceof Error ? err.message : "Không tải được hồ sơ sinh viên.");
     } finally {
       setLoading(false);
     }
-  }, [profileId]);
+  }, [navigate, profileId]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

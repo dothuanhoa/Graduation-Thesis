@@ -28,11 +28,7 @@ function LoginPage() {
         setNeedsPasswordChange(true);
         setError("Tài khoản cần đổi mật khẩu lần đầu trước khi vào hệ thống.");
       } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Không đăng nhập được. Vui lòng thử lại.",
-        );
+        setError("Mật khẩu hoặc tài khoản sai.");
       }
     } finally {
       setLoading(false);
