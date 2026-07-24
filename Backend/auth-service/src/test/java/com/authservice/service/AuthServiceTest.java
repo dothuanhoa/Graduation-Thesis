@@ -75,6 +75,50 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginRejectsTemporaryLockedAccountWithClearMessage() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("DH52201258");
+        request.setPassword("123456");
+
+        when(redisService.isLockedOut("DH52201258")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException responseException = (ResponseStatusException) ex;
+                    assertThat(responseException.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(responseException.getReason()).isEqualTo("Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.");
+                });
+
+        verify(authUserRepository, never()).findByUsername(any());
+    }
+
+    @Test
+    void loginLocksAccountAndReturnsLockMessageWhenFailedAttemptsReachLimit() {
+        AuthUser user = activeStudent("DH52201258", "dh52201258@student.edu.vn");
+        user.setFailedAttempts(4);
+        LoginRequest request = new LoginRequest();
+        request.setUsername("DH52201258");
+        request.setPassword("wrong-password");
+
+        when(redisService.isLockedOut("DH52201258")).thenReturn(false);
+        when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", user.getPasswordHash())).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException responseException = (ResponseStatusException) ex;
+                    assertThat(responseException.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(responseException.getReason()).isEqualTo("Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.");
+                });
+
+        assertThat(user.getFailedAttempts()).isZero();
+        verify(redisService).lockoutUser("DH52201258");
+        verify(authUserRepository).save(user);
+    }
+
+    @Test
     void passwordResetIsLimitedPerMonth() {
         AuthUser user = activeStudent("DH52201258", "dh52201258@student.edu.vn");
         when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.of(user));
@@ -135,6 +179,27 @@ class AuthServiceTest {
 
         assertThat(user.getEmail()).isEqualTo("old@student.edu.vn");
         verify(authUserRepository, never()).save(any());
+    }
+
+    @Test
+    void logoutDeletesRefreshTokenAndRevokesCurrentAccessToken() {
+        when(jwtService.extractUsernameFromBearer("Bearer access-token")).thenReturn("DH52201258");
+
+        authService.logout("refresh-token", "Bearer access-token");
+
+        verify(redisService).deleteRefreshToken("refresh-token");
+        verify(redisService).revokeAccess("DH52201258");
+    }
+
+    @Test
+    void logoutFallsBackToRefreshTokenOwnerWhenAccessTokenIsMissing() {
+        when(redisService.findUserIdByRefreshToken("refresh-token")).thenReturn("DH52201258");
+
+        authService.logout("refresh-token", null);
+
+        verify(redisService).findUserIdByRefreshToken("refresh-token");
+        verify(redisService).deleteRefreshToken("refresh-token");
+        verify(redisService).revokeAccess("DH52201258");
     }
 
     @Test

@@ -27,6 +27,10 @@ function LoginPage() {
       if (err instanceof ApiError && err.status === 428) {
         setNeedsPasswordChange(true);
         setError("Tài khoản cần đổi mật khẩu lần đầu trước khi vào hệ thống.");
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError(err.message || "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.");
+      } else if (err instanceof ApiError && err.status === 403) {
+        setError(err.message || "Tài khoản không được phép đăng nhập.");
       } else {
         setError("Mật khẩu hoặc tài khoản sai.");
       }

@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
 public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final ZoneId PASSWORD_RESET_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final String TEMPORARY_LOCKOUT_MESSAGE =
+            "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.";
 
     private final AuthUserRepository authUserRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -139,7 +141,7 @@ public class AuthService {
 
     public TokenResponse login(LoginRequest request) {
         if (redisService.isLockedOut(request.getUsername())) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau 15 phút.");
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, TEMPORARY_LOCKOUT_MESSAGE);
         }
 
         AuthUser user = authUserRepository.findByUsername(request.getUsername())
@@ -149,6 +151,9 @@ public class AuthService {
             user.setFailedAttempts(user.getFailedAttempts() + 1);
             if (user.getFailedAttempts() >= 5) {
                 redisService.lockoutUser(user.getUsername());
+                user.setFailedAttempts(0);
+                authUserRepository.save(user);
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, TEMPORARY_LOCKOUT_MESSAGE);
             }
             authUserRepository.save(user);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai tài khoản hoặc mật khẩu");
@@ -210,8 +215,12 @@ public class AuthService {
         return issueTokens(user);
     }
 
-    public void logout(String refreshToken) {
+    public void logout(String refreshToken, String authorizationHeader) {
+        String username = resolveLogoutUsername(refreshToken, authorizationHeader);
         redisService.deleteRefreshToken(refreshToken);
+        if (username != null && !username.isBlank()) {
+            redisService.revokeAccess(username);
+        }
     }
 
     @Transactional
@@ -502,6 +511,21 @@ public class AuthService {
 
     public List<AuthUser> getAllUsers() {
         return authUserRepository.findAll();
+    }
+
+    private String resolveLogoutUsername(String refreshToken, String authorizationHeader) {
+        String username = null;
+        try {
+            username = jwtService.extractUsernameFromBearer(authorizationHeader);
+        } catch (ResponseStatusException ignored) {
+            // Logout should still clear the refresh token even if the access token is missing or expired.
+        }
+
+        if ((username == null || username.isBlank()) && refreshToken != null && !refreshToken.isBlank()) {
+            username = redisService.findUserIdByRefreshToken(refreshToken);
+        }
+
+        return username;
     }
 
     private AuthUser findUserByUsernameOrEmail(String usernameOrEmail) {

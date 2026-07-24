@@ -124,6 +124,14 @@ public class AuthController {
                 response.put("message", "Bạn phải đổi mật khẩu lần đầu");
                 return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED).body(response);
             }
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                Map<String, String> response = new HashMap<>();
+                response.put("code", "ACCOUNT_TEMPORARILY_LOCKED");
+                response.put("message", e.getReason() == null || e.getReason().isBlank()
+                        ? "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút."
+                        : e.getReason());
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
+            }
             throw e;
         }
     }
@@ -142,9 +150,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @CookieValue(value = REFRESH_TOKEN_COOKIE, required = false) String refreshToken
     ) {
-        authService.logout(refreshToken);
+        authService.logout(refreshToken, authorizationHeader);
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString())
                 .build();
