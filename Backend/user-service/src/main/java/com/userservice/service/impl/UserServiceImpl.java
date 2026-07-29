@@ -83,8 +83,12 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserProfile save(UserProfile userProfile, boolean sendMail) {
         Clazz targetClazz = resolveClazz(userProfile);
+        requireClazzSelected(targetClazz);
         StudentGroup targetGroup = resolveStudentGroupForCreate(userProfile);
         ensureClassHasRoom(null, targetClazz, 1);
+        userProfile.setStudentId(clean(userProfile.getStudentId()));
+        userProfile.setFullName(clean(userProfile.getFullName()));
+        userProfile.setContactPhone(clean(userProfile.getContactPhone()));
         userProfile.setEmail(resolveStudentEmail(userProfile.getStudentId(), userProfile.getEmail()));
         userProfile.setClazz(targetClazz);
         userProfile.setStudentGroup(targetGroup);
@@ -142,6 +146,12 @@ public class UserServiceImpl implements UserService {
 
             row.setStudentId(studentId);
             Clazz clazz = resolveImportClass(row, organizationSummary, classCache);
+            if (clazz == null) {
+                skippedStudents++;
+                reportIfNeeded(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents,
+                        skippedStudents, authProcessed, 0, "Đang kiểm tra dữ liệu sinh viên.");
+                continue;
+            }
             StudentGroup studentGroup = resolveImportStudentGroup(row, studentGroupCache);
             Optional<UserProfile> existingProfile = Optional.ofNullable(existingProfiles.get(studentId));
             pendingAccounts.add(new BulkRegisterMessage.UserAccountDTO(
@@ -222,15 +232,16 @@ public class UserServiceImpl implements UserService {
             UserProfile.StudentStatus previousStatus = user.getStudentStatus();
             UserProfile.StudentStatus targetStatus = userDetails.getStudentStatus();
             Clazz targetClazz = resolveClazz(userDetails);
+            requireClazzSelected(targetClazz);
             StudentGroup targetGroup = resolveStudentGroupForUpdate(user, userDetails);
             ensureClassHasRoom(user, targetClazz, 1);
-            user.setFullName(userDetails.getFullName());
+            user.setFullName(clean(userDetails.getFullName()));
             user.setStudentId(user.getStudentId());
             String targetEmail = resolveStudentEmail(user.getStudentId(), userDetails.getEmail());
             user.setEmail(targetEmail);
             user.setDob(userDetails.getDob());
             user.setGender(userDetails.getGender());
-            user.setContactPhone(userDetails.getContactPhone());
+            user.setContactPhone(clean(userDetails.getContactPhone()));
             user.setClazz(targetClazz);
             user.setStudentGroup(targetGroup);
             user.setStudentStatus(targetStatus);
@@ -324,8 +335,14 @@ public class UserServiceImpl implements UserService {
         UserProfile user = userProfileRepository.findByStudentId(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với MSSV: " + studentId));
 
-        user.setContactPhone(contactPhone);
+        user.setContactPhone(clean(contactPhone));
         return userProfileRepository.save(user);
+    }
+
+    private void requireClazzSelected(Clazz clazz) {
+        if (clazz == null) {
+            throw new BadRequestException("Vui lòng chọn lớp hợp lệ.");
+        }
     }
 
     private ImportCounters saveProfileBatches(

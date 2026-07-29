@@ -242,7 +242,7 @@ function ActivityDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {

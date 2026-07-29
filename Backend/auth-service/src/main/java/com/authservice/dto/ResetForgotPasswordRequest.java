@@ -7,9 +7,11 @@ import lombok.Data;
 @Data
 public class ResetForgotPasswordRequest {
     @NotBlank(message = "Liên kết đặt lại mật khẩu không hợp lệ.")
+    @Size(max = 200, message = "Token đặt lại mật khẩu không hợp lệ.")
     private String token;
 
     @NotBlank(message = "Vui lòng nhập mật khẩu mới.")
     @Size(min = 6, message = "Mật khẩu mới cần tối thiểu 6 ký tự.")
+    @Size(max = 128, message = "Mật khẩu mới không được vượt quá 128 ký tự.")
     private String newPassword;
 }

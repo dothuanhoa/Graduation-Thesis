@@ -53,4 +53,9 @@ public class ActivityRequest {
     public boolean isCapacityRequiredForLimitedActivity() {
         return participationType != Activity.ParticipationType.LIMITED || capacity != null;
     }
+
+    @AssertTrue(message = "Thời gian kết thúc phải sau thời gian bắt đầu")
+    public boolean isTimeRangeValid() {
+        return startTime == null || endTime == null || endTime.isAfter(startTime);
+    }
 }

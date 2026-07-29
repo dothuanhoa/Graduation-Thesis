@@ -3,9 +3,11 @@ package com.authservice.controller;
 import com.authservice.dto.ChangePasswordRequest;
 import com.authservice.dto.CurrentPasswordChangeRequest;
 import com.authservice.dto.ForgotPasswordRequest;
+import com.authservice.dto.BulkRegisterMessage.UserAccountDTO;
 import com.authservice.dto.LoginRequest;
 import com.authservice.dto.RegisterRequest;
 import com.authservice.dto.ResetForgotPasswordRequest;
+import com.authservice.dto.StudentEmailUpdateRequest;
 import com.authservice.dto.TokenResponse;
 import com.authservice.service.AuthService;
 import jakarta.validation.Valid;
@@ -24,6 +26,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,6 +35,7 @@ public class AuthController {
     private static final String REFRESH_TOKEN_COOKIE = "refreshToken";
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_SYSTEM = "SYSTEM";
+    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9_.-]+$");
 
     private final AuthService authService;
 
@@ -56,7 +60,7 @@ public class AuthController {
             @RequestHeader(value = "X-User-Role", defaultValue = "") String role,
             @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
-            @RequestBody RegisterRequest request
+            @Valid @RequestBody RegisterRequest request
     ) {
         if (!isInternalRequest(internalSecret) || !isAdminOrSystem(role)) {
             return forbidden();
@@ -70,9 +74,12 @@ public class AuthController {
             @RequestHeader(value = "X-User-Role", defaultValue = "") String role,
             @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @RequestParam(value = "sendMail", defaultValue = "true") boolean sendMail,
-            @RequestBody java.util.List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts) {
+            @Valid @RequestBody List<@Valid UserAccountDTO> accounts) {
         if (!isInternalRequest(internalSecret) || !isAdminOrSystem(role)) {
             return forbidden();
+        }
+        if (accounts == null || accounts.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách tài khoản không được để trống");
         }
         authService.bulkRegister(accounts, sendMail);
         return ResponseEntity.ok("Import thành công!");
@@ -83,9 +90,10 @@ public class AuthController {
             @RequestHeader("X-User-Role") String role,
             @RequestHeader(value = "X-Internal-Secret", defaultValue = "") String internalSecret,
             @PathVariable String username,
-            @RequestBody RegisterRequest request
+            @Valid @RequestBody StudentEmailUpdateRequest request
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.updateStudentEmail(username, request.getEmail());
         return ResponseEntity.ok("Đã cập nhật email tài khoản thành công!");
     }
@@ -97,6 +105,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         int deletedCount = authService.deleteStudentAccounts(List.of(username));
         return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
     }
@@ -108,12 +117,16 @@ public class AuthController {
             @RequestBody List<String> usernames
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        if (usernames == null || usernames.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách tài khoản không được để trống");
+        }
+        validateUsernameList(usernames);
         int deletedCount = authService.deleteStudentAccounts(usernames);
         return ResponseEntity.ok("Đã xóa " + deletedCount + " tài khoản sinh viên.");
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
             TokenResponse token = authService.login(request);
             return withRefreshCookie(token);
@@ -137,7 +150,7 @@ public class AuthController {
     }
 
     @PostMapping("/first-change-password")
-    public ResponseEntity<TokenResponse> firstChangePassword(@RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<TokenResponse> firstChangePassword(@Valid @RequestBody ChangePasswordRequest request) {
         return withRefreshCookie(authService.firstChangePassword(request));
     }
 
@@ -191,6 +204,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.revokeUser(username);
         return ResponseEntity.ok("Đã khóa tài khoản thành công");
     }
@@ -202,6 +216,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.unlockUser(username);
         return ResponseEntity.ok("Đã mở khóa tài khoản thành công");
     }
@@ -213,6 +228,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.resetPassword(username);
         return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
     }
@@ -225,6 +241,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.revokeUser(username);
         return ResponseEntity.ok("Đã khóa tài khoản thành công");
     }
@@ -236,6 +253,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.unlockUser(username);
         return ResponseEntity.ok("Đã mở khóa tài khoản thành công");
     }
@@ -247,6 +265,7 @@ public class AuthController {
             @PathVariable String username
     ) {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
+        validateUsername(username);
         authService.resetPassword(username);
         return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
     }
@@ -314,6 +333,19 @@ public class AuthController {
             normalizedRole = normalizedRole.substring("ROLE_".length());
         }
         return normalizedRole;
+    }
+
+    private void validateUsernameList(List<String> usernames) {
+        for (String username : usernames) {
+            validateUsername(username);
+        }
+    }
+
+    private void validateUsername(String username) {
+        if (username == null || username.isBlank() || username.length() > 50
+                || !USERNAME_PATTERN.matcher(username.trim()).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên đăng nhập không hợp lệ");
+        }
     }
 
     private ResponseEntity<String> forbidden() {

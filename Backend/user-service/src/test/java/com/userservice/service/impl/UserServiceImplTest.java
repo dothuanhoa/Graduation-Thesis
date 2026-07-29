@@ -56,11 +56,14 @@ class UserServiceImplTest {
     @Test
     void saveCreatesDefaultEmailAndInitialAuthAccount() {
         StudentGroup defaultGroup = group(1, "1", "Dau khoa");
+        Clazz targetClass = clazz(10L, "D22_TH01", Clazz.Status.ACTIVE);
         UserProfile profile = new UserProfile();
         profile.setStudentId("DH52201258");
         profile.setFullName("Tran Thanh Hoai Phuc");
+        profile.setClazz(targetClass);
         profile.setStudentStatus(UserProfile.StudentStatus.STUDYING);
 
+        when(classRepository.findById(10L)).thenReturn(Optional.of(targetClass));
         when(studentGroupRepository.findByCode("1")).thenReturn(Optional.of(defaultGroup));
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -77,11 +80,14 @@ class UserServiceImplTest {
     @Test
     void saveCanSkipInitialAuthEmail() {
         StudentGroup defaultGroup = group(1, "1", "Dau khoa");
+        Clazz targetClass = clazz(10L, "D22_TH01", Clazz.Status.ACTIVE);
         UserProfile profile = new UserProfile();
         profile.setStudentId("DH52201258");
         profile.setFullName("Tran Thanh Hoai Phuc");
+        profile.setClazz(targetClass);
         profile.setStudentStatus(UserProfile.StudentStatus.STUDYING);
 
+        when(classRepository.findById(10L)).thenReturn(Optional.of(targetClass));
         when(studentGroupRepository.findByCode("1")).thenReturn(Optional.of(defaultGroup));
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -109,7 +115,8 @@ class UserServiceImplTest {
     @Test
     void updateSyncsChangedEmailToAuthService() {
         StudentGroup currentGroup = group(1, "1", "Dau khoa");
-        UserProfile existing = student(1L, "DH52201258", null);
+        Clazz currentClass = clazz(10L, "D22_TH01", Clazz.Status.ACTIVE);
+        UserProfile existing = student(1L, "DH52201258", currentClass);
         existing.setEmail("old@student.edu.vn");
         existing.setStudentGroup(currentGroup);
         existing.setStudentStatus(UserProfile.StudentStatus.STUDYING);
@@ -118,9 +125,11 @@ class UserServiceImplTest {
         request.setStudentId("DH52201258");
         request.setFullName("Tran Thanh Hoai Phuc");
         request.setEmail("NEW@student.edu.vn");
+        request.setClazz(currentClass);
         request.setStudentStatus(UserProfile.StudentStatus.STUDYING);
 
         when(userProfileRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(classRepository.findById(10L)).thenReturn(Optional.of(currentClass));
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserProfile saved = userService.update(1L, request);

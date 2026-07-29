@@ -392,6 +392,10 @@ public class AuthService {
     }
 
     public void bulkRegister(List<com.authservice.dto.BulkRegisterMessage.UserAccountDTO> accounts, boolean sendMail) {
+        if (accounts == null || accounts.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách tài khoản không được để trống");
+        }
+
         Map<String, com.authservice.dto.BulkRegisterMessage.UserAccountDTO> uniqueAccounts = accounts.stream()
                 .filter(account -> account.getUsername() != null && !account.getUsername().isBlank())
                 .collect(Collectors.toMap(

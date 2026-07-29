@@ -48,7 +48,7 @@ const columnName = (index: number) => {
 };
 
 const sanitizeSheetName = (name: string, index: number) => {
-  const cleaned = (name || `Sheet ${index + 1}`).replace(/[\\/?*\[\]:]/g, " ").trim();
+  const cleaned = (name || `Sheet ${index + 1}`).replace(/[\\/?*[\]:]/g, " ").trim();
   return (cleaned || `Sheet ${index + 1}`).slice(0, 31);
 };
 

@@ -6,6 +6,6 @@ import lombok.Data;
 
 @Data
 public class ExamStatusRequest {
-    @NotNull
+    @NotNull(message = "Trạng thái kỳ thi không được để trống")
     private Exam.Status status;
 }

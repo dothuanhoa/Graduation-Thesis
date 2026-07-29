@@ -3,6 +3,7 @@ package com.userservice.dto;
 import com.userservice.domain.UserProfile;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -10,7 +11,8 @@ import java.util.List;
 @Data
 public class BulkStudentStatusRequest {
     @NotEmpty(message = "Vui lòng chọn ít nhất một sinh viên")
-    private List<Long> studentIds;
+    @Size(max = 500, message = "Không được cập nhật quá 500 sinh viên mỗi lần")
+    private List<@NotNull(message = "Mã sinh viên không được để trống") Long> studentIds;
 
     @NotNull(message = "Vui lòng chọn trạng thái")
     private UserProfile.StudentStatus status;

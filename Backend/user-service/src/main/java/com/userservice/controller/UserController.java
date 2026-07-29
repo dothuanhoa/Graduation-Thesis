@@ -9,6 +9,7 @@ import com.userservice.dto.BulkStudentStatusRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
+import com.userservice.dto.UpdateContactRequest;
 import com.userservice.service.ExcelService;
 import com.userservice.service.StudentImportJobService;
 import com.userservice.service.UserService;
@@ -32,7 +33,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -238,13 +238,9 @@ public class UserController {
     @PatchMapping("/me/contacts")
     public ResponseEntity<UserProfile> updateMyContact(
             @RequestHeader("X-User-Code") String studentId,
-            @RequestBody Map<String, String> updates
+            @Valid @RequestBody UpdateContactRequest request
     ) {
-        String contactPhone = updates.get("contactPhone");
-        if (contactPhone == null || contactPhone.trim().isEmpty()) {
-            return ResponseEntity.badRequest().build();
-        }
-        return ResponseEntity.ok(userService.updateContactByStudentId(studentId, contactPhone));
+        return ResponseEntity.ok(userService.updateContactByStudentId(studentId, request.getContactPhone()));
     }
 
     private boolean isAdminOrSystem(String role) {
