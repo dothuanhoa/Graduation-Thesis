@@ -5,3 +5,8 @@
 **/node_modules/
 **/.env
 **/.env.local
+Backend/activity-service/.idea/compiler.xml
+Backend/activity-service/.idea/gradle.xml
+Backend/activity-service/.idea/misc.xml
+Backend/activity-service/.idea/vcs.xml
+Backend/activity-service/.idea/workspace.xml

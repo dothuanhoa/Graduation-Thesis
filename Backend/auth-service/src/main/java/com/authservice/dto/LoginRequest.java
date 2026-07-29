@@ -11,6 +11,6 @@ public class LoginRequest {
     private String username;
 
     @NotBlank(message = "Vui lòng nhập mật khẩu.")
-    @Size(max = 128, message = "Mật khẩu không được vượt quá 128 ký tự.")
+    @Size(max = 64, message = "Mật khẩu không được vượt quá 64 ký tự.")
     private String password;
 }

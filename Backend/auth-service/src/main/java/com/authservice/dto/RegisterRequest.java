@@ -14,6 +14,6 @@ public class RegisterRequest {
     private String username; // MSSV
 
     @Email(message = "Email không hợp lệ.")
-    @Size(max = 100, message = "Email không được vượt quá 100 ký tự.")
+    @Size(max = 50, message = "Email không được vượt quá 50 ký tự.")
     private String email;
 }

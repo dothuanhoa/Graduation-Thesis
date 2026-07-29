@@ -21,12 +21,12 @@ public class BulkRegisterMessage {
     @AllArgsConstructor
     public static class UserAccountDTO {
         @NotBlank(message = "Tên đăng nhập không được để trống.")
-        @Size(max = 50, message = "Tên đăng nhập không được vượt quá 50 ký tự.")
+        @Size(max = 30, message = "Tên đăng nhập không được vượt quá 30 ký tự.")
         @Pattern(regexp = "^[A-Za-z0-9_.-]+$", message = "Tên đăng nhập chỉ gồm chữ, số, dấu chấm, gạch dưới hoặc gạch ngang.")
         private String username;
 
         @Email(message = "Email không hợp lệ.")
-        @Size(max = 100, message = "Email không được vượt quá 100 ký tự.")
+        @Size(max = 50, message = "Email không được vượt quá 50 ký tự.")
         private String email;
     }
 }

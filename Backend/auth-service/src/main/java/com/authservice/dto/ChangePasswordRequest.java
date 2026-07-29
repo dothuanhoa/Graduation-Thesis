@@ -11,10 +11,10 @@ public class ChangePasswordRequest {
     private String username;
 
     @NotBlank(message = "Vui lòng nhập mật khẩu cũ.")
-    @Size(max = 128, message = "Mật khẩu cũ không được vượt quá 128 ký tự.")
+    @Size(max = 64, message = "Mật khẩu cũ không được vượt quá 64 ký tự.")
     private String oldPassword;
 
     @NotBlank(message = "Vui lòng nhập mật khẩu mới.")
-    @Size(min = 6, max = 128, message = "Mật khẩu mới phải từ 6 đến 128 ký tự.")
+    @Size(min = 6, max = 64, message = "Mật khẩu mới phải từ 6 đến 64 ký tự.")
     private String newPassword;
 }
