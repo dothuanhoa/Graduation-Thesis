@@ -36,13 +36,13 @@ public class ExamTargetRequest {
     @NotNull(message = "Phạm vi thi không được để trống")
     private ExamTarget.TargetMode targetMode = ExamTarget.TargetMode.CLASS;
 
-    @Size(max = 1000, message = "Không được chọn quá 1000 sinh viên")
+    @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentIds = new ArrayList<>();
 
-    @Size(max = 1000, message = "Không được chọn quá 1000 sinh viên")
+    @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentCodes = new ArrayList<>();
 
-    @Size(max = 1000, message = "Không được chọn quá 1000 sinh viên")
+    @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentNames = new ArrayList<>();
 
     @NotNull(message = "Thời gian mở đề không được để trống")

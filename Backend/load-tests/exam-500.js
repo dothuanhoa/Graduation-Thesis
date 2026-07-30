@@ -1,6 +1,7 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { SharedArray } from "k6/data";
+import { htmlReport } from "https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js";
 
 const BASE_URL = __ENV.BASE_URL || "http://api-gateway:8000";
 const EXAM_ID = __ENV.EXAM_ID || "1";
@@ -71,7 +72,9 @@ function login(student) {
 }
 
 function startOrResumeExam(headers) {
-  const startRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/start`, null, { headers });
+  const startRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/start`, null, {
+    headers,
+  });
   check(startRes, {
     "start exam ok": (response) => response.status === 200,
   });
@@ -107,9 +110,13 @@ function answerAllQuestions(headers, state) {
     }
   }
 
-  check({ savedCount, total: state.questions?.length || 0 }, {
-    "answered all questions": (result) => result.total > 0 && result.savedCount === result.total,
-  });
+  check(
+    { savedCount, total: state.questions?.length || 0 },
+    {
+      "answered all questions": (result) =>
+        result.total > 0 && result.savedCount === result.total,
+    },
+  );
 
   return latestState;
 }
@@ -134,7 +141,11 @@ export default function (data) {
 
   if (MODE === "submit") {
     waitUntilSubmitTime(data.submitAt);
-    const submitRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/submit`, null, { headers });
+    const submitRes = http.post(
+      `${BASE_URL}/api/exams/${EXAM_ID}/submit`,
+      null,
+      { headers },
+    );
     check(submitRes, {
       "submit exam ok": (response) => response.status === 200,
     });
@@ -159,8 +170,16 @@ export default function (data) {
   }
 
   waitUntilSubmitTime(data.submitAt);
-  const submitRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/submit`, null, { headers });
+  const submitRes = http.post(`${BASE_URL}/api/exams/${EXAM_ID}/submit`, null, {
+    headers,
+  });
   check(submitRes, {
     "submit exam ok": (response) => response.status === 200,
   });
+}
+
+export function handleSummary(data) {
+  return {
+    "summary.html": htmlReport(data),
+  };
 }
