@@ -164,7 +164,7 @@ function StudentCertificateRequestPage() {
       return;
     }
 
-    if (!metadata.contactPhone?.trim()) {
+    if (!metadata.contactPhone?.trim()&&selectedFormType.formCode!=="VAY_VON") {
       setMessage("Vui lòng nhập số điện thoại liên hệ trên đơn.");
       return;
     }
