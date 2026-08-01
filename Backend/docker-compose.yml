@@ -137,6 +137,21 @@ services:
     networks:
       - micro_network
 
+  user-frontend:
+    build:
+      context: ../Frontend/user-frontend
+      dockerfile: Dockerfile
+    container_name: user-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+    volumes:
+      - ../Frontend/user-frontend/public/notification:/usr/share/nginx/html/notification
+      - ../Frontend/user-frontend/public/certification:/usr/share/nginx/html/certification
+    networks:
+      - micro_network
+
   auth-service:
     build: ./auth-service
     container_name: auth-service
