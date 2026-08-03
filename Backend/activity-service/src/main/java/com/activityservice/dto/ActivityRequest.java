@@ -31,6 +31,10 @@ public class ActivityRequest {
     @Pattern(regexp = "^$|^https?://.+", message = "Link Google Form phải bắt đầu bằng http:// hoặc https://")
     private String googleFormUrl;
 
+    private LocalDateTime registrationStartTime;
+
+    private LocalDateTime registrationEndTime;
+
     @NotBlank(message = "Địa điểm không được để trống")
     @Size(max = 255, message = "Địa điểm không được vượt quá 255 ký tự")
     private String location;
@@ -44,9 +48,14 @@ public class ActivityRequest {
     @Positive(message = "Số lượng tối đa phải lớn hơn 0")
     private Integer capacity;
 
-    @AssertTrue(message = "Hoạt động giới hạn cần có link Google Form đăng ký")
-    public boolean isGoogleFormRequiredForLimitedActivity() {
-        return participationType != Activity.ParticipationType.LIMITED || (googleFormUrl != null && !googleFormUrl.isBlank());
+    @AssertTrue(message = "Hoạt động giới hạn cần có thời gian mở đăng ký")
+    public boolean isRegistrationStartTimeRequiredForLimitedActivity() {
+        return participationType != Activity.ParticipationType.LIMITED || registrationStartTime != null;
+    }
+
+    @AssertTrue(message = "Hoạt động giới hạn cần có thời gian đóng đăng ký")
+    public boolean isRegistrationEndTimeRequiredForLimitedActivity() {
+        return participationType != Activity.ParticipationType.LIMITED || registrationEndTime != null;
     }
 
     @AssertTrue(message = "Hoạt động giới hạn cần có số lượng tối đa")
@@ -57,5 +66,21 @@ public class ActivityRequest {
     @AssertTrue(message = "Thời gian kết thúc phải sau thời gian bắt đầu")
     public boolean isTimeRangeValid() {
         return startTime == null || endTime == null || endTime.isAfter(startTime);
+    }
+
+    @AssertTrue(message = "Thời gian đóng đăng ký phải sau thời gian mở đăng ký")
+    public boolean isRegistrationTimeRangeValid() {
+        if (participationType != Activity.ParticipationType.LIMITED) {
+            return true;
+        }
+        return registrationStartTime == null || registrationEndTime == null || registrationEndTime.isAfter(registrationStartTime);
+    }
+
+    @AssertTrue(message = "Thời gian đóng đăng ký không được sau thời gian bắt đầu hoạt động")
+    public boolean isRegistrationEndBeforeActivityStart() {
+        if (participationType != Activity.ParticipationType.LIMITED) {
+            return true;
+        }
+        return registrationEndTime == null || startTime == null || !registrationEndTime.isAfter(startTime);
     }
 }

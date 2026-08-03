@@ -16,22 +16,36 @@ export const activitySchema = z
       .max(500, "Link Google Form không được vượt quá 500 ký tự.")
       .optional()
       .refine((value) => !value || /^https?:\/\/.+/i.test(value), "Link Google Form phải bắt đầu bằng http:// hoặc https://."),
+    registrationStartTime: z.string().trim().optional(),
+    registrationEndTime: z.string().trim().optional(),
     location: z.string().trim().min(1, "Vui lòng nhập địa điểm.").max(255, "Địa điểm không được vượt quá 255 ký tự."),
     startTime: z.string().trim().min(1, "Vui lòng chọn thời gian bắt đầu.").refine(isValidDateTime, "Thời gian bắt đầu không hợp lệ."),
     endTime: z.string().trim().min(1, "Vui lòng chọn thời gian kết thúc.").refine(isValidDateTime, "Thời gian kết thúc không hợp lệ."),
     capacity: z.number().int("Số lượng tối đa phải là số nguyên.").positive("Số lượng tối đa phải lớn hơn 0.").optional(),
   })
-  .refine((data) => data.participationType !== "LIMITED" || Boolean(data.googleFormUrl?.trim()), {
-    message: "Hoạt động giới hạn cần có link Google Form đăng ký.",
-    path: ["googleFormUrl"],
-  })
   .refine((data) => data.participationType !== "LIMITED" || data.capacity !== undefined, {
     message: "Hoạt động giới hạn cần có số lượng tối đa.",
     path: ["capacity"],
   })
+  .refine((data) => data.participationType !== "LIMITED" || Boolean(data.registrationStartTime?.trim()), {
+    message: "Hoạt động giới hạn cần có thời gian mở đăng ký.",
+    path: ["registrationStartTime"],
+  })
+  .refine((data) => data.participationType !== "LIMITED" || Boolean(data.registrationEndTime?.trim()), {
+    message: "Hoạt động giới hạn cần có thời gian đóng đăng ký.",
+    path: ["registrationEndTime"],
+  })
   .refine((data) => new Date(data.endTime).getTime() > new Date(data.startTime).getTime(), {
     message: "Thời gian kết thúc phải sau thời gian bắt đầu.",
     path: ["endTime"],
+  })
+  .refine((data) => data.participationType !== "LIMITED" || new Date(data.registrationEndTime || "").getTime() > new Date(data.registrationStartTime || "").getTime(), {
+    message: "Thời gian đóng đăng ký phải sau thời gian mở đăng ký.",
+    path: ["registrationEndTime"],
+  })
+  .refine((data) => data.participationType !== "LIMITED" || new Date(data.registrationEndTime || "").getTime() <= new Date(data.startTime).getTime(), {
+    message: "Thời gian đóng đăng ký không được sau thời gian bắt đầu hoạt động.",
+    path: ["registrationEndTime"],
   });
 
 export const checkerSchema = z.object({

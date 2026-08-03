@@ -1,16 +1,29 @@
 package com.activityservice.controller;
 
 import com.activityservice.domain.Activity;
-import com.activityservice.dto.*;
+import com.activityservice.dto.ActivityRequest;
+import com.activityservice.dto.ActivityResponse;
+import com.activityservice.dto.ActivityStatusRequest;
+import com.activityservice.dto.CheckerRequest;
+import com.activityservice.dto.CheckerResponse;
+import com.activityservice.dto.CheckinRequest;
+import com.activityservice.dto.RegistrationResponse;
 import com.activityservice.exception.ForbiddenException;
 import com.activityservice.service.ActivityService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -22,8 +35,9 @@ public class ActivityController {
     private final ActivityService activityService;
 
     @GetMapping
-    public ResponseEntity<List<ActivityResponse>> getActivities() {
-        return ResponseEntity.ok(activityService.findAll());
+    public ResponseEntity<List<ActivityResponse>> getActivities(
+            @RequestHeader(value = "X-User-Code", required = false) String userCode) {
+        return ResponseEntity.ok(activityService.findAll(userCode));
     }
 
     @GetMapping("/checker/me")
@@ -33,8 +47,10 @@ public class ActivityController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ActivityResponse> getActivity(@PathVariable Long id) {
-        return ResponseEntity.ok(activityService.findById(id));
+    public ResponseEntity<ActivityResponse> getActivity(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Code", required = false) String userCode) {
+        return ResponseEntity.ok(activityService.findById(id, userCode));
     }
 
     @PostMapping
@@ -73,25 +89,6 @@ public class ActivityController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/registrations/import")
-    public ResponseEntity<ImportResult> importRegistrations(
-            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file) {
-        requireAdmin(role);
-        return ResponseEntity.ok(activityService.importRegistrations(id, file));
-    }
-
-    @GetMapping("/registrations/import/template")
-    public ResponseEntity<byte[]> downloadRegistrationImportTemplate(
-            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role) {
-        requireAdmin(role);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"mau-import-danh-sach-tham-gia.xlsx\"")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(activityService.createRegistrationImportTemplate());
-    }
-
     @GetMapping("/{id}/registrations")
     public ResponseEntity<List<RegistrationResponse>> getRegistrations(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
@@ -100,23 +97,13 @@ public class ActivityController {
         return ResponseEntity.ok(activityService.getRegistrations(id));
     }
 
-    @PostMapping("/{id}/registrations")
-    public ResponseEntity<RegistrationResponse> addRegistration(
+    @PostMapping("/{id}/registrations/me")
+    public ResponseEntity<RegistrationResponse> registerMe(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
-            @PathVariable Long id,
-            @Valid @RequestBody RegistrationRequest request) {
-        requireAdmin(role);
-        return ResponseEntity.ok(activityService.addRegistration(id, request));
-    }
-
-    @DeleteMapping("/{activityId}/registrations/{registrationId}")
-    public ResponseEntity<Void> removeRegistration(
-            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
-            @PathVariable Long activityId,
-            @PathVariable Long registrationId) {
-        requireAdmin(role);
-        activityService.removeRegistration(activityId, registrationId);
-        return ResponseEntity.noContent().build();
+            @RequestHeader(value = "X-User-Code") String studentCode,
+            @PathVariable Long id) {
+        requireStudent(role);
+        return ResponseEntity.ok(activityService.registerMe(id, studentCode));
     }
 
     @PostMapping("/{id}/checkers")
@@ -157,6 +144,12 @@ public class ActivityController {
     private void requireAdmin(String role) {
         if (!"ADMIN".equalsIgnoreCase(role)) {
             throw new ForbiddenException("Chỉ Admin mới có quyền thực hiện thao tác này");
+        }
+    }
+
+    private void requireStudent(String role) {
+        if (!"STUDENT".equalsIgnoreCase(role)) {
+            throw new ForbiddenException("Chỉ sinh viên mới được đăng ký hoạt động");
         }
     }
 }

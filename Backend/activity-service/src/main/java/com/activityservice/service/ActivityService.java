@@ -4,7 +4,13 @@ import com.activityservice.client.UserClient;
 import com.activityservice.domain.Activity;
 import com.activityservice.domain.ActivityChecker;
 import com.activityservice.domain.ActivityRegistration;
-import com.activityservice.dto.*;
+import com.activityservice.dto.ActivityRequest;
+import com.activityservice.dto.ActivityResponse;
+import com.activityservice.dto.CheckerRequest;
+import com.activityservice.dto.CheckerResponse;
+import com.activityservice.dto.CheckinRequest;
+import com.activityservice.dto.RegistrationResponse;
+import com.activityservice.dto.UserProfileDTO;
 import com.activityservice.exception.BadRequestException;
 import com.activityservice.exception.ForbiddenException;
 import com.activityservice.exception.ResourceNotFoundException;
@@ -13,19 +19,13 @@ import com.activityservice.repository.ActivityRegistrationRepository;
 import com.activityservice.repository.ActivityRepository;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,12 +40,14 @@ public class ActivityService {
     private final ActivityCheckerRepository checkerRepository;
     private final UserClient userClient;
 
-    public List<ActivityResponse> findAll() {
-        return activityRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
+    public List<ActivityResponse> findAll(String currentUserCode) {
+        return activityRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(activity -> toResponse(activity, currentUserCode))
+                .toList();
     }
 
-    public ActivityResponse findById(Long id) {
-        return toResponse(getActivity(id));
+    public ActivityResponse findById(Long id, String currentUserCode) {
+        return toResponse(getActivity(id), currentUserCode);
     }
 
     public List<ActivityResponse> findOngoingForChecker(String checkerCodeOrTsid) {
@@ -65,6 +67,7 @@ public class ActivityService {
     @Transactional
     public ActivityResponse create(ActivityRequest request, String createdBy) {
         validateTimeWindow(request.getStartTime(), request.getEndTime());
+        validateRegistrationWindow(request);
 
         Activity activity = new Activity();
         applyRequest(activity, request);
@@ -76,11 +79,20 @@ public class ActivityService {
     @Transactional
     public ActivityResponse update(Long id, ActivityRequest request) {
         validateTimeWindow(request.getStartTime(), request.getEndTime());
+        validateRegistrationWindow(request);
 
         Activity activity = getActivity(id);
+        long registrationCount = registrationRepository.countByActivityId(id);
+        if (registrationCount > 0 && getParticipationType(activity) != resolveParticipationType(request.getParticipationType())) {
+            throw new BadRequestException("Hoạt động đã có sinh viên đăng ký nên không được đổi hình thức tham gia");
+        }
+        if (request.getCapacity() != null && request.getCapacity() < registrationCount) {
+            throw new BadRequestException("Số lượng tối đa không được nhỏ hơn số sinh viên đã đăng ký");
+        }
         if (activity.getStatus() != Activity.Status.UPCOMING) {
             throw new BadRequestException("Chỉ được chỉnh sửa hoạt động ở trạng thái UPCOMING");
         }
+
         applyRequest(activity, request);
         return toResponse(activityRepository.save(activity));
     }
@@ -113,109 +125,6 @@ public class ActivityService {
         activityRepository.delete(activity);
     }
 
-    @Transactional
-    public ImportResult importRegistrations(Long activityId, MultipartFile file) {
-        Activity activity = getActivity(activityId);
-        requireLimitedActivity(activity);
-        if (activity.getStatus() != Activity.Status.UPCOMING) {
-            throw new BadRequestException("Chỉ được import danh sách đăng ký trước khi hoạt động ONGOING");
-        }
-
-        int imported = 0;
-        int skipped = 0;
-        long currentRegistrationCount = registrationRepository.countByActivityId(activityId);
-        List<String> errors = new ArrayList<>();
-
-        try (InputStream inputStream = file.getInputStream(); Workbook workbook = new XSSFWorkbook(inputStream)) {
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rows = sheet.iterator();
-            int rowNumber = 0;
-
-            while (rows.hasNext()) {
-                Row row = rows.next();
-                rowNumber++;
-                if (rowNumber == 1) {
-                    continue;
-                }
-
-                String studentCode = readString(row, 0);
-                String fullName = readString(row, 1);
-                String userTsid = studentCode;
-
-                if (studentCode.isBlank()) {
-                    skipped++;
-                    errors.add("Dòng " + rowNumber + ": MSSV trống");
-                    continue;
-                }
-
-                if (fullName.isBlank()) {
-                    skipped++;
-                    errors.add("Dòng " + rowNumber + ": Họ tên trống");
-                    continue;
-                }
-
-                if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode)
-                        || registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
-                    skipped++;
-                    errors.add("Dòng " + rowNumber + ": MSSV " + studentCode + " đã tồn tại trong hoạt động");
-                    continue;
-                }
-
-                if (activity.getCapacity() != null && currentRegistrationCount + imported >= activity.getCapacity()) {
-                    skipped++;
-                    errors.add("Dòng " + rowNumber + ": Hoạt động đã đủ số lượng tối đa");
-                    continue;
-                }
-
-                UserProfileDTO studentProfile;
-                try {
-                    studentProfile = requireMatchingStudent(studentCode, fullName, "sinh viên");
-                } catch (BadRequestException ex) {
-                    skipped++;
-                    errors.add("Dòng " + rowNumber + ": " + ex.getMessage());
-                    continue;
-                }
-
-                ActivityRegistration registration = new ActivityRegistration();
-                registration.setActivity(activity);
-                registration.setStudentCode(studentProfile.getStudentId().trim());
-                registration.setFullName(studentProfile.getFullName().trim());
-                registration.setUserTsid(userTsid);
-                registrationRepository.save(registration);
-                imported++;
-            }
-        } catch (Exception ex) {
-            throw new BadRequestException("Không đọc được file Excel: " + ex.getMessage());
-        }
-
-        return ImportResult.builder()
-                .imported(imported)
-                .skipped(skipped)
-                .errors(errors)
-                .build();
-    }
-
-    public byte[] createRegistrationImportTemplate() {
-        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet("Danh sach tham gia");
-            Row header = sheet.createRow(0);
-            header.createCell(0).setCellValue("MSSV");
-            header.createCell(1).setCellValue("Họ tên");
-
-            Row sample = sheet.createRow(1);
-            sample.createCell(0).setCellValue("DH52200694");
-            sample.createCell(1).setCellValue("Đỗ Thuận Hòa");
-
-            sheet.autoSizeColumn(0);
-            sheet.autoSizeColumn(1);
-
-            workbook.write(outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception ex) {
-            throw new BadRequestException("Không tạo được file mẫu import: " + ex.getMessage());
-        }
-    }
-
     public List<RegistrationResponse> getRegistrations(Long activityId) {
         getActivity(activityId);
         return registrationRepository.findByActivityIdOrderByStudentCodeAsc(activityId)
@@ -225,52 +134,40 @@ public class ActivityService {
     }
 
     @Transactional
-    public void removeRegistration(Long activityId, Long registrationId) {
-        Activity activity = getActivity(activityId);
+    public RegistrationResponse registerMe(Long activityId, String studentCode) {
+        if (studentCode == null || studentCode.isBlank()) {
+            throw new BadRequestException("Không xác định được mã sinh viên đang đăng nhập");
+        }
+
+        Activity activity = activityRepository.findByIdForUpdate(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hoạt động"));
         requireLimitedActivity(activity);
-        ActivityRegistration registration = registrationRepository.findById(registrationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sinh viên đăng ký"));
+        validateSelfRegistrationAllowed(activity);
 
-        if (!registration.getActivity().getId().equals(activityId)) {
-            throw new BadRequestException("Sinh viên đăng ký không thuộc hoạt động này");
-        }
-        if (registration.isAttended()) {
-            throw new BadRequestException("Sinh viên đã điểm danh nên không thể gỡ khỏi danh sách");
+        String cleanStudentCode = studentCode.trim();
+        if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, cleanStudentCode)
+                || registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, cleanStudentCode)) {
+            throw new BadRequestException("Bạn đã đăng ký hoạt động này");
         }
 
-        registrationRepository.delete(registration);
-    }
-
-    @Transactional
-    public RegistrationResponse addRegistration(Long activityId, RegistrationRequest request) {
-        Activity activity = getActivity(activityId);
-        requireLimitedActivity(activity);
-        if (activity.getStatus() != Activity.Status.UPCOMING) {
-            throw new BadRequestException("Chỉ được thêm sinh viên đăng ký trước khi hoạt động ONGOING");
+        long registrationCount = registrationRepository.countByActivityId(activityId);
+        if (activity.getCapacity() != null && registrationCount >= activity.getCapacity()) {
+            throw new BadRequestException("Hoạt động đã đủ số lượng đăng ký");
         }
 
-        String studentCode = request.getStudentCode().trim();
-        String fullName = request.getFullName().trim();
-        String userTsid = studentCode;
-
-        if (registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode)) {
-            throw new BadRequestException("MSSV " + studentCode + " đã tồn tại trong hoạt động");
-        }
-        if (registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(activityId, userTsid)) {
-            throw new BadRequestException("MSSV " + studentCode + " đã tồn tại trong hoạt động");
-        }
-        if (activity.getCapacity() != null && registrationRepository.countByActivityId(activityId) >= activity.getCapacity()) {
-            throw new BadRequestException("Hoạt động đã đủ số lượng tối đa");
-        }
-
-        UserProfileDTO studentProfile = requireMatchingStudent(studentCode, fullName, "sinh viên");
+        UserProfileDTO studentProfile = requireExistingStudent(cleanStudentCode, "sinh viên");
 
         ActivityRegistration registration = new ActivityRegistration();
         registration.setActivity(activity);
         registration.setStudentCode(studentProfile.getStudentId().trim());
         registration.setFullName(studentProfile.getFullName().trim());
-        registration.setUserTsid(userTsid);
-        return toRegistrationResponse(registrationRepository.save(registration));
+        registration.setUserTsid(studentProfile.getStudentId().trim());
+
+        try {
+            return toRegistrationResponse(registrationRepository.save(registration));
+        } catch (DataIntegrityViolationException ex) {
+            throw new BadRequestException("Bạn đã đăng ký hoạt động này");
+        }
     }
 
     @Transactional
@@ -356,9 +253,13 @@ public class ActivityService {
         if (activity.getParticipationType() == Activity.ParticipationType.OPEN) {
             activity.setGoogleFormUrl("");
             activity.setCapacity(null);
+            activity.setRegistrationStartTime(null);
+            activity.setRegistrationEndTime(null);
         } else {
-            activity.setGoogleFormUrl(request.getGoogleFormUrl() == null ? "" : request.getGoogleFormUrl().trim());
+            activity.setGoogleFormUrl("");
             activity.setCapacity(request.getCapacity());
+            activity.setRegistrationStartTime(request.getRegistrationStartTime());
+            activity.setRegistrationEndTime(request.getRegistrationEndTime());
         }
         activity.setLocation(request.getLocation());
         activity.setStartTime(request.getStartTime());
@@ -374,10 +275,9 @@ public class ActivityService {
                     .orElseThrow(() -> new ResourceNotFoundException("MSSV không nằm trong danh sách đăng ký hợp lệ"));
         }
 
-        ActivityRegistration registration = registrationRepository
+        return registrationRepository
                 .findByActivityIdAndStudentCodeIgnoreCase(activityId, cleanStudentCode)
                 .orElseGet(() -> createOpenActivityRegistration(activity, cleanStudentCode));
-        return registration;
     }
 
     private ActivityRegistration createOpenActivityRegistration(Activity activity, String studentCode) {
@@ -411,8 +311,46 @@ public class ActivityService {
         if (endTime == null) {
             throw new BadRequestException("Thời gian kết thúc không được để trống");
         }
-        if (startTime != null && endTime != null && !endTime.isAfter(startTime)) {
+        if (!endTime.isAfter(startTime)) {
             throw new BadRequestException("Thời gian kết thúc phải sau thời gian bắt đầu");
+        }
+    }
+
+    private void validateRegistrationWindow(ActivityRequest request) {
+        if (resolveParticipationType(request.getParticipationType()) != Activity.ParticipationType.LIMITED) {
+            return;
+        }
+
+        LocalDateTime registrationStartTime = request.getRegistrationStartTime();
+        LocalDateTime registrationEndTime = request.getRegistrationEndTime();
+        if (registrationStartTime == null) {
+            throw new BadRequestException("Thời gian mở đăng ký không được để trống");
+        }
+        if (registrationEndTime == null) {
+            throw new BadRequestException("Thời gian đóng đăng ký không được để trống");
+        }
+        if (!registrationEndTime.isAfter(registrationStartTime)) {
+            throw new BadRequestException("Thời gian đóng đăng ký phải sau thời gian mở đăng ký");
+        }
+        if (request.getStartTime() != null && registrationEndTime.isAfter(request.getStartTime())) {
+            throw new BadRequestException("Thời gian đóng đăng ký không được sau thời gian bắt đầu hoạt động");
+        }
+    }
+
+    private void validateSelfRegistrationAllowed(Activity activity) {
+        if (activity.getStatus() != Activity.Status.UPCOMING) {
+            throw new BadRequestException("Hoạt động hiện không mở đăng ký");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (activity.getRegistrationStartTime() == null || activity.getRegistrationEndTime() == null) {
+            throw new BadRequestException("Hoạt động chưa được cấu hình thời gian đăng ký");
+        }
+        if (now.isBefore(activity.getRegistrationStartTime())) {
+            throw new BadRequestException("Hoạt động chưa đến thời gian mở đăng ký");
+        }
+        if (now.isAfter(activity.getRegistrationEndTime())) {
+            throw new BadRequestException("Hoạt động đã hết thời gian đăng ký");
         }
     }
 
@@ -472,7 +410,30 @@ public class ActivityService {
     }
 
     private ActivityResponse toResponse(Activity activity) {
+        return toResponse(activity, null);
+    }
+
+    private ActivityResponse toResponse(Activity activity, String currentUserCode) {
         Long activityId = activity.getId();
+        long registrationCount = registrationRepository.countByActivityId(activityId);
+        Integer capacity = activity.getCapacity();
+        boolean limitedActivity = getParticipationType(activity) == Activity.ParticipationType.LIMITED;
+        boolean currentUserRegistered = limitedActivity
+                && currentUserCode != null
+                && !currentUserCode.isBlank()
+                && registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(activityId, currentUserCode.trim());
+        boolean registrationFull = limitedActivity && capacity != null && registrationCount >= capacity;
+        boolean registrationOpen = limitedActivity
+                && activity.getStatus() == Activity.Status.UPCOMING
+                && activity.getRegistrationStartTime() != null
+                && activity.getRegistrationEndTime() != null
+                && !LocalDateTime.now().isBefore(activity.getRegistrationStartTime())
+                && !LocalDateTime.now().isAfter(activity.getRegistrationEndTime())
+                && !registrationFull;
+        Integer remainingSlots = limitedActivity && capacity != null
+                ? Math.max(capacity - (int) registrationCount, 0)
+                : null;
+
         return ActivityResponse.builder()
                 .id(activity.getId())
                 .title(activity.getTitle())
@@ -480,17 +441,23 @@ public class ActivityService {
                 .reward(activity.getReward())
                 .participationType(getParticipationType(activity))
                 .googleFormUrl(activity.getGoogleFormUrl())
+                .registrationStartTime(activity.getRegistrationStartTime())
+                .registrationEndTime(activity.getRegistrationEndTime())
                 .location(activity.getLocation())
                 .startTime(activity.getStartTime())
                 .endTime(activity.getEndTime())
-                .capacity(activity.getCapacity())
+                .capacity(capacity)
                 .status(activity.getStatus())
                 .createdBy(activity.getCreatedBy())
                 .createdAt(activity.getCreatedAt())
                 .updatedAt(activity.getUpdatedAt())
-                .registrationCount(registrationRepository.countByActivityId(activityId))
+                .registrationCount(registrationCount)
                 .attendedCount(registrationRepository.countByActivityIdAndAttendedTrue(activityId))
                 .checkerCount(checkerRepository.countByActivityId(activityId))
+                .currentUserRegistered(currentUserRegistered)
+                .registrationOpen(registrationOpen)
+                .registrationFull(registrationFull)
+                .remainingSlots(remainingSlots)
                 .build();
     }
 
@@ -512,11 +479,5 @@ public class ActivityService {
                 .checkerCode(checker.getCheckerCode())
                 .checkerName(checker.getCheckerName())
                 .build();
-    }
-
-    private String readString(Row row, int index) {
-        Cell cell = row.getCell(index, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-        DataFormatter formatter = new DataFormatter();
-        return formatter.formatCellValue(cell).trim();
     }
 }

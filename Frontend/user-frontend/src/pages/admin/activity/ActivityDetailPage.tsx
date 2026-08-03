@@ -1,5 +1,5 @@
-import { Download, FileUp, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { Download, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
@@ -17,7 +17,6 @@ import {
   type ActivityCheckerResponse,
   type ActivityPayload,
   type ActivityParticipationType,
-  type ActivityRegistrationPayload,
   type ActivityRegistrationResponse,
   type ActivityResponse,
   type ActivityStatus,
@@ -27,7 +26,7 @@ import { activityCategoryLabels, activityParticipationLabels, formatDateTime, to
 import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 import { toUserFacingMessage } from "../../../utils/messages";
 import { emitToast } from "../../../utils/toastBus";
-import { activitySchema, checkerSchema, registrationSchema } from "../../../validation/activitySchemas";
+import { activitySchema, checkerSchema } from "../../../validation/activitySchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
 type ActivityFormState = {
@@ -35,8 +34,9 @@ type ActivityFormState = {
   category: ActivityCategory;
   participationType: ActivityParticipationType;
   reward: string;
-  googleFormUrl: string;
   location: string;
+  registrationStartTime: string;
+  registrationEndTime: string;
   startTime: string;
   endTime: string;
   capacity: string;
@@ -47,31 +47,14 @@ const emptyChecker: ActivityCheckerPayload = {
   checkerName: "",
 };
 
-const emptyRegistration: ActivityRegistrationPayload = {
-  studentCode: "",
-  fullName: "",
-};
-
-const IMPORT_TEMPLATE_FILENAME = "mau-import-danh-sach-tham-gia.xlsx";
-
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-};
-
 const toForm = (activity: ActivityResponse): ActivityFormState => ({
   title: activity.title,
   category: activity.category,
   participationType: activity.participationType || "LIMITED",
   reward: activity.reward || "",
-  googleFormUrl: activity.googleFormUrl || "",
   location: activity.location || "",
+  registrationStartTime: toInputDateTime(activity.registrationStartTime),
+  registrationEndTime: toInputDateTime(activity.registrationEndTime),
   startTime: toInputDateTime(activity.startTime),
   endTime: toInputDateTime(activity.endTime),
   capacity: activity.capacity ? String(activity.capacity) : "",
@@ -82,7 +65,9 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   category: form.category,
   participationType: form.participationType,
   reward: form.reward.trim(),
-  googleFormUrl: form.participationType === "LIMITED" ? form.googleFormUrl.trim() : undefined,
+  googleFormUrl: "",
+  registrationStartTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationStartTime) : undefined,
+  registrationEndTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationEndTime) : undefined,
   location: form.location.trim(),
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
@@ -210,10 +195,8 @@ function ActivityDetailPage() {
   const [checkers, setCheckers] = useState<ActivityCheckerResponse[]>([]);
   const [studentProfiles, setStudentProfiles] = useState<UserProfile[]>([]);
   const [checkerForm, setCheckerForm] = useState<ActivityCheckerPayload>(emptyChecker);
-  const [registrationForm, setRegistrationForm] = useState<ActivityRegistrationPayload>(emptyRegistration);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadDetail = useCallback(async () => {
@@ -279,7 +262,7 @@ function ActivityDetailPage() {
         ? {
             ...current,
             [field]: value,
-            ...(field === "participationType" && value === "OPEN" ? { capacity: "", googleFormUrl: "" } : {}),
+            ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "" } : {}),
           }
         : current,
     );
@@ -289,21 +272,10 @@ function ActivityDetailPage() {
     setCheckerForm((current) => ({ ...current, [field]: value }));
   };
 
-  const updateRegistrationField = (field: keyof ActivityRegistrationPayload, value: string) => {
-    setRegistrationForm((current) => ({ ...current, [field]: value }));
-  };
-
   const selectCheckerProfile = (profile: UserProfile) => {
     setCheckerForm({
       checkerCode: profile.studentId,
       checkerName: profile.fullName,
-    });
-  };
-
-  const selectRegistrationProfile = (profile: UserProfile) => {
-    setRegistrationForm({
-      studentCode: profile.studentId,
-      fullName: profile.fullName,
     });
   };
 
@@ -355,109 +327,45 @@ function ActivityDetailPage() {
     }
   };
 
-  const importRegistrations = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !id) return;
-
-    setMessage("");
-    try {
-      const result = await activityApi.importRegistrations(id, file);
-      const registrationData = await activityApi.listRegistrations(id);
-      const updated = await activityApi.get(id);
-      setRegistrations(registrationData);
-      setActivity(updated);
-      setForm(toForm(updated));
-      const errorDetails = (result.errors || []).slice(0, 5).join(" | ");
-      const moreErrors = result.errors && result.errors.length > 5 ? ` Còn ${result.errors.length - 5} lỗi khác.` : "";
-      const importMessage = result.skipped > 0
-        ? `Import xong: ${result.imported} dòng thành công, ${result.skipped} dòng chưa nhập được.${errorDetails ? ` Chi tiết: ${errorDetails}.${moreErrors}` : ""}`
-        : `Import thành công ${result.imported} dòng.`;
-      setMessage(importMessage);
-      emitToast({ variant: result.skipped > 0 ? "error" : "success", message: importMessage });
-    } catch (err) {
-      const failMessage = err instanceof Error ? err.message : "Không import được danh sách đăng ký.";
-      setMessage(failMessage);
-      emitToast({ variant: "error", message: failMessage });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const downloadRegistrationTemplate = async () => {
-    setDownloadingTemplate(true);
-    setMessage("");
-    try {
-      const blob = await activityApi.downloadRegistrationImportTemplate();
-      downloadBlob(blob, IMPORT_TEMPLATE_FILENAME);
-      setMessage("Đã tải file mẫu import danh sách tham gia.");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không tải được file mẫu import.");
-    } finally {
-      setDownloadingTemplate(false);
-    }
-  };
-
-
   const exportActivityDetail = () => {
     if (!activity) return;
 
     const participationType = activity.participationType || "LIMITED";
     const attended = registrations.filter((registration) => registration.attended).length;
-    const notAttended = participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : Math.max(registrations.length - attended, 0);
+    const notAttended = participationType === "OPEN" ? "Không áp dụng" : Math.max(registrations.length - attended, 0);
 
     exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`, [
       {
         name: "Tong ket",
         rows: [
-          ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
-          ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
-          ["H\u00ecnh th\u1ee9c", activityParticipationLabels[participationType]],
-          ["Th\u1eddi gian b\u1eaft \u0111\u1ea7u", formatDateTime(activity.startTime)],
-          ["Th\u1eddi gian k\u1ebft th\u00fac", formatDateTime(activity.endTime)],
-          ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
-          ["S\u1ed1 sinh vi\u00ean trong danh s\u00e1ch", participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : registrations.length],
-          ["S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", attended],
-          ["S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", notAttended],
+          ["Hoạt động", activity.title],
+          ["Loại", activityCategoryLabels[activity.category]],
+          ["Hình thức", activityParticipationLabels[participationType]],
+          ["Mở đăng ký", participationType === "LIMITED" ? formatDateTime(activity.registrationStartTime) : "Không áp dụng"],
+          ["Đóng đăng ký", participationType === "LIMITED" ? formatDateTime(activity.registrationEndTime) : "Không áp dụng"],
+          ["Thời gian bắt đầu", formatDateTime(activity.startTime)],
+          ["Thời gian kết thúc", formatDateTime(activity.endTime)],
+          ["Địa điểm", activity.location || ""],
+          ["Số lượng tối đa", participationType === "LIMITED" ? activity.capacity ?? "" : "Không giới hạn"],
+          ["Số sinh viên đăng ký", participationType === "LIMITED" ? registrations.length : "Không áp dụng"],
+          ["Số sinh viên đã điểm danh", attended],
+          ["Số sinh viên chưa điểm danh", notAttended],
         ],
       },
       {
         name: "Danh sach",
         rows: [
-          ["MSSV", "H\u1ecd t\u00ean", "Tr\u1ea1ng th\u00e1i", "Th\u1eddi gian \u0111i\u1ec3m danh"],
+          ["MSSV", "Họ tên", "Trạng thái", "Thời gian điểm danh"],
           ...registrations.map((registration) => [
             registration.studentCode,
             registration.fullName,
-            registration.attended ? "\u0110\u00e3 \u0111i\u1ec3m danh" : "Ch\u01b0a \u0111i\u1ec3m danh",
+            registration.attended ? "Đã điểm danh" : "Chưa điểm danh",
             registration.checkinTime ? formatDateTime(registration.checkinTime) : "",
           ]),
         ],
       },
     ]);
-    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
-  };
-  const addRegistration = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!id) return;
-
-    setMessage("");
-    try {
-      const validated = registrationSchema.parse(registrationForm);
-      const profile = await userApi.getByStudentId(validated.studentCode.trim());
-      const matchedProfile = requireMatchingProfile(profile, validated.studentCode, validated.fullName, "sinh viên");
-      const payload: ActivityRegistrationPayload = {
-        studentCode: matchedProfile.studentId,
-        fullName: matchedProfile.fullName,
-      };
-      const created = await activityApi.addRegistration(id, payload);
-      const updated = await activityApi.get(id);
-      setRegistrations((current) => [...current, created].sort((a, b) => a.studentCode.localeCompare(b.studentCode)));
-      setActivity(updated);
-      setForm(toForm(updated));
-      setRegistrationForm(emptyRegistration);
-      setMessage("Đã thêm sinh viên vào danh sách đăng ký.");
-    } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không thêm được sinh viên đăng ký."));
-    }
+    setMessage("Đã xuất file Excel tổng kết hoạt động.");
   };
 
   const addChecker = async (event: FormEvent<HTMLFormElement>) => {
@@ -491,22 +399,6 @@ function ActivityDetailPage() {
       setMessage("Đã gỡ người điểm danh.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không gỡ được người điểm danh.");
-    }
-  };
-
-  const removeRegistration = async (registration: ActivityRegistrationResponse) => {
-    if (!id || !window.confirm(`Gỡ sinh viên ${registration.fullName || registration.studentCode} khỏi danh sách đăng ký?`)) return;
-
-    setMessage("");
-    try {
-      await activityApi.removeRegistration(id, registration.id);
-      const updated = await activityApi.get(id);
-      setRegistrations((current) => current.filter((item) => item.id !== registration.id));
-      setActivity(updated);
-      setForm(toForm(updated));
-      setMessage("Đã gỡ sinh viên khỏi danh sách đăng ký.");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không gỡ được sinh viên khỏi danh sách đăng ký.");
     }
   };
 
@@ -548,14 +440,14 @@ function ActivityDetailPage() {
 
   return (
     <div className="space-y-gutter">
-      <PageHeader title={activity.title} subtitle="Quản lý chi tiết hoạt động, danh sách đăng ký, người điểm danh và trạng thái tổ chức." />
+      <PageHeader title={activity.title} subtitle="Quản lý chi tiết hoạt động, cấu hình đăng ký, người điểm danh và trạng thái tổ chức." />
 
       <div className="flex flex-wrap items-center gap-3">
         <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
         <StatusBadge status={activity.status} />
         <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container" onClick={exportActivityDetail} type="button">
           <Download className="h-5 w-5" />
-          {"Xu\u1ea5t Excel"}
+          Xuất Excel
         </button>
       </div>
 
@@ -594,27 +486,30 @@ function ActivityDetailPage() {
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-semibold text-on-surface">Hình thức tham gia</span>
               <select
-                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
-                disabled={activity.status !== "UPCOMING"}
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-70"
+                disabled={activity.status !== "UPCOMING" || registrations.length > 0}
                 onChange={(event) => updateField("participationType", event.target.value)}
                 value={form.participationType}
               >
                 <option value="LIMITED">Giới hạn đăng ký</option>
                 <option value="OPEN">Tự do tham gia</option>
               </select>
+              {registrations.length > 0 && <span className="text-xs text-on-surface-variant">Đã có sinh viên đăng ký/điểm danh nên không được đổi hình thức.</span>}
             </label>
             <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} required value={form.reward} />
             {form.participationType === "LIMITED" && (
-              <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+              <>
+                <FormField label="Thời gian mở đăng ký" onChange={(event) => updateField("registrationStartTime", event.target.value)} required type="datetime-local" value={form.registrationStartTime} />
+                <FormField label="Thời gian đóng đăng ký" onChange={(event) => updateField("registrationEndTime", event.target.value)} required type="datetime-local" value={form.registrationEndTime} />
+                <FormField label="Số lượng tối đa" min={Math.max(registrations.length, 1)} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+              </>
             )}
-            <FormField label="Thời gian bắt đầu" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
-            <FormField label="Thời gian kết thúc" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
+            <FormField label="Thời gian bắt đầu hoạt động" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
+            <FormField label="Thời gian kết thúc hoạt động" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
             <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
-            {form.participationType === "LIMITED" ? (
-              <FormField label="Google Form đăng ký" onChange={(event) => updateField("googleFormUrl", event.target.value)} required value={form.googleFormUrl} />
-            ) : (
+            {form.participationType === "OPEN" && (
               <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                Hoạt động tự do không cần Google Form và không giới hạn số lượng. Khi điểm danh, sinh viên chỉ cần có hồ sơ hợp lệ trong hệ thống.
+                Hoạt động tự do không cần đăng ký trước. Khi điểm danh, sinh viên chỉ cần có hồ sơ hợp lệ trong hệ thống.
               </div>
             )}
             <div className="md:col-span-2">
@@ -626,54 +521,36 @@ function ActivityDetailPage() {
           </form>
         </Card>
 
-        <div className="grid gap-gutter">
-          <Card>
-            <p className="text-sm font-semibold text-primary">Thống kê</p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-surface-container-low p-4">
-                <p className="text-2xl font-bold text-on-surface">{registrations.length}</p>
-                <p className="text-xs text-on-surface-variant">{isLimitedActivity ? "Đăng ký" : "Đã ghi nhận"}</p>
-              </div>
-              <div className="rounded-lg bg-surface-container-low p-4">
-                <p className="text-2xl font-bold text-on-surface">{checkedInCount}</p>
-                <p className="text-xs text-on-surface-variant">Đã điểm danh</p>
-              </div>
-              <div className="rounded-lg bg-surface-container-low p-4">
-                <p className="text-2xl font-bold text-on-surface">{checkers.length}</p>
-                <p className="text-xs text-on-surface-variant">Người quét</p>
-              </div>
+        <Card>
+          <p className="text-sm font-semibold text-primary">Thống kê</p>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-surface-container-low p-4">
+              <p className="text-2xl font-bold text-on-surface">{registrations.length}</p>
+              <p className="text-xs text-on-surface-variant">{isLimitedActivity ? "Đăng ký" : "Đã ghi nhận"}</p>
             </div>
-            <div className="mt-4 space-y-2 text-sm text-on-surface-variant">
-              <p>Hình thức: {activityParticipationLabels[activity.participationType || "LIMITED"]}</p>
-              <p>Bắt đầu: {formatDateTime(activity.startTime)}</p>
-              <p>Kết thúc: {formatDateTime(activity.endTime)}</p>
-              <p>Địa điểm: {activity.location || "Chưa cập nhật"}</p>
+            <div className="rounded-lg bg-surface-container-low p-4">
+              <p className="text-2xl font-bold text-on-surface">{checkedInCount}</p>
+              <p className="text-xs text-on-surface-variant">Đã điểm danh</p>
             </div>
-          </Card>
-
-          {isLimitedActivity && (
-            <Card>
-              <p className="text-sm font-semibold text-primary">Import danh sách đăng ký</p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
-                  <FileUp className="h-5 w-5" />
-                  Chọn file Excel
-                  <input accept=".xlsx,.xls" className="sr-only" onChange={importRegistrations} type="file" />
-                </label>
-                <button
-                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:opacity-60"
-                  disabled={downloadingTemplate}
-                  onClick={downloadRegistrationTemplate}
-                  type="button"
-                >
-                  <Download className="h-5 w-5" />
-                  {downloadingTemplate ? "Đang tải..." : "Tải file mẫu"}
-                </button>
-              </div>
-              <p className="mt-3 text-xs text-on-surface-variant">Cột 1: MSSV, cột 2: họ tên.</p>
-            </Card>
-          )}
-        </div>
+            <div className="rounded-lg bg-surface-container-low p-4">
+              <p className="text-2xl font-bold text-on-surface">{checkers.length}</p>
+              <p className="text-xs text-on-surface-variant">Người quét</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2 text-sm text-on-surface-variant">
+            <p>Hình thức: {activityParticipationLabels[activity.participationType || "LIMITED"]}</p>
+            {isLimitedActivity && (
+              <>
+                <p>Mở đăng ký: {formatDateTime(activity.registrationStartTime)}</p>
+                <p>Đóng đăng ký: {formatDateTime(activity.registrationEndTime)}</p>
+                <p>Còn trống: {activity.remainingSlots ?? Math.max((activity.capacity ?? 0) - registrations.length, 0)} slot</p>
+              </>
+            )}
+            <p>Bắt đầu: {formatDateTime(activity.startTime)}</p>
+            <p>Kết thúc: {formatDateTime(activity.endTime)}</p>
+            <p>Địa điểm: {activity.location || "Chưa cập nhật"}</p>
+          </div>
+        </Card>
       </div>
 
       <Card>
@@ -737,28 +614,9 @@ function ActivityDetailPage() {
         <div className="border-b border-outline-variant px-5 py-4">
           <h2 className="text-lg font-semibold text-on-surface">{isLimitedActivity ? "Danh sách sinh viên đăng ký" : "Danh sách sinh viên đã điểm danh"}</h2>
           {isLimitedActivity && (
-            <form className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr_auto]" onSubmit={addRegistration}>
-              <StudentAutocompleteField
-                label="MSSV"
-                onChange={(value) => updateRegistrationField("studentCode", value)}
-                onSelect={selectRegistrationProfile}
-                placeholder="Nhập MSSV hoặc chọn gợi ý"
-                profiles={studentProfiles}
-                value={registrationForm.studentCode}
-              />
-              <StudentAutocompleteField
-                label="Họ tên"
-                onChange={(value) => updateRegistrationField("fullName", value)}
-                onSelect={selectRegistrationProfile}
-                placeholder="Nhập họ tên để tìm nhanh"
-                profiles={studentProfiles}
-                value={registrationForm.fullName}
-              />
-              <button className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" type="submit">
-                <UserPlus className="h-5 w-5" />
-                Thêm sinh viên
-              </button>
-            </form>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Danh sách này được sinh viên tự đăng ký trực tiếp trên hệ thống. Admin chỉ được xem và xuất báo cáo, không được thêm, sửa hoặc gỡ sinh viên khỏi danh sách.
+            </p>
           )}
         </div>
         <div className="overflow-x-auto">
@@ -769,7 +627,6 @@ function ActivityDetailPage() {
                 <th className="px-5 py-4 font-semibold text-on-surface">Họ tên</th>
                 <th className="px-5 py-4 font-semibold text-on-surface">Trạng thái</th>
                 <th className="px-5 py-4 font-semibold text-on-surface">Thời gian điểm danh</th>
-                {isLimitedActivity && <th className="px-5 py-4 text-right font-semibold text-on-surface">Thao tác</th>}
               </tr>
             </thead>
             <tbody>
@@ -783,18 +640,6 @@ function ActivityDetailPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-on-surface-variant">{registration.checkinTime ? formatDateTime(registration.checkinTime) : "-"}</td>
-                  {isLimitedActivity && (
-                    <td className="px-5 py-4 text-right">
-                      <button
-                        className="rounded-lg px-3 py-2 text-sm font-semibold text-error hover:bg-error-container disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={registration.attended}
-                        onClick={() => void removeRegistration(registration)}
-                        type="button"
-                      >
-                        Gỡ
-                      </button>
-                    </td>
-                  )}
                 </tr>
               ))}
             </tbody>

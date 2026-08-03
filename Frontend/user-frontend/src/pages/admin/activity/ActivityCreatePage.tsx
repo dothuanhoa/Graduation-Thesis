@@ -15,8 +15,9 @@ type ActivityFormState = {
   category: ActivityCategory;
   participationType: ActivityParticipationType;
   reward: string;
-  googleFormUrl: string;
   location: string;
+  registrationStartTime: string;
+  registrationEndTime: string;
   startTime: string;
   endTime: string;
   capacity: string;
@@ -27,8 +28,9 @@ const initialForm: ActivityFormState = {
   category: "UNIVERSITY",
   participationType: "LIMITED",
   reward: "",
-  googleFormUrl: "",
   location: "",
+  registrationStartTime: "",
+  registrationEndTime: "",
   startTime: "",
   endTime: "",
   capacity: "",
@@ -39,7 +41,9 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   category: form.category,
   participationType: form.participationType,
   reward: form.reward.trim(),
-  googleFormUrl: form.participationType === "LIMITED" ? form.googleFormUrl.trim() : undefined,
+  googleFormUrl: "",
+  registrationStartTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationStartTime) : undefined,
+  registrationEndTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationEndTime) : undefined,
   location: form.location.trim(),
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
@@ -56,7 +60,7 @@ function ActivityCreatePage() {
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "participationType" && value === "OPEN" ? { capacity: "", googleFormUrl: "" } : {}),
+      ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "" } : {}),
     }));
   };
 
@@ -81,7 +85,7 @@ function ActivityCreatePage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Tạo hoạt động"
-        subtitle="Khai báo hoạt động ngoại khóa, thời gian, địa điểm, điểm rèn luyện và link đăng ký Google Form."
+        subtitle="Khai báo hoạt động, thời gian tổ chức và cấu hình đăng ký trực tiếp trên hệ thống cho sinh viên."
       />
 
       <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
@@ -110,17 +114,22 @@ function ActivityCreatePage() {
             </select>
           </label>
           <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} placeholder="Ví dụ: +5 điểm" required value={form.reward} />
+
           {form.participationType === "LIMITED" && (
-            <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+            <>
+              <FormField label="Thời gian mở đăng ký" onChange={(event) => updateField("registrationStartTime", event.target.value)} required type="datetime-local" value={form.registrationStartTime} />
+              <FormField label="Thời gian đóng đăng ký" onChange={(event) => updateField("registrationEndTime", event.target.value)} required type="datetime-local" value={form.registrationEndTime} />
+              <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+            </>
           )}
-          <FormField label="Thời gian bắt đầu" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
-          <FormField label="Thời gian kết thúc" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
+
+          <FormField label="Thời gian bắt đầu hoạt động" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
+          <FormField label="Thời gian kết thúc hoạt động" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
           <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
-          {form.participationType === "LIMITED" ? (
-            <FormField label="Google Form đăng ký" onChange={(event) => updateField("googleFormUrl", event.target.value)} placeholder="https://forms.gle/..." required value={form.googleFormUrl} />
-          ) : (
+
+          {form.participationType === "OPEN" && (
             <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              Hoạt động tự do không cần Google Form và không giới hạn số lượng. Khi điểm danh, hệ thống chỉ kiểm tra MSSV có tồn tại trong hồ sơ sinh viên.
+              Hoạt động tự do không cần mở đăng ký trước. Khi điểm danh, hệ thống chỉ kiểm tra MSSV có tồn tại trong hồ sơ sinh viên.
             </div>
           )}
 

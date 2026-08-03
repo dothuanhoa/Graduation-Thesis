@@ -271,6 +271,8 @@ export type ActivityPayload = {
   reward: string;
   participationType: ActivityParticipationType;
   googleFormUrl?: string;
+  registrationStartTime?: string;
+  registrationEndTime?: string;
   location: string;
   startTime: string;
   endTime: string;
@@ -286,6 +288,10 @@ export type ActivityResponse = ActivityPayload & {
   registrationCount?: number;
   attendedCount?: number;
   checkerCount?: number;
+  currentUserRegistered?: boolean;
+  registrationOpen?: boolean;
+  registrationFull?: boolean;
+  remainingSlots?: number | null;
 };
 
 export type ActivityRegistrationResponse = {
@@ -297,11 +303,6 @@ export type ActivityRegistrationResponse = {
   checkinTime?: string;
 };
 
-export type ActivityRegistrationPayload = {
-  studentCode: string;
-  fullName: string;
-};
-
 export type ActivityCheckerPayload = {
   checkerCode: string;
   checkerName: string;
@@ -310,12 +311,6 @@ export type ActivityCheckerPayload = {
 export type ActivityCheckerResponse = ActivityCheckerPayload & {
   id: string;
   checkerTsid?: string;
-};
-
-export type ActivityImportResult = {
-  imported: number;
-  skipped: number;
-  errors: string[];
 };
 
 export type ExamStatus = "ACTIVE" | "INACTIVE";
@@ -1236,37 +1231,14 @@ export const activityApi = {
       errorMessage: "Không xóa được hoạt động.",
     });
   },
-  importRegistrations(id: string, file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return apiRequest<ActivityImportResult>(`/api/activities/${encodeURIComponent(id)}/registrations/import`, {
-      method: "POST",
-      body: formData,
-      suppressToast: true,
-      errorMessage: "Không import được file người tham gia " + file.name + ".",
-    });
-  },
-  downloadRegistrationImportTemplate() {
-    return apiBlobRequest("/api/activities/registrations/import/template", {
-      suppressToast: true,
-    });
-  },
   listRegistrations(id: string) {
     return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
   },
-  addRegistration(id: string, payload: ActivityRegistrationPayload) {
-    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/registrations`, {
+  registerMe(id: string) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/registrations/me`, {
       method: "POST",
-      successMessage: "Đã thêm sinh viên " + payload.studentCode + " vào danh sách tham gia.",
-      errorMessage: "Không thêm được sinh viên " + payload.studentCode + " vào danh sách tham gia.",
-      body: JSON.stringify(payload),
-    });
-  },
-  removeRegistration(activityId: string, registrationId: string) {
-    return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/registrations/${encodeURIComponent(registrationId)}`, {
-      method: "DELETE",
-      successMessage: "Đã gỡ sinh viên khỏi danh sách tham gia.",
-      errorMessage: "Không gỡ được sinh viên khỏi danh sách tham gia.",
+      successMessage: "Đã đăng ký hoạt động.",
+      errorMessage: "Không đăng ký được hoạt động.",
     });
   },
   addChecker(id: string, payload: ActivityCheckerPayload) {

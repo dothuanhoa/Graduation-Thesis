@@ -18,6 +18,8 @@ public class ActivityResponse {
     private String reward;
     private Activity.ParticipationType participationType;
     private String googleFormUrl;
+    private LocalDateTime registrationStartTime;
+    private LocalDateTime registrationEndTime;
     private String location;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
@@ -29,4 +31,8 @@ public class ActivityResponse {
     private long registrationCount;
     private long attendedCount;
     private long checkerCount;
+    private boolean currentUserRegistered;
+    private boolean registrationOpen;
+    private boolean registrationFull;
+    private Integer remainingSlots;
 }

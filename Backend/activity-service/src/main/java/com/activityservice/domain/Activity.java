@@ -36,6 +36,12 @@ public class Activity {
     @Column(name = "google_form_url", length = 500)
     private String googleFormUrl;
 
+    @Column(name = "registration_start_time")
+    private LocalDateTime registrationStartTime;
+
+    @Column(name = "registration_end_time")
+    private LocalDateTime registrationEndTime;
+
     @Column(length = 255)
     private String location;
 

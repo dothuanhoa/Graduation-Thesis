@@ -5,7 +5,6 @@ import com.activityservice.domain.Activity;
 import com.activityservice.domain.ActivityRegistration;
 import com.activityservice.dto.ActivityRequest;
 import com.activityservice.dto.CheckinRequest;
-import com.activityservice.dto.RegistrationRequest;
 import com.activityservice.dto.UserProfileDTO;
 import com.activityservice.exception.BadRequestException;
 import com.activityservice.repository.ActivityCheckerRepository;
@@ -58,18 +57,45 @@ class ActivityServiceTest {
         assertThat(response.getParticipationType()).isEqualTo(Activity.ParticipationType.OPEN);
         assertThat(response.getGoogleFormUrl()).isEmpty();
         assertThat(response.getCapacity()).isNull();
+        assertThat(response.getRegistrationStartTime()).isNull();
+        assertThat(response.getRegistrationEndTime()).isNull();
     }
 
     @Test
-    void manualRegistrationIsRejectedForOpenActivity() {
-        Activity activity = activity(1L, Activity.ParticipationType.OPEN, Activity.Status.UPCOMING);
-        RegistrationRequest request = new RegistrationRequest();
-        request.setStudentCode("DH52201258");
-        request.setFullName("Tran Thanh Hoai Phuc");
-        when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
+    void selfRegistrationLocksActivityAndSavesLoggedInStudent() {
+        Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.UPCOMING);
+        activity.setCapacity(10);
+        activity.setRegistrationStartTime(LocalDateTime.now().minusMinutes(5));
+        activity.setRegistrationEndTime(LocalDateTime.now().plusMinutes(30));
+        when(activityRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activity));
+        when(registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(false);
+        when(registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(1L, "DH52201258")).thenReturn(false);
+        when(registrationRepository.countByActivityId(1L)).thenReturn(0L);
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
+        when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.addRegistration(1L, request))
-                .isInstanceOf(BadRequestException.class);
+        var response = service.registerMe(1L, "DH52201258");
+
+        assertThat(response.getStudentCode()).isEqualTo("DH52201258");
+        assertThat(response.getFullName()).isEqualTo("Tran Thanh Hoai Phuc");
+        verify(activityRepository).findByIdForUpdate(1L);
+    }
+
+    @Test
+    void selfRegistrationRejectsWhenActivityIsFull() {
+        Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.UPCOMING);
+        activity.setCapacity(1);
+        activity.setRegistrationStartTime(LocalDateTime.now().minusMinutes(5));
+        activity.setRegistrationEndTime(LocalDateTime.now().plusMinutes(30));
+        when(activityRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activity));
+        when(registrationRepository.existsByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(false);
+        when(registrationRepository.existsByActivityIdAndUserTsidIgnoreCase(1L, "DH52201258")).thenReturn(false);
+        when(registrationRepository.countByActivityId(1L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.registerMe(1L, "DH52201258"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("đủ số lượng");
     }
 
     @Test
@@ -107,6 +133,8 @@ class ActivityServiceTest {
         if (participationType == Activity.ParticipationType.LIMITED) {
             request.setGoogleFormUrl("https://forms.gle/test");
             request.setCapacity(100);
+            request.setRegistrationStartTime(LocalDateTime.now().plusHours(1));
+            request.setRegistrationEndTime(LocalDateTime.now().plusHours(2));
         }
         return request;
     }

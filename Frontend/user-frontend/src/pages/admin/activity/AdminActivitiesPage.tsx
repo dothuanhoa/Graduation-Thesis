@@ -7,7 +7,7 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { activityApi, type ActivityResponse } from "../../../services/api";
-import { activityCategoryLabels, activityParticipationLabels, formatActivityRange } from "../../../utils/activityUi";
+import { activityCategoryLabels, activityParticipationLabels, formatActivityRange, formatDateTime } from "../../../utils/activityUi";
 import { includesSearch } from "../../../utils/search";
 import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 
@@ -16,6 +16,7 @@ type ActivityRow = TableRow & {
   title: string;
   category: string;
   participationType: string;
+  registrationTime: string;
   time: string;
   capacity: string;
   status: StatusType;
@@ -26,6 +27,10 @@ const toRow = (activity: ActivityResponse): ActivityRow => ({
   title: activity.title,
   category: activityCategoryLabels[activity.category],
   participationType: activityParticipationLabels[activity.participationType || "LIMITED"],
+  registrationTime:
+    (activity.participationType || "LIMITED") === "OPEN"
+      ? "Không áp dụng"
+      : `${formatDateTime(activity.registrationStartTime)} - ${formatDateTime(activity.registrationEndTime)}`,
   time: formatActivityRange(activity.startTime, activity.endTime),
   capacity:
     (activity.participationType || "LIMITED") === "OPEN"
@@ -38,6 +43,7 @@ const columns: Column<ActivityRow>[] = [
   { header: "Tên hoạt động", key: "title" },
   { header: "Loại", key: "category" },
   { header: "Hình thức", key: "participationType" },
+  { header: "Thời gian đăng ký", key: "registrationTime" },
   { header: "Thời gian", key: "time" },
   { header: "Điểm danh", key: "capacity" },
   { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.status} /> },
