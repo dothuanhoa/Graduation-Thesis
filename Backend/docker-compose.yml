@@ -223,10 +223,23 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8083
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET:?INTERNAL_SERVICE_SECRET is required}
       - STUDENT_EMAIL_DOMAIN=${STUDENT_EMAIL_DOMAIN:-student.edu.vn}
+      - STUDENT_FACE_STORAGE_PROVIDER=${STUDENT_FACE_STORAGE_PROVIDER:-s3}
+      - STUDENT_FACE_UPLOAD_DIR=/app/uploads/student-faces
+      - STUDENT_FACE_S3_BUCKET=${STUDENT_FACE_S3_BUCKET:-}
+      - STUDENT_FACE_S3_PREFIX=${STUDENT_FACE_S3_PREFIX:-student-faces}
+      - STUDENT_FACE_IMAGE_MAX_SIZE_BYTES=${STUDENT_FACE_IMAGE_MAX_SIZE_BYTES:-5242880}
+      - AWS_REGION=${AWS_REGION:-ap-southeast-1}
+      - AWS_REKOGNITION_REGION=${AWS_REKOGNITION_REGION:-ap-southeast-1}
+      - AWS_REKOGNITION_THRESHOLD=${AWS_REKOGNITION_THRESHOLD:-90}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://discovery-server:8761/eureka/
     depends_on:
       - user-db
       - discovery-server
+    volumes:
+      - ./user-service/uploads/student-faces:/app/uploads/student-faces
     networks:
       - micro_network
 

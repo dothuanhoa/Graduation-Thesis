@@ -4,8 +4,12 @@ import com.userservice.domain.UserProfile;
 import com.userservice.domain.StudentGroup;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
+import com.userservice.dto.FaceVerificationResponse;
 import com.userservice.dto.StudentImportProgress;
+import com.userservice.dto.StudentFaceImage;
 import com.userservice.dto.StudentImportRow;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,4 +33,7 @@ public interface UserService {
     BulkStudentUpdateResponse updateStudentStatuses(List<Long> studentIds, UserProfile.StudentStatus status);
     BulkStudentUpdateResponse updateStudentGroups(BulkStudentGroupRequest request);
     UserProfile updateContactByStudentId(String studentId, String contactPhone);
+    UserProfile updateFaceImage(Long id, MultipartFile file);
+    StudentFaceImage loadFaceImage(Long id);
+    FaceVerificationResponse verifyFaceByStudentId(String studentId, MultipartFile file);
 }

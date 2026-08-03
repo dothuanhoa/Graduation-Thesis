@@ -24,6 +24,9 @@ public class ActivityResponse {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Integer capacity;
+    private Integer attendanceSessionCount;
+    private LocalDateTime middleQrExpiresAt;
+    private LocalDateTime finalQrExpiresAt;
     private Activity.Status status;
     private String createdBy;
     private LocalDateTime createdAt;

@@ -21,6 +21,7 @@ type ActivityFormState = {
   startTime: string;
   endTime: string;
   capacity: string;
+  attendanceSessionCount: string;
 };
 
 const initialForm: ActivityFormState = {
@@ -34,6 +35,7 @@ const initialForm: ActivityFormState = {
   startTime: "",
   endTime: "",
   capacity: "",
+  attendanceSessionCount: "2",
 };
 
 const toPayload = (form: ActivityFormState): ActivityPayload => ({
@@ -48,6 +50,7 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
   capacity: form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
+  attendanceSessionCount: form.participationType === "LIMITED" ? Number(form.attendanceSessionCount || 2) : 1,
 });
 
 function ActivityCreatePage() {
@@ -60,7 +63,10 @@ function ActivityCreatePage() {
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "" } : {}),
+      ...(field === "participationType" && value === "OPEN"
+        ? { capacity: "", registrationStartTime: "", registrationEndTime: "", attendanceSessionCount: "1" }
+        : {}),
+      ...(field === "participationType" && value === "LIMITED" ? { attendanceSessionCount: current.attendanceSessionCount === "1" ? "2" : current.attendanceSessionCount } : {}),
     }));
   };
 
@@ -85,7 +91,7 @@ function ActivityCreatePage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Tạo hoạt động"
-        subtitle="Khai báo hoạt động, thời gian tổ chức và cấu hình đăng ký trực tiếp trên hệ thống cho sinh viên."
+        subtitle="Khai báo hoạt động, thời gian tổ chức và cấu hình cách điểm danh cho sinh viên."
       />
 
       <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
@@ -120,6 +126,17 @@ function ActivityCreatePage() {
               <FormField label="Thời gian mở đăng ký" onChange={(event) => updateField("registrationStartTime", event.target.value)} required type="datetime-local" value={form.registrationStartTime} />
               <FormField label="Thời gian đóng đăng ký" onChange={(event) => updateField("registrationEndTime", event.target.value)} required type="datetime-local" value={form.registrationEndTime} />
               <FormField label="Số lượng tối đa" min={1} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">Số lần điểm danh</span>
+                <select
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                  onChange={(event) => updateField("attendanceSessionCount", event.target.value)}
+                  value={form.attendanceSessionCount}
+                >
+                  <option value="2">2 lần: khuôn mặt đầu giờ + QR cuối giờ</option>
+                  <option value="3">3 lần: khuôn mặt đầu giờ + QR giữa giờ + QR cuối giờ</option>
+                </select>
+              </label>
             </>
           )}
 
@@ -129,7 +146,7 @@ function ActivityCreatePage() {
 
           {form.participationType === "OPEN" && (
             <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              Hoạt động tự do không cần mở đăng ký trước. Khi điểm danh, hệ thống chỉ kiểm tra MSSV có tồn tại trong hồ sơ sinh viên.
+              Hoạt động tự do không cần đăng ký trước và chỉ điểm danh một lần bằng xác thực khuôn mặt.
             </div>
           )}
 

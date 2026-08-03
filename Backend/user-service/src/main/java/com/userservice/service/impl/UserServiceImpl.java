@@ -6,8 +6,10 @@ import com.userservice.domain.StudentGroup;
 import com.userservice.domain.UserProfile;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
+import com.userservice.dto.FaceVerificationResponse;
 import com.userservice.dto.BulkRegisterMessage;
 import com.userservice.dto.OrganizationImportSummary;
+import com.userservice.dto.StudentFaceImage;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 import com.userservice.exception.BadRequestException;
@@ -23,7 +25,30 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.rekognition.RekognitionClient;
+import software.amazon.awssdk.services.rekognition.model.CompareFacesRequest;
+import software.amazon.awssdk.services.rekognition.model.CompareFacesResponse;
+import software.amazon.awssdk.services.rekognition.model.CompareFacesMatch;
+import software.amazon.awssdk.services.rekognition.model.Image;
+import software.amazon.awssdk.services.rekognition.model.RekognitionException;
+import software.amazon.awssdk.services.rekognition.model.S3Object;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -58,6 +84,30 @@ public class UserServiceImpl implements UserService {
 
     @Value("${app.student.email-domain:student.edu.vn}")
     private String studentEmailDomain;
+
+    @Value("${app.student-face.upload-dir:uploads/student-faces}")
+    private String studentFaceUploadDir;
+
+    @Value("${app.student-face.storage-provider:local}")
+    private String studentFaceStorageProvider;
+
+    @Value("${app.student-face.s3-bucket:}")
+    private String studentFaceS3Bucket;
+
+    @Value("${app.student-face.s3-region:ap-southeast-1}")
+    private String studentFaceS3Region;
+
+    @Value("${app.student-face.s3-prefix:student-faces}")
+    private String studentFaceS3Prefix;
+
+    @Value("${app.student-face.rekognition-region:ap-southeast-1}")
+    private String studentFaceRekognitionRegion;
+
+    @Value("${app.student-face.rekognition-threshold:90}")
+    private Float studentFaceRekognitionThreshold;
+
+    @Value("${app.student-face.max-size-bytes:5242880}")
+    private long studentFaceMaxSizeBytes;
 
     public List<UserProfile> findAll() {
         return userProfileRepository.findAllByOrderByStudentIdAsc();
@@ -337,6 +387,228 @@ public class UserServiceImpl implements UserService {
 
         user.setContactPhone(clean(contactPhone));
         return userProfileRepository.save(user);
+    }
+
+    @Transactional
+    public UserProfile updateFaceImage(Long id, MultipartFile file) {
+        UserProfile user = userProfileRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Kh?ng t?m th?y h? s? sinh vi?n v?i id: " + id));
+        validateStudentFaceFile(file);
+
+        String studentCode = clean(user.getStudentId()).isBlank() ? String.valueOf(id) : clean(user.getStudentId());
+        String year = String.valueOf(Year.now().getValue());
+        String extension = resolveImageExtension(file.getOriginalFilename(), file.getContentType());
+        String fileName = studentCode + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
+
+        if (useS3FaceStorage()) {
+            String key = buildS3FaceKey(year, fileName);
+            uploadFaceImageToS3(file, key);
+            user.setFaceImagePath("s3://" + studentFaceS3Bucket.trim() + "/" + key);
+        } else {
+            Path targetDirectory = Path.of(studentFaceUploadDir, year).normalize();
+            Path targetFile = targetDirectory.resolve(fileName).normalize();
+            if (!targetFile.startsWith(targetDirectory)) {
+                throw new BadRequestException("T?n file ?nh khu?n m?t kh?ng h?p l?");
+            }
+            try {
+                Files.createDirectories(targetDirectory);
+                Files.copy(file.getInputStream(), targetFile, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                throw new BadRequestException("Kh?ng l?u ???c ?nh khu?n m?t, vui l?ng th? l?i");
+            }
+            user.setFaceImagePath(targetFile.toString());
+        }
+
+        user.setFaceImageUrl("/api/users/" + id + "/face-image");
+        return userProfileRepository.save(user);
+    }
+
+    public StudentFaceImage loadFaceImage(Long id) {
+        UserProfile user = userProfileRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Kh?ng t?m th?y h? s? sinh vi?n v?i id: " + id));
+        if (user.getFaceImagePath() == null || user.getFaceImagePath().isBlank()) {
+            throw new ResourceNotFoundException("Sinh vi?n ch?a c? ?nh khu?n m?t m?u");
+        }
+
+        if (user.getFaceImagePath().startsWith("s3://")) {
+            return loadFaceImageFromS3(user.getFaceImagePath());
+        }
+
+        Path imagePath = Path.of(user.getFaceImagePath()).normalize();
+        if (!Files.exists(imagePath) || !Files.isRegularFile(imagePath)) {
+            throw new ResourceNotFoundException("Kh?ng t?m th?y file ?nh khu?n m?t m?u");
+        }
+        try {
+            String contentType = Files.probeContentType(imagePath);
+            if (contentType == null || contentType.isBlank()) {
+                contentType = "application/octet-stream";
+            }
+            return new StudentFaceImage(Files.readAllBytes(imagePath), contentType, imagePath.getFileName().toString());
+        } catch (IOException ex) {
+            throw new BadRequestException("Kh?ng ??c ???c ?nh khu?n m?t m?u");
+        }
+    }
+
+    public FaceVerificationResponse verifyFaceByStudentId(String studentId, MultipartFile file) {
+        UserProfile user = userProfileRepository.findByStudentId(clean(studentId))
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay ho so sinh vien voi MSSV: " + studentId));
+        validateStudentFaceFile(file);
+        if (user.getFaceImagePath() == null || user.getFaceImagePath().isBlank()) {
+            throw new BadRequestException("Sinh vien " + user.getStudentId() + " chua co anh khuon mat mau");
+        }
+        if (!user.getFaceImagePath().startsWith("s3://")) {
+            throw new BadRequestException("Anh khuon mat mau can duoc luu tren S3 de xac thuc bang AWS Rekognition");
+        }
+
+        S3Location sourceLocation = parseS3StoredPath(user.getFaceImagePath());
+        try (RekognitionClient rekognitionClient = createRekognitionClient()) {
+            Image sourceImage = Image.builder()
+                    .s3Object(S3Object.builder()
+                            .bucket(sourceLocation.bucket())
+                            .name(sourceLocation.key())
+                            .build())
+                    .build();
+            Image targetImage = Image.builder()
+                    .bytes(SdkBytes.fromInputStream(file.getInputStream()))
+                    .build();
+            CompareFacesRequest request = CompareFacesRequest.builder()
+                    .sourceImage(sourceImage)
+                    .targetImage(targetImage)
+                    .similarityThreshold(studentFaceRekognitionThreshold)
+                    .build();
+            CompareFacesResponse response = rekognitionClient.compareFaces(request);
+            Float similarity = response.faceMatches().stream()
+                    .map(CompareFacesMatch::similarity)
+                    .filter(value -> value != null)
+                    .max(Float::compareTo)
+                    .orElse(null);
+            boolean verified = similarity != null && similarity >= studentFaceRekognitionThreshold;
+            return FaceVerificationResponse.builder()
+                    .verified(verified)
+                    .similarity(similarity)
+                    .threshold(studentFaceRekognitionThreshold)
+                    .message(verified ? "Khuon mat khop voi anh mau" : "Khuon mat khong khop voi anh mau")
+                    .build();
+        } catch (IOException ex) {
+            throw new BadRequestException("Khong doc duoc anh chup de xac thuc khuon mat");
+        } catch (RekognitionException ex) {
+            throw new BadRequestException("AWS Rekognition khong xac thuc duoc khuon mat: " + ex.awsErrorDetails().errorMessage());
+        }
+    }
+
+    private boolean useS3FaceStorage() {
+        return "s3".equalsIgnoreCase(studentFaceStorageProvider);
+    }
+
+    private String buildS3FaceKey(String year, String fileName) {
+        String prefix = studentFaceS3Prefix == null ? "student-faces" : studentFaceS3Prefix.trim();
+        if (prefix.startsWith("/")) {
+            prefix = prefix.substring(1);
+        }
+        if (prefix.endsWith("/")) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        if (prefix.isBlank()) {
+            prefix = "student-faces";
+        }
+        return prefix + "/" + year + "/" + fileName;
+    }
+
+    private void uploadFaceImageToS3(MultipartFile file, String key) {
+        if (studentFaceS3Bucket == null || studentFaceS3Bucket.isBlank()) {
+            throw new BadRequestException("Chua cau hinh S3 bucket de luu anh khuon mat sinh vien");
+        }
+        try (S3Client s3Client = createS3Client()) {
+            PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(studentFaceS3Bucket.trim())
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .contentLength(file.getSize())
+                    .build();
+            s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+        } catch (IOException ex) {
+            throw new BadRequestException("Khong doc duoc anh khuon mat de upload S3");
+        } catch (S3Exception ex) {
+            throw new BadRequestException("Khong upload duoc anh khuon mat len S3: " + ex.awsErrorDetails().errorMessage());
+        }
+    }
+
+    private StudentFaceImage loadFaceImageFromS3(String storedPath) {
+        S3Location location = parseS3StoredPath(storedPath);
+        try (S3Client s3Client = createS3Client()) {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(location.bucket())
+                    .key(location.key())
+                    .build();
+            ResponseBytes<GetObjectResponse> objectBytes = s3Client.getObjectAsBytes(request);
+            String contentType = objectBytes.response().contentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = "application/octet-stream";
+            }
+            String fileName = location.key().substring(location.key().lastIndexOf('/') + 1);
+            return new StudentFaceImage(objectBytes.asByteArray(), contentType, fileName);
+        } catch (S3Exception ex) {
+            throw new ResourceNotFoundException("Khong tim thay anh khuon mat tren S3");
+        }
+    }
+
+    private S3Location parseS3StoredPath(String storedPath) {
+        if (storedPath == null || !storedPath.startsWith("s3://")) {
+            throw new BadRequestException("Duong dan anh khuon mat S3 khong hop le");
+        }
+        String value = storedPath.substring("s3://".length());
+        int slashIndex = value.indexOf('/');
+        if (slashIndex <= 0 || slashIndex >= value.length() - 1) {
+            throw new BadRequestException("Duong dan anh khuon mat S3 khong hop le");
+        }
+        return new S3Location(value.substring(0, slashIndex), value.substring(slashIndex + 1));
+    }
+
+    private S3Client createS3Client() {
+        return S3Client.builder()
+                .region(Region.of(studentFaceS3Region == null || studentFaceS3Region.isBlank() ? "ap-southeast-1" : studentFaceS3Region.trim()))
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .build();
+    }
+
+    private RekognitionClient createRekognitionClient() {
+        return RekognitionClient.builder()
+                .region(Region.of(studentFaceRekognitionRegion == null || studentFaceRekognitionRegion.isBlank() ? "ap-southeast-1" : studentFaceRekognitionRegion.trim()))
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .build();
+    }
+
+    private record S3Location(String bucket, String key) {
+    }
+
+    private void validateStudentFaceFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestException("Vui l?ng ch?n ?nh khu?n m?t sinh vi?n");
+        }
+        if (file.getSize() > studentFaceMaxSizeBytes) {
+            throw new BadRequestException("?nh khu?n m?t kh?ng ???c v??t qu? " + (studentFaceMaxSizeBytes / 1024 / 1024) + "MB");
+        }
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+        if (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/webp")) {
+            throw new BadRequestException("?nh khu?n m?t ch? h? tr? JPG, PNG ho?c WEBP");
+        }
+    }
+
+    private String resolveImageExtension(String originalFilename, String contentType) {
+        String lowerName = originalFilename == null ? "" : originalFilename.toLowerCase(Locale.ROOT);
+        if (lowerName.endsWith(".png")) {
+            return ".png";
+        }
+        if (lowerName.endsWith(".webp")) {
+            return ".webp";
+        }
+        if (lowerName.endsWith(".jpeg")) {
+            return ".jpeg";
+        }
+        if (lowerName.endsWith(".jpg")) {
+            return ".jpg";
+        }
+        return contentType != null && contentType.toLowerCase(Locale.ROOT).contains("png") ? ".png" : ".jpg";
     }
 
     private void requireClazzSelected(Clazz clazz) {

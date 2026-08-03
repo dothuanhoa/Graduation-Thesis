@@ -7,11 +7,15 @@ import com.activityservice.dto.ActivityStatusRequest;
 import com.activityservice.dto.CheckerRequest;
 import com.activityservice.dto.CheckerResponse;
 import com.activityservice.dto.CheckinRequest;
+import com.activityservice.dto.QrCheckinRequest;
+import com.activityservice.dto.QrSessionRequest;
+import com.activityservice.dto.QrSessionResponse;
 import com.activityservice.dto.RegistrationResponse;
 import com.activityservice.exception.ForbiddenException;
 import com.activityservice.service.ActivityService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,7 +27,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -139,6 +145,49 @@ public class ActivityController {
             @PathVariable Long id,
             @Valid @RequestBody CheckinRequest request) {
         return ResponseEntity.ok(activityService.checkin(id, checkerTsid, request));
+    }
+
+    @PostMapping("/{id}/qr-sessions")
+    public ResponseEntity<QrSessionResponse> createQrSession(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable Long id,
+            @Valid @RequestBody QrSessionRequest request) {
+        requireAdmin(role);
+        return ResponseEntity.ok(activityService.createQrSession(id, request.getSession(), request.getExpiresInMinutes()));
+    }
+
+    @PostMapping(path = "/{id}/face-checkin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<RegistrationResponse> faceCheckin(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code") String currentUserCode,
+            @PathVariable Long id,
+            @RequestParam(value = "studentCode", required = false) String requestedStudentCode,
+            @RequestParam("file") MultipartFile file) {
+        String targetStudentCode = requestedStudentCode != null && !requestedStudentCode.isBlank()
+                ? requestedStudentCode.trim()
+                : currentUserCode;
+        if (!isAdminOrSystem(role) && !sameSchoolCode(targetStudentCode, currentUserCode)) {
+            throw new ForbiddenException("Ban chi duoc xac thuc khuon mat cho tai khoan cua minh");
+        }
+        return ResponseEntity.ok(activityService.faceCheckin(id, currentUserCode, targetStudentCode, file));
+    }
+
+    @PostMapping("/{id}/qr-checkin")
+    public ResponseEntity<RegistrationResponse> qrCheckin(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code") String studentCode,
+            @PathVariable Long id,
+            @Valid @RequestBody QrCheckinRequest request) {
+        requireStudent(role);
+        return ResponseEntity.ok(activityService.qrCheckin(id, studentCode, request));
+    }
+
+    private boolean isAdminOrSystem(String role) {
+        return "ADMIN".equalsIgnoreCase(role) || "SYSTEM".equalsIgnoreCase(role);
+    }
+
+    private boolean sameSchoolCode(String left, String right) {
+        return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
     }
 
     private void requireAdmin(String role) {

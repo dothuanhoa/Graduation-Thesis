@@ -33,6 +33,15 @@ app:
     secret: ${INTERNAL_SERVICE_SECRET:dev-local-internal-secret}
   student:
     email-domain: ${STUDENT_EMAIL_DOMAIN:student.edu.vn}
+  student-face:
+    storage-provider: ${STUDENT_FACE_STORAGE_PROVIDER:local}
+    upload-dir: ${STUDENT_FACE_UPLOAD_DIR:uploads/student-faces}
+    s3-bucket: ${STUDENT_FACE_S3_BUCKET:}
+    s3-region: ${AWS_REGION:ap-southeast-1}
+    s3-prefix: ${STUDENT_FACE_S3_PREFIX:student-faces}
+    rekognition-region: ${AWS_REKOGNITION_REGION:ap-southeast-1}
+    rekognition-threshold: ${AWS_REKOGNITION_THRESHOLD:90}
+    max-size-bytes: ${STUDENT_FACE_IMAGE_MAX_SIZE_BYTES:5242880}
 
 eureka:
   client:

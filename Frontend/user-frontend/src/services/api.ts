@@ -130,6 +130,7 @@ export type UserProfile = {
   studentId: string;
   fullName: string;
   email?: string;
+  faceImageUrl?: string;
   dob?: string;
   gender?: "MALE" | "FEMALE" | "OTHER";
   contactPhone?: string;
@@ -264,6 +265,8 @@ export type NotificationResponse = NotificationPayload & {
 export type ActivityCategory = "ACADEMIC" | "MOVEMENT" | "FACULTY" | "UNIVERSITY" | "OTHER";
 export type ActivityParticipationType = "LIMITED" | "OPEN";
 export type ActivityStatus = "UPCOMING" | "ONGOING" | "COMPLETED";
+export type ActivityAttendanceSession = "FACE" | "MIDDLE" | "FINAL";
+export type ActivityAttendanceResult = "NOT_ATTENDED" | "FACE_NOT_VERIFIED" | "INCOMPLETE" | "ATTENDED";
 
 export type ActivityPayload = {
   title: string;
@@ -277,6 +280,7 @@ export type ActivityPayload = {
   startTime: string;
   endTime: string;
   capacity?: number;
+  attendanceSessionCount?: number;
 };
 
 export type ActivityResponse = ActivityPayload & {
@@ -292,6 +296,8 @@ export type ActivityResponse = ActivityPayload & {
   registrationOpen?: boolean;
   registrationFull?: boolean;
   remainingSlots?: number | null;
+  middleQrExpiresAt?: string;
+  finalQrExpiresAt?: string;
 };
 
 export type ActivityRegistrationResponse = {
@@ -301,6 +307,13 @@ export type ActivityRegistrationResponse = {
   fullName: string;
   attended: boolean;
   checkinTime?: string;
+  faceVerified: boolean;
+  faceVerifiedTime?: string;
+  middleAttended: boolean;
+  middleCheckinTime?: string;
+  finalAttended: boolean;
+  finalCheckinTime?: string;
+  attendanceResult?: ActivityAttendanceResult;
 };
 
 export type ActivityCheckerPayload = {
@@ -311,6 +324,13 @@ export type ActivityCheckerPayload = {
 export type ActivityCheckerResponse = ActivityCheckerPayload & {
   id: string;
   checkerTsid?: string;
+};
+
+export type ActivityQrSessionResponse = {
+  session: ActivityAttendanceSession;
+  qrCode: string;
+  qrPayload: string;
+  expiresAt: string;
 };
 
 export type ExamStatus = "ACTIVE" | "INACTIVE";
@@ -845,6 +865,16 @@ export const userApi = {
       body: JSON.stringify(payload),
     });
   },
+  uploadFaceImage(id: string | number, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<UserProfile>(`/api/users/${encodeURIComponent(String(id))}/face-image`, {
+      method: "POST",
+      successMessage: "Da cap nhat anh khuon mat mau cho sinh vien.",
+      errorMessage: "Khong upload duoc anh khuon mat mau.",
+      body: formData,
+    });
+  },
   remove(id: string | number) {
     return apiRequest<void>(`/api/users/${id}`, {
       method: "DELETE",
@@ -1233,6 +1263,35 @@ export const activityApi = {
   },
   listRegistrations(id: string) {
     return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
+  },
+  createQrSession(id: string, session: Exclude<ActivityAttendanceSession, "FACE">, expiresInMinutes: number) {
+    return apiRequest<ActivityQrSessionResponse>(`/api/activities/${encodeURIComponent(id)}/qr-sessions`, {
+      method: "POST",
+      successMessage: "Da tao ma QR diem danh.",
+      errorMessage: "Khong tao duoc ma QR diem danh.",
+      body: JSON.stringify({ session, expiresInMinutes }),
+    });
+  },
+  faceCheckin(id: string, file: File, studentCode?: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (studentCode?.trim()) {
+      formData.append("studentCode", studentCode.trim());
+    }
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/face-checkin`, {
+      method: "POST",
+      successMessage: "Da xac thuc khuon mat diem danh.",
+      errorMessage: "Khong xac thuc duoc khuon mat diem danh.",
+      body: formData,
+    });
+  },
+  qrCheckin(id: string, qrCode: string) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/qr-checkin`, {
+      method: "POST",
+      successMessage: "Da ghi nhan diem danh bang QR.",
+      errorMessage: "Khong ghi nhan duoc diem danh bang QR.",
+      body: JSON.stringify({ qrCode }),
+    });
   },
   registerMe(id: string) {
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/registrations/me`, {

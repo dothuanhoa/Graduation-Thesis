@@ -1,5 +1,6 @@
 package com.userservice.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
@@ -56,6 +57,15 @@ public class UserProfile {
     @Pattern(regexp = "^$|^\\s*(0|\\+84)\\d{8,10}\\s*$", message = "Số điện thoại không hợp lệ")
     @Column(name = "contact_phone", length = 15)
     private String contactPhone;
+
+    @Size(max = 500, message = "???ng d?n ?nh khu?n m?t kh?ng ???c v??t qu? 500 k? t?")
+    @Column(name = "face_image_url", length = 500)
+    private String faceImageUrl;
+
+    @JsonIgnore
+    @Size(max = 700, message = "???ng d?n l?u ?nh khu?n m?t kh?ng ???c v??t qu? 700 k? t?")
+    @Column(name = "face_image_path", length = 700)
+    private String faceImagePath;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")

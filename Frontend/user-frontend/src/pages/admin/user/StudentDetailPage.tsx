@@ -1,4 +1,4 @@
-import { KeyRound, Lock, RotateCcw, Save, Trash2, Unlock } from "lucide-react";
+import { KeyRound, Lock, RotateCcw, Save, Trash2, Unlock, Upload } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
@@ -48,6 +48,7 @@ function StudentDetailPage() {
   const [classId, setClassId] = useState("");
   const [classSearch, setClassSearch] = useState("");
   const [studentGroupId, setStudentGroupId] = useState("1");
+  const [faceUploading, setFaceUploading] = useState(false);
 
   const classOptions: AutocompleteOption[] = classes.map((clazz) => ({
     value: clazz.id,
@@ -153,6 +154,21 @@ function StudentDetailPage() {
       setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không cập nhật được hồ sơ."));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFaceImageUpload = async (file: File | null) => {
+    if (!profile || !file) return;
+    setFaceUploading(true);
+    setMessage("");
+    try {
+      const updated = await userApi.uploadFaceImage(profile.id, file);
+      setProfile(updated);
+      setMessage("Đã cập nhật ảnh khuôn mặt mẫu cho sinh viên " + updated.studentId + ".");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không upload được ảnh khuôn mặt mẫu.");
+    } finally {
+      setFaceUploading(false);
     }
   };
 
@@ -293,6 +309,32 @@ function StudentDetailPage() {
               <h2 className="mt-2 text-xl font-bold text-on-surface">{profile?.studentId}</h2>
               <p className="mt-2 text-sm text-on-surface-variant">{profile?.email || `${profile?.studentId}@student.edu.vn`}</p>
               <div className="mt-4">{profile?.studentStatus && <StatusBadge status={profile.studentStatus} />}</div>
+            </Card>
+
+            <Card>
+              <p className="text-sm font-semibold text-primary">Xac thuc khuon mat</p>
+              <h2 className="mt-2 text-lg font-bold text-on-surface">Ảnh khuôn mặt mẫu</h2>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Anh nay duoc luu tren AWS S3 va dung lam anh mau khi sinh vien diem danh bang AWS Rekognition.
+              </p>
+              <div className="mt-4 rounded-lg bg-surface-container-low p-3 text-sm font-semibold text-on-surface-variant">
+                {profile?.faceImageUrl ? "Đã có ảnh khuôn mặt mẫu." : "Chưa có ảnh khuôn mặt mẫu."}
+              </div>
+              <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
+                <Upload className="h-5 w-5" />
+                {faceUploading ? "Đang upload..." : "Tải ảnh mẫu"}
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  disabled={faceUploading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    void handleFaceImageUpload(file);
+                    event.target.value = "";
+                  }}
+                  type="file"
+                />
+              </label>
             </Card>
 
             <Card>

@@ -1,4 +1,5 @@
-import { Download, PlayCircle, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
+import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
+import { Download, PlayCircle, QrCode, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
@@ -12,10 +13,12 @@ import {
   ApiError,
   activityApi,
   userApi,
+  type ActivityAttendanceSession,
   type ActivityCategory,
   type ActivityCheckerPayload,
   type ActivityCheckerResponse,
   type ActivityPayload,
+  type ActivityQrSessionResponse,
   type ActivityParticipationType,
   type ActivityRegistrationResponse,
   type ActivityResponse,
@@ -40,6 +43,7 @@ type ActivityFormState = {
   startTime: string;
   endTime: string;
   capacity: string;
+  attendanceSessionCount: string;
 };
 
 const emptyChecker: ActivityCheckerPayload = {
@@ -58,6 +62,7 @@ const toForm = (activity: ActivityResponse): ActivityFormState => ({
   startTime: toInputDateTime(activity.startTime),
   endTime: toInputDateTime(activity.endTime),
   capacity: activity.capacity ? String(activity.capacity) : "",
+  attendanceSessionCount: activity.participationType === "OPEN" ? "1" : String(activity.attendanceSessionCount || 2),
 });
 
 const toPayload = (form: ActivityFormState): ActivityPayload => ({
@@ -72,6 +77,7 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
   capacity: form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
+  attendanceSessionCount: form.participationType === "LIMITED" ? Number(form.attendanceSessionCount || 2) : 1,
 });
 
 const nextStatus = (status: ActivityStatus): ActivityStatus | null => {
@@ -89,6 +95,44 @@ const normalizeLookupText = (value = "") =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+
+
+type QrAttendanceSession = Exclude<ActivityAttendanceSession, "FACE">;
+
+const attendanceSessionLabels: Record<QrAttendanceSession, string> = {
+  MIDDLE: "Gi\u1eefa gi\u1edd",
+  FINAL: "Cu\u1ed1i gi\u1edd",
+};
+
+const attendanceResultLabels: Record<string, string> = {
+  NOT_ATTENDED: "Ch\u01b0a \u0111i\u1ec3m danh",
+  FACE_NOT_VERIFIED: "Ch\u01b0a x\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t",
+  INCOMPLETE: "\u0110i\u1ec3m danh kh\u00f4ng \u0111\u1ee7",
+  ATTENDED: "\u0110\u00e3 \u0111i\u1ec3m danh",
+};
+
+const formatAttendanceResult = (registration: ActivityRegistrationResponse) =>
+  attendanceResultLabels[registration.attendanceResult || ""] || (registration.attended ? "\u0110\u00e3 \u0111i\u1ec3m danh" : "Ch\u01b0a \u0111i\u1ec3m danh");
+
+const formatAttendanceMark = (done: boolean, time?: string) => (done ? `C\u00f3${time ? ` - ${formatDateTime(time)}` : ""}` : "-");
+
+const toQrImageDataUrl = (payload: string) => {
+  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 220, 220, new Map());
+  const width = matrix.getWidth();
+  const height = matrix.getHeight();
+  const cells: string[] = [];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (matrix.get(x, y)) {
+        cells.push(`M${x},${y}h1v1h-1z`);
+      }
+    }
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="white"/><path d="${cells.join("")}" fill="black"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
 
 const throwProfileValidation = (message: string): never => {
   const userMessage = toUserFacingMessage(message);
@@ -198,6 +242,9 @@ function ActivityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [qrTtlMinutes, setQrTtlMinutes] = useState("10");
+  const [qrSession, setQrSession] = useState<ActivityQrSessionResponse | null>(null);
+  const [creatingQrSession, setCreatingQrSession] = useState<QrAttendanceSession | "">("");
 
   const loadDetail = useCallback(async () => {
     if (!id) {
@@ -262,7 +309,8 @@ function ActivityDetailPage() {
         ? {
             ...current,
             [field]: value,
-            ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "" } : {}),
+            ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "", attendanceSessionCount: "1" } : {}),
+            ...(field === "participationType" && value === "LIMITED" ? { attendanceSessionCount: current.attendanceSessionCount === "1" ? "2" : current.attendanceSessionCount } : {}),
           }
         : current,
     );
@@ -331,41 +379,82 @@ function ActivityDetailPage() {
     if (!activity) return;
 
     const participationType = activity.participationType || "LIMITED";
+    const attendanceCount = activity.attendanceSessionCount || (participationType === "OPEN" ? 1 : 2);
     const attended = registrations.filter((registration) => registration.attended).length;
-    const notAttended = participationType === "OPEN" ? "Không áp dụng" : Math.max(registrations.length - attended, 0);
+    const incomplete = registrations.filter((registration) => registration.attendanceResult === "INCOMPLETE").length;
+    const faceMissing = registrations.filter((registration) => registration.attendanceResult === "FACE_NOT_VERIFIED").length;
+    const notAttended = registrations.filter((registration) => registration.attendanceResult === "NOT_ATTENDED" || (!registration.attendanceResult && !registration.attended)).length;
+    const detailHeader = ["MSSV", "H\u1ecd t\u00ean", "X\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t"];
+    if (attendanceCount === 3) detailHeader.push("QR gi\u1eefa gi\u1edd");
+    if (attendanceCount >= 2) detailHeader.push("QR cu\u1ed1i gi\u1edd");
+    detailHeader.push("K\u1ebft qu\u1ea3", "Th\u1eddi gian cu\u1ed1i");
 
     exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`, [
       {
         name: "Tong ket",
         rows: [
-          ["Hoạt động", activity.title],
-          ["Loại", activityCategoryLabels[activity.category]],
-          ["Hình thức", activityParticipationLabels[participationType]],
-          ["Mở đăng ký", participationType === "LIMITED" ? formatDateTime(activity.registrationStartTime) : "Không áp dụng"],
-          ["Đóng đăng ký", participationType === "LIMITED" ? formatDateTime(activity.registrationEndTime) : "Không áp dụng"],
-          ["Thời gian bắt đầu", formatDateTime(activity.startTime)],
-          ["Thời gian kết thúc", formatDateTime(activity.endTime)],
-          ["Địa điểm", activity.location || ""],
-          ["Số lượng tối đa", participationType === "LIMITED" ? activity.capacity ?? "" : "Không giới hạn"],
-          ["Số sinh viên đăng ký", participationType === "LIMITED" ? registrations.length : "Không áp dụng"],
-          ["Số sinh viên đã điểm danh", attended],
-          ["Số sinh viên chưa điểm danh", notAttended],
+          ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
+          ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
+          ["H\u00ecnh th\u1ee9c", activityParticipationLabels[participationType]],
+          ["S\u1ed1 l\u1ea7n \u0111i\u1ec3m danh", attendanceCount],
+          ["M\u1edf \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? formatDateTime(activity.registrationStartTime) : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
+          ["\u0110\u00f3ng \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? formatDateTime(activity.registrationEndTime) : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
+          ["Th\u1eddi gian b\u1eaft \u0111\u1ea7u", formatDateTime(activity.startTime)],
+          ["Th\u1eddi gian k\u1ebft th\u00fac", formatDateTime(activity.endTime)],
+          ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
+          ["S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a", participationType === "LIMITED" ? activity.capacity ?? "" : "Kh\u00f4ng gi\u1edbi h\u1ea1n"],
+          ["S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? registrations.length : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
+          ["S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", attended],
+          ["S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", notAttended],
+          ["S\u1ed1 sinh vi\u00ean ch\u01b0a x\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t", faceMissing],
+          ["S\u1ed1 sinh vi\u00ean \u0111i\u1ec3m danh kh\u00f4ng \u0111\u1ee7", incomplete],
         ],
       },
       {
         name: "Danh sach",
         rows: [
-          ["MSSV", "Họ tên", "Trạng thái", "Thời gian điểm danh"],
-          ...registrations.map((registration) => [
-            registration.studentCode,
-            registration.fullName,
-            registration.attended ? "Đã điểm danh" : "Chưa điểm danh",
-            registration.checkinTime ? formatDateTime(registration.checkinTime) : "",
-          ]),
+          detailHeader,
+          ...registrations.map((registration) => {
+            const row = [
+              registration.studentCode,
+              registration.fullName,
+              formatAttendanceMark(Boolean(registration.faceVerified), registration.faceVerifiedTime),
+            ];
+            if (attendanceCount === 3) row.push(formatAttendanceMark(Boolean(registration.middleAttended), registration.middleCheckinTime));
+            if (attendanceCount >= 2) row.push(formatAttendanceMark(Boolean(registration.finalAttended), registration.finalCheckinTime));
+            row.push(formatAttendanceResult(registration), registration.checkinTime ? formatDateTime(registration.checkinTime) : "");
+            return row;
+          }),
         ],
       },
     ]);
-    setMessage("Đã xuất file Excel tổng kết hoạt động.");
+    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
+  };
+
+  const createQrSession = async (session: QrAttendanceSession) => {
+    if (!id) return;
+    const minutes = Number(qrTtlMinutes || 10);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) {
+      setMessage("Thời gian tồn tại QR phải từ 1 đến 240 phút.");
+      return;
+    }
+
+    setCreatingQrSession(session);
+    setMessage("");
+    try {
+      const created = await activityApi.createQrSession(id, session, minutes);
+      setQrSession(created);
+      const updated = await activityApi.get(id).catch(() => null);
+      if (updated) {
+        setActivity(updated);
+        setForm(toForm(updated));
+      }
+      setMessage(`Đã tạo QR ${attendanceSessionLabels[session].toLowerCase()}.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tạo được QR điểm danh.");
+    } finally {
+      setCreatingQrSession("");
+    }
   };
 
   const addChecker = async (event: FormEvent<HTMLFormElement>) => {
@@ -436,6 +525,7 @@ function ActivityDetailPage() {
 
   const statusTarget = nextStatus(activity.status);
   const checkedInCount = registrations.filter((registration) => registration.attended).length;
+  const attendanceSessionCount = activity.attendanceSessionCount || ((activity.participationType || "LIMITED") === "OPEN" ? 1 : 2);
   const isLimitedActivity = (activity.participationType || "LIMITED") === "LIMITED";
 
   return (
@@ -502,6 +592,18 @@ function ActivityDetailPage() {
                 <FormField label="Thời gian mở đăng ký" onChange={(event) => updateField("registrationStartTime", event.target.value)} required type="datetime-local" value={form.registrationStartTime} />
                 <FormField label="Thời gian đóng đăng ký" onChange={(event) => updateField("registrationEndTime", event.target.value)} required type="datetime-local" value={form.registrationEndTime} />
                 <FormField label="Số lượng tối đa" min={Math.max(registrations.length, 1)} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-on-surface">Số lần điểm danh</span>
+                  <select
+                    className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-70"
+                    disabled={activity.status !== "UPCOMING" || registrations.some((registration) => registration.faceVerified || registration.middleAttended || registration.finalAttended)}
+                    onChange={(event) => updateField("attendanceSessionCount", event.target.value)}
+                    value={form.attendanceSessionCount}
+                  >
+                    <option value="2">2 lần: khuôn mặt đầu giờ + QR cuối giờ</option>
+                    <option value="3">3 lần: khuôn mặt đầu giờ + QR giữa giờ + QR cuối giờ</option>
+                  </select>
+                </label>
               </>
             )}
             <FormField label="Thời gian bắt đầu hoạt động" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
@@ -552,6 +654,67 @@ function ActivityDetailPage() {
           </div>
         </Card>
       </div>
+
+      {isLimitedActivity && (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-primary">QR điểm danh</p>
+              <h2 className="text-xl font-bold text-on-surface">T?o QR điểm danh</h2>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Hoạt động đăng ký luôn xác thực khuôn mặt đầu giờ; QR được dùng cho giữa giờ hoặc cuối giờ theo số lần điểm danh đã chọn.
+              </p>
+            </div>
+            <label className="flex min-w-48 flex-col gap-1.5">
+              <span className="text-sm font-semibold text-on-surface">Thời gian tồn tại QR (phút)</span>
+              <input
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
+                min={1}
+                max={240}
+                onChange={(event) => setQrTtlMinutes(event.target.value)}
+                type="number"
+                value={qrTtlMinutes}
+              />
+            </label>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {attendanceSessionCount === 3 && (
+              <button
+                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary disabled:opacity-60"
+                disabled={activity.status !== "ONGOING" || creatingQrSession === "MIDDLE"}
+                onClick={() => void createQrSession("MIDDLE")}
+                type="button"
+              >
+                <QrCode className="h-5 w-5" />
+                {creatingQrSession === "MIDDLE" ? "Đang tạo..." : "Tạo QR giữa giờ"}
+              </button>
+            )}
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
+              disabled={activity.status !== "ONGOING" || creatingQrSession === "FINAL"}
+              onClick={() => void createQrSession("FINAL")}
+              type="button"
+            >
+              <QrCode className="h-5 w-5" />
+              {creatingQrSession === "FINAL" ? "Đang tạo..." : "Tạo QR cuối giờ"}
+            </button>
+          </div>
+
+          {activity.status !== "ONGOING" && <p className="mt-3 text-sm text-on-surface-variant">Chỉ tạo QR khi hoạt động đang diễn ra.</p>}
+
+          {qrSession && (
+            <div className="mt-5 grid gap-4 rounded-lg border border-outline-variant p-4 md:grid-cols-[auto_1fr]">
+              <img alt="QR điểm danh" className="h-56 w-56 rounded-lg border border-outline-variant bg-white p-3" src={toQrImageDataUrl(qrSession.qrPayload)} />
+              <div className="space-y-2 text-sm text-on-surface-variant">
+                <p className="text-base font-semibold text-on-surface">{attendanceSessionLabels[qrSession.session as QrAttendanceSession]}</p>
+                <p>Hết hạn: {formatDateTime(qrSession.expiresAt)}</p>
+                <p className="break-all rounded-lg bg-surface-container-low p-3 font-mono text-xs">{qrSession.qrPayload}</p>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card>
         <div className="mb-5">
@@ -620,13 +783,16 @@ function ActivityDetailPage() {
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead className="bg-surface-container-low">
               <tr>
                 <th className="px-5 py-4 font-semibold text-on-surface">MSSV</th>
                 <th className="px-5 py-4 font-semibold text-on-surface">Họ tên</th>
-                <th className="px-5 py-4 font-semibold text-on-surface">Trạng thái</th>
-                <th className="px-5 py-4 font-semibold text-on-surface">Thời gian điểm danh</th>
+                <th className="px-5 py-4 font-semibold text-on-surface">Xác thực khuôn mặt</th>
+                {attendanceSessionCount === 3 && <th className="px-5 py-4 font-semibold text-on-surface">QR giữa giờ</th>}
+                {attendanceSessionCount >= 2 && <th className="px-5 py-4 font-semibold text-on-surface">QR cuối giờ</th>}
+                <th className="px-5 py-4 font-semibold text-on-surface">Kết quả</th>
+                <th className="px-5 py-4 font-semibold text-on-surface">Thời gian cuối</th>
               </tr>
             </thead>
             <tbody>
@@ -634,9 +800,12 @@ function ActivityDetailPage() {
                 <tr key={registration.id} className="border-t border-outline-variant">
                   <td className="px-5 py-4 font-semibold text-on-surface">{registration.studentCode}</td>
                   <td className="px-5 py-4 text-on-surface-variant">{registration.fullName}</td>
+                  <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.faceVerified), registration.faceVerifiedTime)}</td>
+                  {attendanceSessionCount === 3 && <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.middleAttended), registration.middleCheckinTime)}</td>}
+                  {attendanceSessionCount >= 2 && <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.finalAttended), registration.finalCheckinTime)}</td>}
                   <td className="px-5 py-4">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registration.attended ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
-                      {registration.attended ? "Đã điểm danh" : "Chưa điểm danh"}
+                      {formatAttendanceResult(registration)}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-on-surface-variant">{registration.checkinTime ? formatDateTime(registration.checkinTime) : "-"}</td>

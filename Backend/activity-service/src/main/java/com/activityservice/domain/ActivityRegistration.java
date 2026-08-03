@@ -36,9 +36,35 @@ public class ActivityRegistration {
     @Column(name = "full_name", length = 150)
     private String fullName;
 
-    @Column(name = "is_attended", nullable = false)
+    @Column(name = "is_attended", nullable = false, columnDefinition = "boolean default false")
     private boolean attended = false;
 
     @Column(name = "checkin_time")
     private LocalDateTime checkinTime;
+
+    @Column(name = "face_verified", nullable = false, columnDefinition = "boolean default false")
+    private boolean faceVerified = false;
+
+    @Column(name = "face_verified_time")
+    private LocalDateTime faceVerifiedTime;
+
+    @Column(name = "middle_attended", nullable = false, columnDefinition = "boolean default false")
+    private boolean middleAttended = false;
+
+    @Column(name = "middle_checkin_time")
+    private LocalDateTime middleCheckinTime;
+
+    @Column(name = "final_attended", nullable = false, columnDefinition = "boolean default false")
+    private boolean finalAttended = false;
+
+    @Column(name = "final_checkin_time")
+    private LocalDateTime finalCheckinTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "attendance_result", nullable = false, length = 30, columnDefinition = "varchar(30) default 'NOT_ATTENDED'")
+    private AttendanceResult attendanceResult = AttendanceResult.NOT_ATTENDED;
+
+    public enum AttendanceResult {
+        NOT_ATTENDED, FACE_NOT_VERIFIED, INCOMPLETE, ATTENDED
+    }
 }

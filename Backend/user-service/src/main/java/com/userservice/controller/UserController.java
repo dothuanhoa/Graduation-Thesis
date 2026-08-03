@@ -7,6 +7,8 @@ import com.userservice.dto.BulkStudentDeleteRequest;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentStatusRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
+import com.userservice.dto.FaceVerificationResponse;
+import com.userservice.dto.StudentFaceImage;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 import com.userservice.dto.UpdateContactRequest;
@@ -241,6 +243,52 @@ public class UserController {
             @Valid @RequestBody UpdateContactRequest request
     ) {
         return ResponseEntity.ok(userService.updateContactByStudentId(studentId, request.getContactPhone()));
+    }
+
+    @PostMapping(path = "/{id}/face-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> uploadStudentFaceImage(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        return ResponseEntity.ok(userService.updateFaceImage(id, file));
+    }
+
+    @GetMapping("/{id}/face-image")
+    public ResponseEntity<Object> getStudentFaceImage(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code", defaultValue = "") String currentUserCode,
+            @PathVariable Long id
+    ) {
+        UserProfile profile = userService.findById(id).orElse(null);
+        if (profile == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!isAdminOrSystem(role) && !sameSchoolCode(profile.getStudentId(), currentUserCode)) {
+            return forbidden();
+        }
+        StudentFaceImage image = userService.loadFaceImage(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + image.getFileName() + "\"")
+                .body(image.getContent());
+    }
+
+    @PostMapping(path = "/profile/{studentId}/face/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> verifyStudentFace(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code", defaultValue = "") String currentUserCode,
+            @PathVariable String studentId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        if (!isAdminOrSystem(role) && !sameSchoolCode(studentId, currentUserCode)) {
+            return forbidden();
+        }
+        FaceVerificationResponse response = userService.verifyFaceByStudentId(studentId, file);
+        return ResponseEntity.ok(response);
     }
 
     private boolean isAdminOrSystem(String role) {

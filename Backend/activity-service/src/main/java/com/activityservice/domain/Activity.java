@@ -54,6 +54,21 @@ public class Activity {
     @Column
     private Integer capacity;
 
+    @Column(name = "attendance_session_count", nullable = false, columnDefinition = "integer default 2")
+    private Integer attendanceSessionCount = 2;
+
+    @Column(name = "middle_qr_code", length = 120)
+    private String middleQrCode;
+
+    @Column(name = "middle_qr_expires_at")
+    private LocalDateTime middleQrExpiresAt;
+
+    @Column(name = "final_qr_code", length = 120)
+    private String finalQrCode;
+
+    @Column(name = "final_qr_expires_at")
+    private LocalDateTime finalQrExpiresAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Status status = Status.UPCOMING;
@@ -79,5 +94,9 @@ public class Activity {
 
     public enum Status {
         UPCOMING, ONGOING, COMPLETED
+    }
+
+    public enum AttendanceSession {
+        FACE, MIDDLE, FINAL
     }
 }

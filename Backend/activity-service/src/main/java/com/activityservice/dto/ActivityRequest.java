@@ -2,6 +2,8 @@ package com.activityservice.dto;
 
 import com.activityservice.domain.Activity;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -48,6 +50,10 @@ public class ActivityRequest {
     @Positive(message = "Số lượng tối đa phải lớn hơn 0")
     private Integer capacity;
 
+    @Min(value = 1, message = "So lan diem danh phai tu 1 den 3")
+    @Max(value = 3, message = "So lan diem danh phai tu 1 den 3")
+    private Integer attendanceSessionCount;
+
     @AssertTrue(message = "Hoạt động giới hạn cần có thời gian mở đăng ký")
     public boolean isRegistrationStartTimeRequiredForLimitedActivity() {
         return participationType != Activity.ParticipationType.LIMITED || registrationStartTime != null;
@@ -61,6 +67,16 @@ public class ActivityRequest {
     @AssertTrue(message = "Hoạt động giới hạn cần có số lượng tối đa")
     public boolean isCapacityRequiredForLimitedActivity() {
         return participationType != Activity.ParticipationType.LIMITED || capacity != null;
+    }
+
+    @AssertTrue(message = "Hoat dong tu do chi co 1 lan xac thuc khuon mat")
+    public boolean isOpenActivityAttendanceCountValid() {
+        return participationType != Activity.ParticipationType.OPEN || attendanceSessionCount == null || attendanceSessionCount == 1;
+    }
+
+    @AssertTrue(message = "Hoat dong gioi han chi duoc chon 2 hoac 3 lan diem danh")
+    public boolean isLimitedActivityAttendanceCountValid() {
+        return participationType != Activity.ParticipationType.LIMITED || attendanceSessionCount == null || attendanceSessionCount == 2 || attendanceSessionCount == 3;
     }
 
     @AssertTrue(message = "Thời gian kết thúc phải sau thời gian bắt đầu")
