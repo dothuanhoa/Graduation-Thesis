@@ -48,17 +48,53 @@ public class ActivityRegistration {
     @Column(name = "face_verified_time")
     private LocalDateTime faceVerifiedTime;
 
+    @Column(name = "face_verified_by", length = 50)
+    private String faceVerifiedBy;
+
+    @Column(name = "face_verification_note", length = 500)
+    private String faceVerificationNote;
+
     @Column(name = "middle_attended", nullable = false, columnDefinition = "boolean default false")
     private boolean middleAttended = false;
 
     @Column(name = "middle_checkin_time")
     private LocalDateTime middleCheckinTime;
 
+    @Column(name = "middle_location_verified", nullable = false, columnDefinition = "boolean default false")
+    private boolean middleLocationVerified = false;
+
+    @Column(name = "middle_latitude")
+    private Double middleLatitude;
+
+    @Column(name = "middle_longitude")
+    private Double middleLongitude;
+
+    @Column(name = "middle_location_accuracy_meters")
+    private Double middleLocationAccuracyMeters;
+
+    @Column(name = "middle_distance_meters")
+    private Double middleDistanceMeters;
+
     @Column(name = "final_attended", nullable = false, columnDefinition = "boolean default false")
     private boolean finalAttended = false;
 
     @Column(name = "final_checkin_time")
     private LocalDateTime finalCheckinTime;
+
+    @Column(name = "final_location_verified", nullable = false, columnDefinition = "boolean default false")
+    private boolean finalLocationVerified = false;
+
+    @Column(name = "final_latitude")
+    private Double finalLatitude;
+
+    @Column(name = "final_longitude")
+    private Double finalLongitude;
+
+    @Column(name = "final_location_accuracy_meters")
+    private Double finalLocationAccuracyMeters;
+
+    @Column(name = "final_distance_meters")
+    private Double finalDistanceMeters;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "attendance_result", nullable = false, length = 30, columnDefinition = "varchar(30) default 'NOT_ATTENDED'")

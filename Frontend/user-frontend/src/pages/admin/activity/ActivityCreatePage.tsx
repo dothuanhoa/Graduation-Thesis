@@ -66,7 +66,9 @@ function ActivityCreatePage() {
       ...(field === "participationType" && value === "OPEN"
         ? { capacity: "", registrationStartTime: "", registrationEndTime: "", attendanceSessionCount: "1" }
         : {}),
-      ...(field === "participationType" && value === "LIMITED" ? { attendanceSessionCount: current.attendanceSessionCount === "1" ? "2" : current.attendanceSessionCount } : {}),
+      ...(field === "participationType" && value === "LIMITED"
+        ? { attendanceSessionCount: current.attendanceSessionCount === "1" ? "2" : current.attendanceSessionCount }
+        : {}),
     }));
   };
 
@@ -146,7 +148,7 @@ function ActivityCreatePage() {
 
           {form.participationType === "OPEN" && (
             <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              Hoạt động tự do không cần đăng ký trước và chỉ điểm danh một lần bằng xác thực khuôn mặt.
+              Hoạt động tự do không cần sinh viên đăng ký trước. Checker xác thực khuôn mặt một lần để ghi nhận sinh viên tham gia, không kiểm tra danh sách đăng ký.
             </div>
           )}
 

@@ -1,13 +1,14 @@
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
-import { Camera, CheckCircle2, Keyboard, RefreshCw, StopCircle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Camera, CheckCircle2, RefreshCw, StopCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import PageHeader from "../../../components/PageHeader";
 import { activityApi, ApiError, type ActivityRegistrationResponse, type ActivityResponse } from "../../../services/api";
 import { formatDateTime } from "../../../utils/activityUi";
+import { getCurrentBrowserLocation, type BrowserLocation } from "../../../utils/geolocation";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
@@ -32,11 +33,18 @@ const extractQrPayload = (rawValue: string) => {
   return value;
 };
 
+const tryGetQrCheckinLocation = async (): Promise<BrowserLocation | null> => {
+  try {
+    return await getCurrentBrowserLocation();
+  } catch {
+    return null;
+  }
+};
+
 function StudentActivityQrCheckinPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
-  const [qrCode, setQrCode] = useState("");
   const [result, setResult] = useState<ActivityRegistrationResponse | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
@@ -59,7 +67,8 @@ function StudentActivityQrCheckinPage() {
   useEffect(() => {
     const loadActivity = async () => {
       if (!id) {
-        navigate("/404", { replace: true });
+        setActivity(null);
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -83,10 +92,10 @@ function StudentActivityQrCheckinPage() {
 
   const submitQr = useCallback(
     async (value: string) => {
-      if (!id || submitting) return;
+      if (submitting) return;
       const payload = extractQrPayload(value);
       if (!payload) {
-        setMessage("Vui long nhap hoac quet ma QR diem danh.");
+        setMessage("Vui lòng quét mã QR điểm danh hợp lệ.");
         return;
       }
 
@@ -94,10 +103,15 @@ function StudentActivityQrCheckinPage() {
       setMessage("");
       setResult(null);
       try {
-        const checked = await activityApi.qrCheckin(id, payload);
+        setMessage("Đang lấy vị trí hiện tại để kiểm tra phạm vi điểm danh...");
+        const location = await tryGetQrCheckinLocation();
+        const checkinPayload = {
+          qrCode: payload,
+          ...(location ?? {}),
+        };
+        const checked = id ? await activityApi.qrCheckin(id, checkinPayload) : await activityApi.qrCheckinByPayload(checkinPayload);
         setResult(checked);
-        setQrCode("");
-        setMessage("Da ghi nhan diem danh bang QR.");
+        setMessage("Đã ghi nhận điểm danh bằng QR.");
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Không ghi nhận được điểm danh bằng QR.");
       } finally {
@@ -148,18 +162,13 @@ function StudentActivityQrCheckinPage() {
     }
   }, [selectedDeviceId, stopScanner, submitQr]);
 
-  const submitManual = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void submitQr(qrCode);
-  };
-
   if (loading) {
     return <div className="panel p-6 text-on-surface-variant">Đang tải trang quét QR...</div>;
   }
 
   return (
     <div className="space-y-gutter">
-      <BackButton to={`/student/activities/${id}`}>Quay lai hoat dong</BackButton>
+      <BackButton to={id ? `/student/activities/${id}` : "/student/activities"}>{id ? "Quay lại hoạt động" : "Quay lại danh sách hoạt động"}</BackButton>
       <PageHeader title="Quét QR điểm danh" subtitle={activity ? activity.title : "Quét mã QR do admin tạo để ghi nhận lần điểm danh trong giờ."} />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
@@ -172,14 +181,14 @@ function StudentActivityQrCheckinPage() {
               <h2 className="text-xl font-bold text-on-surface">Quét mã QR</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" onClick={() => void startScanner()} type="button">
+              <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={submitting} onClick={() => void startScanner()} type="button">
                 <Camera className="h-5 w-5" />
                 {scanning ? "Quét lại" : "Mở camera"}
               </button>
               {scanning && (
                 <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={stopScanner} type="button">
                   <StopCircle className="h-5 w-5" />
-                  Dung
+                  Dừng
                 </button>
               )}
             </div>
@@ -200,27 +209,28 @@ function StudentActivityQrCheckinPage() {
         </Card>
 
         <Card>
-          <p className="text-sm font-semibold text-primary">Nhap tay</p>
-          <h2 className="text-xl font-bold text-on-surface">Mã QR</h2>
-          <form className="mt-4 space-y-3" onSubmit={submitManual}>
-            <textarea className="min-h-28 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring" onChange={(event) => setQrCode(event.target.value)} placeholder="Dán chuỗi ACTIVITY_QR hoặc mã QR" value={qrCode} />
-            <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={submitting} type="submit">
-              <Keyboard className="h-5 w-5" />
-              {submitting ? "Đang gửi..." : "Gửi mã QR"}
-            </button>
-          </form>
+          <p className="text-sm font-semibold text-primary">Điểm danh bằng QR</p>
+          <h2 className="text-xl font-bold text-on-surface">Quét mã do phòng CTSV hiển thị</h2>
+          <p className="mt-3 text-sm leading-6 text-on-surface-variant">
+            Sinh viên chỉ cần mở camera và đưa mã QR vào khung quét. Hệ thống sẽ tự đọc nội dung QR, kiểm tra phiên điểm danh hợp lệ và ghi nhận kết quả cho tài khoản đang đăng nhập.
+          </p>
+          {submitting && <p className="mt-4 rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">Đang gửi mã QR vừa quét...</p>}
 
           {result && (
             <div className="mt-5 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700">
-              <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-5 w-5" /> Da ghi nhan</p>
+              <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-5 w-5" /> Đã ghi nhận</p>
+              {result.activityTitle && <p className="mt-2 font-semibold">{result.activityTitle}</p>}
               <p className="mt-2">{result.studentCode} - {result.fullName}</p>
-              <p>{result.checkinTime ? formatDateTime(result.checkinTime) : "Vừa xong"}</p>
+              {(result.finalLocationVerified || result.middleLocationVerified) && (
+                <p>Vị trí hợp lệ: {Math.round(result.finalDistanceMeters ?? result.middleDistanceMeters ?? 0)}m từ điểm tạo QR</p>
+              )}
+              <p>{result.finalCheckinTime || result.middleCheckinTime || result.checkinTime ? formatDateTime(result.finalCheckinTime || result.middleCheckinTime || result.checkinTime) : "Vừa xong"}</p>
             </div>
           )}
 
-          <button className="mt-4 inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => setQrCode("")} type="button">
+          <button className="mt-4 inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => setResult(null)} type="button">
             <RefreshCw className="h-5 w-5" />
-            Xoa ma nhap
+            Xóa kết quả hiện tại
           </button>
         </Card>
       </div>

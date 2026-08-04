@@ -69,7 +69,7 @@ public class ActivityRequest {
         return participationType != Activity.ParticipationType.LIMITED || capacity != null;
     }
 
-    @AssertTrue(message = "Hoat dong tu do chi co 1 lan xac thuc khuon mat")
+    @AssertTrue(message = "Hoạt động tự do chỉ có 1 lần xác thực khuôn mặt")
     public boolean isOpenActivityAttendanceCountValid() {
         return participationType != Activity.ParticipationType.OPEN || attendanceSessionCount == null || attendanceSessionCount == 1;
     }

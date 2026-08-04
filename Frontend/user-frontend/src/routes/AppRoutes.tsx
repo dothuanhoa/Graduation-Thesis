@@ -35,6 +35,7 @@ import NotFoundPage from "../pages/NotFoundPage";
 import ResetPasswordPage from "../pages/auth/ResetPasswordPage";
 import StudentActivitiesPage from "../pages/student/activity/StudentActivitiesPage";
 import StudentActivityDetailPage from "../pages/student/activity/StudentActivityDetailPage";
+import StudentActivityHistoryPage from "../pages/student/activity/StudentActivityHistoryPage";
 import StudentActivityQrCheckinPage from "../pages/student/activity/StudentActivityQrCheckinPage";
 import StudentCertificateRequestPage from "../pages/student/certificate/StudentCertificateRequestPage";
 import StudentCertificatesPage from "../pages/student/certificate/StudentCertificatesPage";
@@ -254,6 +255,8 @@ function AppRoutes() {
           element={<ExamResultPage />}
         />
         <Route path="/student/activities" element={<StudentActivitiesPage />} />
+        <Route path="/student/activity-history" element={<StudentActivityHistoryPage />} />
+        <Route path="/student/attendance" element={<StudentActivityQrCheckinPage />} />
         <Route
           path="/student/activities/:id"
           element={<StudentActivityDetailPage />}

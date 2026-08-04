@@ -36,4 +36,5 @@ public interface UserService {
     UserProfile updateFaceImage(Long id, MultipartFile file);
     StudentFaceImage loadFaceImage(Long id);
     FaceVerificationResponse verifyFaceByStudentId(String studentId, MultipartFile file);
+    FaceVerificationResponse identifyFace(MultipartFile file, List<String> candidateStudentIds);
 }

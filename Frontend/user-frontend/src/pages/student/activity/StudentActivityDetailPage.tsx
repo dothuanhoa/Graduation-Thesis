@@ -1,4 +1,4 @@
-import { CalendarDays, Camera, MapPin, QrCode, TicketCheck, UserPlus } from "lucide-react";
+import { CalendarDays, MapPin, QrCode, TicketCheck, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
@@ -22,7 +22,6 @@ function StudentActivityDetailPage() {
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
-  const [faceChecking, setFaceChecking] = useState(false);
   const [message, setMessage] = useState("");
 
   const loadActivity = useCallback(async () => {
@@ -54,22 +53,6 @@ function StudentActivityDetailPage() {
 
     return () => window.clearTimeout(timerId);
   }, [loadActivity]);
-
-  const handleFaceCheckin = async (file: File | null) => {
-    if (!id || !file) return;
-    setFaceChecking(true);
-    setMessage("");
-    try {
-      await activityApi.faceCheckin(id, file);
-      const updated = await activityApi.get(id);
-      setActivity(updated);
-      setMessage("Đã xác thực khuôn mặt và ghi nhận điểm danh đầu giờ.");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không xác thực được khuôn mặt điểm danh.");
-    } finally {
-      setFaceChecking(false);
-    }
-  };
 
   const registerActivity = async () => {
     if (!id || !activity) return;
@@ -107,8 +90,7 @@ function StudentActivityDetailPage() {
 
   const isLimitedActivity = (activity.participationType || "LIMITED") === "LIMITED";
   const canRegister = isLimitedActivity && Boolean(activity.registrationOpen) && !activity.currentUserRegistered && !activity.registrationFull;
-  const canCheckInByFace = activity.status === "ONGOING" && (!isLimitedActivity || Boolean(activity.currentUserRegistered));
-  const canScanQr = activity.status === "ONGOING" && isLimitedActivity && Boolean(activity.currentUserRegistered);
+  const canScanQr = activity.status === "ONGOING" && Boolean(activity.currentUserRegistered);
 
   return (
     <div className="space-y-gutter">
@@ -187,39 +169,29 @@ function StudentActivityDetailPage() {
 
         <div className="mt-6 rounded-lg border border-outline-variant bg-surface-container-low p-4">
           <p className="font-semibold text-on-surface">Điểm danh</p>
-          <p className="mt-2 text-sm text-on-surface-variant">
-            Đầu giờ sinh viên xác thực khuôn mặt. Hoạt động đăng ký sẽ quét QR giữa giờ hoặc cuối giờ theo cấu hình của admin.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <label className={`inline-flex items-center gap-2 rounded-lg px-5 py-3 font-semibold ${canCheckInByFace ? "cursor-pointer bg-primary text-on-primary" : "cursor-not-allowed bg-surface-container text-on-surface-variant"}`}>
-              <Camera className="h-5 w-5" />
-              {faceChecking ? "Đang xác thực..." : "Xác thực khuôn mặt đầu giờ"}
-              <input
-                accept="image/*"
-                capture="user"
-                className="sr-only"
-                disabled={!canCheckInByFace || faceChecking}
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  void handleFaceCheckin(file);
-                  event.target.value = "";
-                }}
-                type="file"
-              />
-            </label>
-            {isLimitedActivity && (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-5 py-3 font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!canScanQr}
-                onClick={() => navigate(`/student/activities/${activity.id}/qr-checkin`)}
-                type="button"
-              >
-                <QrCode className="h-5 w-5" />
-                Quét QR điểm danh
-              </button>
-            )}
-          </div>
-          {!canCheckInByFace && <p className="mt-3 text-sm text-on-surface-variant">Chỉ điểm danh khi hoạt động đang diễn ra và tài khoản được phép tham gia.</p>}
+          {isLimitedActivity ? (
+            <>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Đầu giờ checker xác thực khuôn mặt sinh viên tại khu vực tổ chức. Giữa giờ hoặc cuối giờ, sinh viên mở trang Điểm danh để quét QR do admin chiếu; mã QR đã chứa thông tin hoạt động nên sinh viên không cần tự chọn hoạt động.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-5 py-3 font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!canScanQr}
+                  onClick={() => navigate("/student/attendance")}
+                  type="button"
+                >
+                  <QrCode className="h-5 w-5" />
+                  Mở trang quét QR điểm danh
+                </button>
+              </div>
+              {!canScanQr && <p className="mt-3 text-sm text-on-surface-variant">Chỉ quét QR khi hoạt động đang diễn ra và tài khoản đã đăng ký thành công.</p>}
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Hoạt động tự do không cần đăng ký trước. Khi đến tham gia, sinh viên cung cấp MSSV để checker xác thực khuôn mặt một lần và hệ thống ghi nhận tham gia.
+            </p>
+          )}
         </div>
       </Card>
     </div>

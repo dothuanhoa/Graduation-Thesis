@@ -7,6 +7,7 @@ import com.activityservice.dto.ActivityStatusRequest;
 import com.activityservice.dto.CheckerRequest;
 import com.activityservice.dto.CheckerResponse;
 import com.activityservice.dto.CheckinRequest;
+import com.activityservice.dto.FaceVerificationAdjustmentRequest;
 import com.activityservice.dto.QrCheckinRequest;
 import com.activityservice.dto.QrSessionRequest;
 import com.activityservice.dto.QrSessionResponse;
@@ -50,6 +51,23 @@ public class ActivityController {
     public ResponseEntity<List<ActivityResponse>> getMyCheckerActivities(
             @RequestHeader(value = "X-User-Code") String checkerCode) {
         return ResponseEntity.ok(activityService.findOngoingForChecker(checkerCode));
+    }
+
+    @GetMapping("/registrations/me")
+    public ResponseEntity<List<RegistrationResponse>> getMyRegistrations(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code") String studentCode) {
+        requireStudent(role);
+        return ResponseEntity.ok(activityService.getMyRegistrations(studentCode));
+    }
+
+    @PostMapping("/qr-checkin")
+    public ResponseEntity<RegistrationResponse> qrCheckinByPayload(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code") String studentCode,
+            @Valid @RequestBody QrCheckinRequest request) {
+        requireStudent(role);
+        return ResponseEntity.ok(activityService.qrCheckin(studentCode, request));
     }
 
     @GetMapping("/{id}")
@@ -153,7 +171,7 @@ public class ActivityController {
             @PathVariable Long id,
             @Valid @RequestBody QrSessionRequest request) {
         requireAdmin(role);
-        return ResponseEntity.ok(activityService.createQrSession(id, request.getSession(), request.getExpiresInMinutes()));
+        return ResponseEntity.ok(activityService.createQrSession(id, request));
     }
 
     @PostMapping(path = "/{id}/face-checkin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -161,15 +179,8 @@ public class ActivityController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @RequestHeader(value = "X-User-Code") String currentUserCode,
             @PathVariable Long id,
-            @RequestParam(value = "studentCode", required = false) String requestedStudentCode,
             @RequestParam("file") MultipartFile file) {
-        String targetStudentCode = requestedStudentCode != null && !requestedStudentCode.isBlank()
-                ? requestedStudentCode.trim()
-                : currentUserCode;
-        if (!isAdminOrSystem(role) && !sameSchoolCode(targetStudentCode, currentUserCode)) {
-            throw new ForbiddenException("Ban chi duoc xac thuc khuon mat cho tai khoan cua minh");
-        }
-        return ResponseEntity.ok(activityService.faceCheckin(id, currentUserCode, targetStudentCode, file));
+        return ResponseEntity.ok(activityService.faceCheckin(id, role, currentUserCode, file));
     }
 
     @PostMapping("/{id}/qr-checkin")
@@ -182,12 +193,15 @@ public class ActivityController {
         return ResponseEntity.ok(activityService.qrCheckin(id, studentCode, request));
     }
 
-    private boolean isAdminOrSystem(String role) {
-        return "ADMIN".equalsIgnoreCase(role) || "SYSTEM".equalsIgnoreCase(role);
-    }
-
-    private boolean sameSchoolCode(String left, String right) {
-        return left != null && right != null && left.trim().equalsIgnoreCase(right.trim());
+    @PatchMapping("/{activityId}/registrations/{registrationId}/face-verification")
+    public ResponseEntity<RegistrationResponse> updateFaceVerification(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestHeader(value = "X-User-Code", defaultValue = "UNKNOWN") String adminCode,
+            @PathVariable Long activityId,
+            @PathVariable Long registrationId,
+            @Valid @RequestBody FaceVerificationAdjustmentRequest request) {
+        requireAdmin(role);
+        return ResponseEntity.ok(activityService.adjustFaceVerification(activityId, registrationId, adminCode, request));
     }
 
     private void requireAdmin(String role) {

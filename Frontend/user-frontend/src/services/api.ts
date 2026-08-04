@@ -297,7 +297,15 @@ export type ActivityResponse = ActivityPayload & {
   registrationFull?: boolean;
   remainingSlots?: number | null;
   middleQrExpiresAt?: string;
+  middleQrLocationRequired?: boolean;
+  middleQrAllowedRadiusMeters?: number;
+  middleQrLatitude?: number;
+  middleQrLongitude?: number;
   finalQrExpiresAt?: string;
+  finalQrLocationRequired?: boolean;
+  finalQrAllowedRadiusMeters?: number;
+  finalQrLatitude?: number;
+  finalQrLongitude?: number;
 };
 
 export type ActivityRegistrationResponse = {
@@ -305,14 +313,35 @@ export type ActivityRegistrationResponse = {
   userTsid: string;
   studentCode: string;
   fullName: string;
+  activityId?: string;
+  activityTitle?: string;
+  activityCategory?: ActivityCategory;
+  activityReward?: string;
+  activityLocation?: string;
+  activityStartTime?: string;
+  activityEndTime?: string;
+  activityStatus?: ActivityStatus;
+  activityAttendanceSessionCount?: number;
   attended: boolean;
   checkinTime?: string;
   faceVerified: boolean;
   faceVerifiedTime?: string;
+  faceVerifiedBy?: string;
+  faceVerificationNote?: string;
   middleAttended: boolean;
   middleCheckinTime?: string;
+  middleLocationVerified?: boolean;
+  middleLatitude?: number;
+  middleLongitude?: number;
+  middleLocationAccuracyMeters?: number;
+  middleDistanceMeters?: number;
   finalAttended: boolean;
   finalCheckinTime?: string;
+  finalLocationVerified?: boolean;
+  finalLatitude?: number;
+  finalLongitude?: number;
+  finalLocationAccuracyMeters?: number;
+  finalDistanceMeters?: number;
   attendanceResult?: ActivityAttendanceResult;
 };
 
@@ -331,6 +360,28 @@ export type ActivityQrSessionResponse = {
   qrCode: string;
   qrPayload: string;
   expiresAt: string;
+  locationRequired: boolean;
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+  allowedRadiusMeters?: number;
+};
+
+export type ActivityLocationPayload = {
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+};
+
+export type ActivityQrSessionPayload = ActivityLocationPayload & {
+  session: Exclude<ActivityAttendanceSession, "FACE">;
+  expiresInMinutes: number;
+  locationRequired: boolean;
+  allowedRadiusMeters?: number;
+};
+
+export type ActivityQrCheckinPayload = ActivityLocationPayload & {
+  qrCode: string;
 };
 
 export type ExamStatus = "ACTIVE" | "INACTIVE";
@@ -1264,20 +1315,22 @@ export const activityApi = {
   listRegistrations(id: string) {
     return apiRequest<ActivityRegistrationResponse[]>(`/api/activities/${encodeURIComponent(id)}/registrations`);
   },
-  createQrSession(id: string, session: Exclude<ActivityAttendanceSession, "FACE">, expiresInMinutes: number) {
+  listMyRegistrations(options: { suppressToast?: boolean } = {}) {
+    return apiRequest<ActivityRegistrationResponse[]>("/api/activities/registrations/me", {
+      suppressToast: options.suppressToast,
+    });
+  },
+  createQrSession(id: string, payload: ActivityQrSessionPayload) {
     return apiRequest<ActivityQrSessionResponse>(`/api/activities/${encodeURIComponent(id)}/qr-sessions`, {
       method: "POST",
       successMessage: "Da tao ma QR diem danh.",
       errorMessage: "Khong tao duoc ma QR diem danh.",
-      body: JSON.stringify({ session, expiresInMinutes }),
+      body: JSON.stringify(payload),
     });
   },
-  faceCheckin(id: string, file: File, studentCode?: string) {
+  faceCheckin(id: string, file: File) {
     const formData = new FormData();
     formData.append("file", file);
-    if (studentCode?.trim()) {
-      formData.append("studentCode", studentCode.trim());
-    }
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/face-checkin`, {
       method: "POST",
       successMessage: "Da xac thuc khuon mat diem danh.",
@@ -1285,12 +1338,20 @@ export const activityApi = {
       body: formData,
     });
   },
-  qrCheckin(id: string, qrCode: string) {
+  qrCheckin(id: string, payload: ActivityQrCheckinPayload) {
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/qr-checkin`, {
       method: "POST",
       successMessage: "Da ghi nhan diem danh bang QR.",
       errorMessage: "Khong ghi nhan duoc diem danh bang QR.",
-      body: JSON.stringify({ qrCode }),
+      body: JSON.stringify(payload),
+    });
+  },
+  qrCheckinByPayload(payload: ActivityQrCheckinPayload) {
+    return apiRequest<ActivityRegistrationResponse>("/api/activities/qr-checkin", {
+      method: "POST",
+      successMessage: "Đã ghi nhận điểm danh bằng QR.",
+      errorMessage: "Không ghi nhận được điểm danh bằng QR.",
+      body: JSON.stringify(payload),
     });
   },
   registerMe(id: string) {
@@ -1303,8 +1364,8 @@ export const activityApi = {
   addChecker(id: string, payload: ActivityCheckerPayload) {
     return apiRequest<ActivityCheckerResponse>(`/api/activities/${encodeURIComponent(id)}/checkers`, {
       method: "POST",
-      successMessage: "Đã phân quyền quét mã cho " + payload.checkerCode + ".",
-      errorMessage: "Không phân quyền quét mã cho " + payload.checkerCode + ".",
+      successMessage: "Đã phân quyền xác thực đầu vào cho " + payload.checkerCode + ".",
+      errorMessage: "Không phân quyền xác thực đầu vào cho " + payload.checkerCode + ".",
       body: JSON.stringify(payload),
     });
   },
@@ -1314,17 +1375,16 @@ export const activityApi = {
   removeChecker(activityId: string, checkerId: string) {
     return apiRequest<void>(`/api/activities/${encodeURIComponent(activityId)}/checkers/${encodeURIComponent(checkerId)}`, {
       method: "DELETE",
-      successMessage: "Đã gỡ quyền quét mã.",
-      errorMessage: "Không gỡ được quyền quét mã.",
+      successMessage: "Đã gỡ quyền xác thực đầu vào.",
+      errorMessage: "Không gỡ được quyền xác thực đầu vào.",
     });
   },
-  checkin(id: string, studentCode: string, checkerCode: string) {
-    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/checkin`, {
-      method: "POST",
-      successMessage: "Đã điểm danh sinh viên " + studentCode + ".",
-      errorMessage: "Không điểm danh được sinh viên " + studentCode + ".",
-      headers: { "X-User-Code": checkerCode },
-      body: JSON.stringify({ studentCode }),
+  updateFaceVerification(activityId: string, registrationId: string, payload: { faceVerified: boolean; note?: string }) {
+    return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(activityId)}/registrations/${encodeURIComponent(registrationId)}/face-verification`, {
+      method: "PATCH",
+      successMessage: "Đã cập nhật kết quả xác thực khuôn mặt.",
+      errorMessage: "Không cập nhật được kết quả xác thực khuôn mặt.",
+      body: JSON.stringify(payload),
     });
   },
 };

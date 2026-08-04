@@ -26,7 +26,15 @@ public class ActivityResponse {
     private Integer capacity;
     private Integer attendanceSessionCount;
     private LocalDateTime middleQrExpiresAt;
+    private boolean middleQrLocationRequired;
+    private Integer middleQrAllowedRadiusMeters;
+    private Double middleQrLatitude;
+    private Double middleQrLongitude;
     private LocalDateTime finalQrExpiresAt;
+    private boolean finalQrLocationRequired;
+    private Integer finalQrAllowedRadiusMeters;
+    private Double finalQrLatitude;
+    private Double finalQrLongitude;
     private Activity.Status status;
     private String createdBy;
     private LocalDateTime createdAt;

@@ -72,12 +72,14 @@ export type StudentNotice = {
 };
 
 export const studentMainNav: StudentNavItem[] = [
+  { label: "Điểm danh", path: "/student/attendance", icon: QrCode },
+  { label: "Lịch sử hoạt động", path: "/student/activity-history", icon: ClipboardCheck },
   { label: "Tổng quan", path: "/student/dashboard", icon: LayoutDashboard },
   { label: "Hồ sơ", path: "/student/profile", icon: UserRound },
   { label: "Thông báo", path: "/student/notifications", icon: Bell },
   { label: "Kỳ thi", path: "/student/exams", icon: NotebookTabs },
   { label: "Hoạt động", path: "/student/activities", icon: CalendarCheck },
-  { label: "Điểm danh", path: "/checker/scan", icon: QrCode },
+  { label: "Xác thực đầu vào", path: "/checker/scan", icon: QrCode },
   { label: "Đơn xác nhận", path: "/student/certificates", icon: FileCheck2 },
 ];
 

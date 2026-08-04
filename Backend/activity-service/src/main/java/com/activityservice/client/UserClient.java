@@ -27,4 +27,12 @@ public interface UserClient {
             @PathVariable("studentId") String studentId,
             @RequestPart("file") MultipartFile file
     );
+
+    @PostMapping(value = "/profile/face/identify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    FaceVerificationResponse identifyStudentFace(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Code") String userCode,
+            @RequestPart(value = "studentCodes", required = false) String studentCodes,
+            @RequestPart("file") MultipartFile file
+    );
 }

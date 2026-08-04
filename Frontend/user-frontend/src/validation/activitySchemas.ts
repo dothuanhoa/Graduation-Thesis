@@ -21,15 +21,15 @@ export const activitySchema = z
     location: z.string().trim().min(1, "Vui lòng nhập địa điểm.").max(255, "Địa điểm không được vượt quá 255 ký tự."),
     startTime: z.string().trim().min(1, "Vui lòng chọn thời gian bắt đầu.").refine(isValidDateTime, "Thời gian bắt đầu không hợp lệ."),
     endTime: z.string().trim().min(1, "Vui lòng chọn thời gian kết thúc.").refine(isValidDateTime, "Thời gian kết thúc không hợp lệ."),
-    attendanceSessionCount: z.number().int("S? l?n ?i?m danh ph?i l? s? nguy?n.").min(1, "S? l?n ?i?m danh ph?i t? 1 ??n 3.").max(3, "S? l?n ?i?m danh ph?i t? 1 ??n 3.").optional(),
+    attendanceSessionCount: z.number().int("Số lần điểm danh phải là số nguyên.").min(1, "Số lần điểm danh phải từ 1 đến 3.").max(3, "Số lần điểm danh phải từ 1 đến 3.").optional(),
     capacity: z.number().int("Số lượng tối đa phải là số nguyên.").positive("Số lượng tối đa phải lớn hơn 0.").optional(),
   })
   .refine((data) => data.participationType !== "OPEN" || !data.attendanceSessionCount || data.attendanceSessionCount === 1, {
-    message: "Ho?t ??ng t? do ch? c? 1 l?n x?c th?c khu?n m?t.",
+    message: "Hoạt động tự do chỉ có 1 lần xác thực khuôn mặt.",
     path: ["attendanceSessionCount"],
   })
   .refine((data) => data.participationType !== "LIMITED" || !data.attendanceSessionCount || data.attendanceSessionCount === 2 || data.attendanceSessionCount === 3, {
-    message: "Ho?t ??ng gi?i h?n ch? ???c ch?n 2 ho?c 3 l?n ?i?m danh.",
+    message: "Hoạt động giới hạn chỉ được chọn 2 hoặc 3 lần điểm danh.",
     path: ["attendanceSessionCount"],
   })
   .refine((data) => data.participationType !== "LIMITED" || data.capacity !== undefined, {

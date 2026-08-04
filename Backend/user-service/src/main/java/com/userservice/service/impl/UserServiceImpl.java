@@ -461,39 +461,133 @@ public class UserServiceImpl implements UserService {
         }
 
         S3Location sourceLocation = parseS3StoredPath(user.getFaceImagePath());
+        byte[] targetBytes = readFaceImageBytes(file);
         try (RekognitionClient rekognitionClient = createRekognitionClient()) {
-            Image sourceImage = Image.builder()
-                    .s3Object(S3Object.builder()
-                            .bucket(sourceLocation.bucket())
-                            .name(sourceLocation.key())
-                            .build())
-                    .build();
-            Image targetImage = Image.builder()
-                    .bytes(SdkBytes.fromInputStream(file.getInputStream()))
-                    .build();
-            CompareFacesRequest request = CompareFacesRequest.builder()
-                    .sourceImage(sourceImage)
-                    .targetImage(targetImage)
-                    .similarityThreshold(studentFaceRekognitionThreshold)
-                    .build();
-            CompareFacesResponse response = rekognitionClient.compareFaces(request);
-            Float similarity = response.faceMatches().stream()
-                    .map(CompareFacesMatch::similarity)
-                    .filter(value -> value != null)
-                    .max(Float::compareTo)
-                    .orElse(null);
+            Float similarity = compareFaceSimilarity(rekognitionClient, sourceLocation, targetBytes);
             boolean verified = similarity != null && similarity >= studentFaceRekognitionThreshold;
             return FaceVerificationResponse.builder()
                     .verified(verified)
+                    .userId(user.getId())
+                    .studentId(user.getStudentId())
+                    .fullName(user.getFullName())
                     .similarity(similarity)
                     .threshold(studentFaceRekognitionThreshold)
                     .message(verified ? "Khuon mat khop voi anh mau" : "Khuon mat khong khop voi anh mau")
                     .build();
-        } catch (IOException ex) {
-            throw new BadRequestException("Khong doc duoc anh chup de xac thuc khuon mat");
         } catch (RekognitionException ex) {
             throw new BadRequestException("AWS Rekognition khong xac thuc duoc khuon mat: " + ex.awsErrorDetails().errorMessage());
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FaceVerificationResponse identifyFace(MultipartFile file, List<String> candidateStudentIds) {
+        validateStudentFaceFile(file);
+        byte[] targetBytes = readFaceImageBytes(file);
+        List<UserProfile> candidates = resolveFaceCandidates(candidateStudentIds);
+        if (candidates.isEmpty()) {
+            throw new BadRequestException("Khong co sinh vien co anh khuon mat mau de nhan dien");
+        }
+
+        UserProfile bestMatchedUser = null;
+        Float bestSimilarity = null;
+        int comparableFaceCount = 0;
+        int failedComparisonCount = 0;
+        RekognitionException lastRekognitionException = null;
+
+        try (RekognitionClient rekognitionClient = createRekognitionClient()) {
+            for (UserProfile candidate : candidates) {
+                String faceImagePath = candidate.getFaceImagePath();
+                if (faceImagePath == null || faceImagePath.isBlank() || !faceImagePath.startsWith("s3://")) {
+                    continue;
+                }
+
+                comparableFaceCount++;
+                try {
+                    Float similarity = compareFaceSimilarity(rekognitionClient, parseS3StoredPath(faceImagePath), targetBytes);
+                    if (similarity != null && (bestSimilarity == null || similarity > bestSimilarity)) {
+                        bestSimilarity = similarity;
+                        bestMatchedUser = candidate;
+                    }
+                } catch (RekognitionException ex) {
+                    failedComparisonCount++;
+                    lastRekognitionException = ex;
+                }
+            }
+        }
+
+        if (comparableFaceCount == 0) {
+            throw new BadRequestException("Chua co anh khuon mat mau tren S3 de nhan dien");
+        }
+        if (bestMatchedUser == null && failedComparisonCount == comparableFaceCount && lastRekognitionException != null) {
+            throw new BadRequestException("AWS Rekognition khong nhan dien duoc khuon mat: " + lastRekognitionException.awsErrorDetails().errorMessage());
+        }
+        if (bestMatchedUser == null) {
+            return FaceVerificationResponse.builder()
+                    .verified(false)
+                    .similarity(bestSimilarity)
+                    .threshold(studentFaceRekognitionThreshold)
+                    .message("Khong nhan dien duoc khuon mat sinh vien trong danh sach anh mau")
+                    .build();
+        }
+
+        return FaceVerificationResponse.builder()
+                .verified(true)
+                .userId(bestMatchedUser.getId())
+                .studentId(bestMatchedUser.getStudentId())
+                .fullName(bestMatchedUser.getFullName())
+                .similarity(bestSimilarity)
+                .threshold(studentFaceRekognitionThreshold)
+                .message("Da nhan dien khuon mat sinh vien")
+                .build();
+    }
+
+    private List<UserProfile> resolveFaceCandidates(List<String> candidateStudentIds) {
+        if (candidateStudentIds == null || candidateStudentIds.isEmpty()) {
+            return userProfileRepository.findAllWithFaceImagePath();
+        }
+
+        Set<String> cleanStudentIds = candidateStudentIds.stream()
+                .map(this::clean)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (cleanStudentIds.isEmpty()) {
+            return userProfileRepository.findAllWithFaceImagePath();
+        }
+        return userProfileRepository.findByStudentIdIn(cleanStudentIds).stream()
+                .filter(user -> user.getFaceImagePath() != null && !user.getFaceImagePath().isBlank())
+                .toList();
+    }
+
+    private byte[] readFaceImageBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException ex) {
+            throw new BadRequestException("Khong doc duoc anh chup de xac thuc khuon mat");
+        }
+    }
+
+    private Float compareFaceSimilarity(RekognitionClient rekognitionClient, S3Location sourceLocation, byte[] targetBytes) {
+        Image sourceImage = Image.builder()
+                .s3Object(S3Object.builder()
+                        .bucket(sourceLocation.bucket())
+                        .name(sourceLocation.key())
+                        .build())
+                .build();
+        Image targetImage = Image.builder()
+                .bytes(SdkBytes.fromByteArray(targetBytes))
+                .build();
+        CompareFacesRequest request = CompareFacesRequest.builder()
+                .sourceImage(sourceImage)
+                .targetImage(targetImage)
+                .similarityThreshold(studentFaceRekognitionThreshold)
+                .build();
+        CompareFacesResponse response = rekognitionClient.compareFaces(request);
+        return response.faceMatches().stream()
+                .map(CompareFacesMatch::similarity)
+                .filter(value -> value != null)
+                .max(Float::compareTo)
+                .orElse(null);
     }
 
     private boolean useS3FaceStorage() {

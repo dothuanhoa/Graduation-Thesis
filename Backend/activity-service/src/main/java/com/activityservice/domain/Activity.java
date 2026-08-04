@@ -63,11 +63,41 @@ public class Activity {
     @Column(name = "middle_qr_expires_at")
     private LocalDateTime middleQrExpiresAt;
 
+    @Column(name = "middle_qr_location_required", nullable = false, columnDefinition = "boolean default false")
+    private boolean middleQrLocationRequired = false;
+
+    @Column(name = "middle_qr_latitude")
+    private Double middleQrLatitude;
+
+    @Column(name = "middle_qr_longitude")
+    private Double middleQrLongitude;
+
+    @Column(name = "middle_qr_location_accuracy_meters")
+    private Double middleQrLocationAccuracyMeters;
+
+    @Column(name = "middle_qr_allowed_radius_meters")
+    private Integer middleQrAllowedRadiusMeters;
+
     @Column(name = "final_qr_code", length = 120)
     private String finalQrCode;
 
     @Column(name = "final_qr_expires_at")
     private LocalDateTime finalQrExpiresAt;
+
+    @Column(name = "final_qr_location_required", nullable = false, columnDefinition = "boolean default false")
+    private boolean finalQrLocationRequired = false;
+
+    @Column(name = "final_qr_latitude")
+    private Double finalQrLatitude;
+
+    @Column(name = "final_qr_longitude")
+    private Double finalQrLongitude;
+
+    @Column(name = "final_qr_location_accuracy_meters")
+    private Double finalQrLocationAccuracyMeters;
+
+    @Column(name = "final_qr_allowed_radius_meters")
+    private Integer finalQrAllowedRadiusMeters;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

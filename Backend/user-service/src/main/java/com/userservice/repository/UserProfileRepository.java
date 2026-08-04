@@ -15,6 +15,13 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Long> 
     List<UserProfile> findAllByOrderByStudentIdAsc();
     Optional<UserProfile> findByStudentId(String studentId);
     List<UserProfile> findByStudentIdIn(Collection<String> studentIds);
+    @Query("""
+            select user from UserProfile user
+            where user.faceImagePath is not null
+              and user.faceImagePath <> ''
+            order by user.studentId asc
+            """)
+    List<UserProfile> findAllWithFaceImagePath();
     List<UserProfile> findByClazzIdOrderByStudentIdAsc(Long clazzId);
     List<UserProfile> findByClazzAcademicYearIdOrderByStudentIdAsc(Long academicYearId);
     long countByClazzId(Long clazzId);

@@ -56,8 +56,12 @@ const isStudentVisibleActivity = (
   activity: ActivityResponse,
   now = Date.now(),
 ) => {
+  if (activity.status === "COMPLETED") {
+    return false;
+  }
+
   if (!isLimitedActivity(activity)) {
-    return activity.status !== "ONGOING";
+    return true;
   }
 
   return (
@@ -67,9 +71,8 @@ const isStudentVisibleActivity = (
 };
 
 const getRegistrationText = (activity: ActivityResponse) => {
-  const participationType = getParticipationType(activity);
-  if (participationType === "OPEN") {
-    return "Tự do tham gia";
+  if (!isLimitedActivity(activity)) {
+    return "Tự do tham gia - xác thực khuôn mặt tại hoạt động";
   }
   if (activity.currentUserRegistered) {
     return "Bạn đã đăng ký";

@@ -1,5 +1,14 @@
 import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
-import { Download, PlayCircle, QrCode, Save, SquareCheckBig, Trash2, UserPlus } from "lucide-react";
+import {
+  Download,
+  MapPin,
+  PlayCircle,
+  QrCode,
+  Save,
+  SquareCheckBig,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
@@ -25,11 +34,21 @@ import {
   type ActivityStatus,
   type UserProfile,
 } from "../../../services/api";
-import { activityCategoryLabels, activityParticipationLabels, formatDateTime, toApiDateTime, toInputDateTime } from "../../../utils/activityUi";
+import {
+  activityCategoryLabels,
+  activityParticipationLabels,
+  formatDateTime,
+  toApiDateTime,
+  toInputDateTime,
+} from "../../../utils/activityUi";
 import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
+import { getCurrentBrowserLocation } from "../../../utils/geolocation";
 import { toUserFacingMessage } from "../../../utils/messages";
 import { emitToast } from "../../../utils/toastBus";
-import { activitySchema, checkerSchema } from "../../../validation/activitySchemas";
+import {
+  activitySchema,
+  checkerSchema,
+} from "../../../validation/activitySchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
 type ActivityFormState = {
@@ -62,7 +81,10 @@ const toForm = (activity: ActivityResponse): ActivityFormState => ({
   startTime: toInputDateTime(activity.startTime),
   endTime: toInputDateTime(activity.endTime),
   capacity: activity.capacity ? String(activity.capacity) : "",
-  attendanceSessionCount: activity.participationType === "OPEN" ? "1" : String(activity.attendanceSessionCount || 2),
+  attendanceSessionCount:
+    activity.participationType === "OPEN"
+      ? "1"
+      : String(activity.attendanceSessionCount || 2),
 });
 
 const toPayload = (form: ActivityFormState): ActivityPayload => ({
@@ -71,13 +93,23 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   participationType: form.participationType,
   reward: form.reward.trim(),
   googleFormUrl: "",
-  registrationStartTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationStartTime) : undefined,
-  registrationEndTime: form.participationType === "LIMITED" ? toApiDateTime(form.registrationEndTime) : undefined,
+  registrationStartTime:
+    form.participationType === "LIMITED"
+      ? toApiDateTime(form.registrationStartTime)
+      : undefined,
+  registrationEndTime:
+    form.participationType === "LIMITED"
+      ? toApiDateTime(form.registrationEndTime)
+      : undefined,
   location: form.location.trim(),
   startTime: toApiDateTime(form.startTime),
   endTime: toApiDateTime(form.endTime),
-  capacity: form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
-  attendanceSessionCount: form.participationType === "LIMITED" ? Number(form.attendanceSessionCount || 2) : 1,
+  capacity:
+    form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
+  attendanceSessionCount:
+    form.participationType === "LIMITED"
+      ? Number(form.attendanceSessionCount || 2)
+      : 1,
 });
 
 const nextStatus = (status: ActivityStatus): ActivityStatus | null => {
@@ -96,7 +128,6 @@ const normalizeLookupText = (value = "") =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-
 type QrAttendanceSession = Exclude<ActivityAttendanceSession, "FACE">;
 
 const attendanceSessionLabels: Record<QrAttendanceSession, string> = {
@@ -112,12 +143,31 @@ const attendanceResultLabels: Record<string, string> = {
 };
 
 const formatAttendanceResult = (registration: ActivityRegistrationResponse) =>
-  attendanceResultLabels[registration.attendanceResult || ""] || (registration.attended ? "\u0110\u00e3 \u0111i\u1ec3m danh" : "Ch\u01b0a \u0111i\u1ec3m danh");
+  attendanceResultLabels[registration.attendanceResult || ""] ||
+  (registration.attended
+    ? "\u0110\u00e3 \u0111i\u1ec3m danh"
+    : "Ch\u01b0a \u0111i\u1ec3m danh");
 
-const formatAttendanceMark = (done: boolean, time?: string) => (done ? `C\u00f3${time ? ` - ${formatDateTime(time)}` : ""}` : "-");
+const formatAttendanceMark = (done: boolean, time?: string) =>
+  done ? `C\u00f3${time ? ` - ${formatDateTime(time)}` : ""}` : "-";
+
+const formatDistanceMeters = (distance?: number) => {
+  if (distance === undefined || distance === null || Number.isNaN(distance))
+    return "-";
+  return `${Math.round(distance)} m`;
+};
+
+const formatLocationMark = (verified?: boolean, distance?: number) =>
+  verified ? `Hợp lệ - ${formatDistanceMeters(distance)}` : "-";
 
 const toQrImageDataUrl = (payload: string) => {
-  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 220, 220, new Map());
+  const matrix = new QRCodeWriter().encode(
+    payload,
+    BarcodeFormat.QR_CODE,
+    220,
+    220,
+    new Map(),
+  );
   const width = matrix.getWidth();
   const height = matrix.getHeight();
   const cells: string[] = [];
@@ -140,22 +190,37 @@ const throwProfileValidation = (message: string): never => {
   throw new Error(userMessage);
 };
 
-const requireMatchingProfile = (profile: UserProfile | null, code: string, fullName: string, subjectLabel: string): UserProfile => {
+const requireMatchingProfile = (
+  profile: UserProfile | null,
+  code: string,
+  fullName: string,
+  subjectLabel: string,
+): UserProfile => {
   const cleanCode = code.trim();
   const cleanName = fullName.trim();
 
   if (!profile) {
-    throwProfileValidation(`Không tìm thấy ${subjectLabel} có mã ${cleanCode}.`);
+    throwProfileValidation(
+      `Không tìm thấy ${subjectLabel} có mã ${cleanCode}.`,
+    );
   }
 
   const matchedProfile = profile as UserProfile;
 
-  if (normalizeLookupText(matchedProfile.studentId) !== normalizeLookupText(cleanCode)) {
+  if (
+    normalizeLookupText(matchedProfile.studentId) !==
+    normalizeLookupText(cleanCode)
+  ) {
     throwProfileValidation(`Mã ${subjectLabel} không khớp với hồ sơ.`);
   }
 
-  if (normalizeLookupText(matchedProfile.fullName) !== normalizeLookupText(cleanName)) {
-    throwProfileValidation(`Họ tên không khớp với MSSV ${cleanCode}. Họ tên trong hồ sơ: ${matchedProfile.fullName}.`);
+  if (
+    normalizeLookupText(matchedProfile.fullName) !==
+    normalizeLookupText(cleanName)
+  ) {
+    throwProfileValidation(
+      `Họ tên không khớp với MSSV ${cleanCode}. Họ tên trong hồ sơ: ${matchedProfile.fullName}.`,
+    );
   }
 
   return matchedProfile;
@@ -183,7 +248,14 @@ type StudentAutocompleteFieldProps = {
   onSelect: (profile: UserProfile) => void;
 };
 
-function StudentAutocompleteField({ label, value, profiles, placeholder, onChange, onSelect }: StudentAutocompleteFieldProps) {
+function StudentAutocompleteField({
+  label,
+  value,
+  profiles,
+  placeholder,
+  onChange,
+  onSelect,
+}: StudentAutocompleteFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
   const suggestions = getStudentSuggestions(profiles, value);
   const shouldShowSuggestions = isOpen && value.trim().length > 0;
@@ -206,7 +278,9 @@ function StudentAutocompleteField({ label, value, profiles, placeholder, onChang
       {shouldShowSuggestions && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-1 shadow-raised">
           {suggestions.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-on-surface-variant">Không tìm thấy sinh viên phù hợp.</p>
+            <p className="px-3 py-2 text-sm text-on-surface-variant">
+              Không tìm thấy sinh viên phù hợp.
+            </p>
           ) : (
             suggestions.map((profile) => (
               <button
@@ -219,8 +293,12 @@ function StudentAutocompleteField({ label, value, profiles, placeholder, onChang
                 }}
                 type="button"
               >
-                <span className="font-semibold text-on-surface">{profile.fullName}</span>
-                <span className="text-sm font-semibold text-primary">{profile.studentId}</span>
+                <span className="font-semibold text-on-surface">
+                  {profile.fullName}
+                </span>
+                <span className="text-sm font-semibold text-primary">
+                  {profile.studentId}
+                </span>
               </button>
             ))
           )}
@@ -235,16 +313,25 @@ function ActivityDetailPage() {
   const navigate = useNavigate();
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [form, setForm] = useState<ActivityFormState | null>(null);
-  const [registrations, setRegistrations] = useState<ActivityRegistrationResponse[]>([]);
+  const [registrations, setRegistrations] = useState<
+    ActivityRegistrationResponse[]
+  >([]);
   const [checkers, setCheckers] = useState<ActivityCheckerResponse[]>([]);
   const [studentProfiles, setStudentProfiles] = useState<UserProfile[]>([]);
-  const [checkerForm, setCheckerForm] = useState<ActivityCheckerPayload>(emptyChecker);
+  const [checkerForm, setCheckerForm] =
+    useState<ActivityCheckerPayload>(emptyChecker);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [qrTtlMinutes, setQrTtlMinutes] = useState("10");
-  const [qrSession, setQrSession] = useState<ActivityQrSessionResponse | null>(null);
-  const [creatingQrSession, setCreatingQrSession] = useState<QrAttendanceSession | "">("");
+  const [qrLocationRequired, setQrLocationRequired] = useState(true);
+  const [qrRadiusMeters, setQrRadiusMeters] = useState("100");
+  const [qrSession, setQrSession] = useState<ActivityQrSessionResponse | null>(
+    null,
+  );
+  const [creatingQrSession, setCreatingQrSession] = useState<
+    QrAttendanceSession | ""
+  >("");
 
   const loadDetail = useCallback(async () => {
     if (!id) {
@@ -268,7 +355,11 @@ function ActivityDetailPage() {
         navigate("/404", { replace: true });
         return;
       }
-      setMessage(err instanceof Error ? err.message : "Không tải được chi tiết hoạt động.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được chi tiết hoạt động.",
+      );
     } finally {
       setLoading(false);
     }
@@ -288,7 +379,9 @@ function ActivityDetailPage() {
       try {
         const profiles = await userApi.list();
         if (isMounted) {
-          setStudentProfiles(profiles.filter((profile) => profile.studentId && profile.fullName));
+          setStudentProfiles(
+            profiles.filter((profile) => profile.studentId && profile.fullName),
+          );
         }
       } catch {
         if (isMounted) {
@@ -309,14 +402,31 @@ function ActivityDetailPage() {
         ? {
             ...current,
             [field]: value,
-            ...(field === "participationType" && value === "OPEN" ? { capacity: "", registrationStartTime: "", registrationEndTime: "", attendanceSessionCount: "1" } : {}),
-            ...(field === "participationType" && value === "LIMITED" ? { attendanceSessionCount: current.attendanceSessionCount === "1" ? "2" : current.attendanceSessionCount } : {}),
+            ...(field === "participationType" && value === "OPEN"
+              ? {
+                  capacity: "",
+                  registrationStartTime: "",
+                  registrationEndTime: "",
+                  attendanceSessionCount: "1",
+                }
+              : {}),
+            ...(field === "participationType" && value === "LIMITED"
+              ? {
+                  attendanceSessionCount:
+                    current.attendanceSessionCount === "1"
+                      ? "2"
+                      : current.attendanceSessionCount,
+                }
+              : {}),
           }
         : current,
     );
   };
 
-  const updateCheckerField = (field: keyof ActivityCheckerPayload, value: string) => {
+  const updateCheckerField = (
+    field: keyof ActivityCheckerPayload,
+    value: string,
+  ) => {
     setCheckerForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -341,7 +451,12 @@ function ActivityDetailPage() {
       setForm(toForm(updated));
       setMessage("Đã cập nhật hoạt động.");
     } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không cập nhật được hoạt động."));
+      setMessage(
+        getZodMessage(
+          err,
+          err instanceof Error ? err.message : "Không cập nhật được hoạt động.",
+        ),
+      );
     } finally {
       setSaving(false);
     }
@@ -359,19 +474,30 @@ function ActivityDetailPage() {
       setForm(toForm(updated));
       setMessage("Đã cập nhật trạng thái hoạt động.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không đổi được trạng thái hoạt động.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không đổi được trạng thái hoạt động.",
+      );
     }
   };
 
   const deleteActivity = async () => {
-    if (!activity || !id || !window.confirm(`Xóa hoạt động "${activity.title}"?`)) return;
+    if (
+      !activity ||
+      !id ||
+      !window.confirm(`Xóa hoạt động "${activity.title}"?`)
+    )
+      return;
 
     setMessage("");
     try {
       await activityApi.remove(id);
       navigate("/admin/activities");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không xóa được hoạt động.");
+      setMessage(
+        err instanceof Error ? err.message : "Không xóa được hoạt động.",
+      );
     }
   };
 
@@ -379,56 +505,149 @@ function ActivityDetailPage() {
     if (!activity) return;
 
     const participationType = activity.participationType || "LIMITED";
-    const attendanceCount = activity.attendanceSessionCount || (participationType === "OPEN" ? 1 : 2);
-    const attended = registrations.filter((registration) => registration.attended).length;
-    const incomplete = registrations.filter((registration) => registration.attendanceResult === "INCOMPLETE").length;
-    const faceMissing = registrations.filter((registration) => registration.attendanceResult === "FACE_NOT_VERIFIED").length;
-    const notAttended = registrations.filter((registration) => registration.attendanceResult === "NOT_ATTENDED" || (!registration.attendanceResult && !registration.attended)).length;
-    const detailHeader = ["MSSV", "H\u1ecd t\u00ean", "X\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t"];
-    if (attendanceCount === 3) detailHeader.push("QR gi\u1eefa gi\u1edd");
-    if (attendanceCount >= 2) detailHeader.push("QR cu\u1ed1i gi\u1edd");
+    const attendanceCount =
+      activity.attendanceSessionCount || (participationType === "OPEN" ? 1 : 2);
+    const attended = registrations.filter(
+      (registration) => registration.attended,
+    ).length;
+    const incomplete = registrations.filter(
+      (registration) => registration.attendanceResult === "INCOMPLETE",
+    ).length;
+    const faceMissing = registrations.filter(
+      (registration) => registration.attendanceResult === "FACE_NOT_VERIFIED",
+    ).length;
+    const notAttended = registrations.filter(
+      (registration) =>
+        registration.attendanceResult === "NOT_ATTENDED" ||
+        (!registration.attendanceResult && !registration.attended),
+    ).length;
+    const detailHeader = [
+      "MSSV",
+      "H\u1ecd t\u00ean",
+      "X\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t",
+    ];
+    if (attendanceCount === 3)
+      detailHeader.push("QR gi\u1eefa gi\u1edd", "Vị trí giữa giờ");
+    if (attendanceCount >= 2)
+      detailHeader.push("QR cu\u1ed1i gi\u1edd", "Vị trí cuối giờ");
     detailHeader.push("K\u1ebft qu\u1ea3", "Th\u1eddi gian cu\u1ed1i");
 
-    exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`, [
-      {
-        name: "Tong ket",
-        rows: [
-          ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
-          ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
-          ["H\u00ecnh th\u1ee9c", activityParticipationLabels[participationType]],
-          ["S\u1ed1 l\u1ea7n \u0111i\u1ec3m danh", attendanceCount],
-          ["M\u1edf \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? formatDateTime(activity.registrationStartTime) : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
-          ["\u0110\u00f3ng \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? formatDateTime(activity.registrationEndTime) : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
-          ["Th\u1eddi gian b\u1eaft \u0111\u1ea7u", formatDateTime(activity.startTime)],
-          ["Th\u1eddi gian k\u1ebft th\u00fac", formatDateTime(activity.endTime)],
-          ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
-          ["S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a", participationType === "LIMITED" ? activity.capacity ?? "" : "Kh\u00f4ng gi\u1edbi h\u1ea1n"],
-          ["S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd", participationType === "LIMITED" ? registrations.length : "Kh\u00f4ng \u00e1p d\u1ee5ng"],
-          ["S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", attended],
-          ["S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", notAttended],
-          ["S\u1ed1 sinh vi\u00ean ch\u01b0a x\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t", faceMissing],
-          ["S\u1ed1 sinh vi\u00ean \u0111i\u1ec3m danh kh\u00f4ng \u0111\u1ee7", incomplete],
-        ],
-      },
-      {
-        name: "Danh sach",
-        rows: [
-          detailHeader,
-          ...registrations.map((registration) => {
-            const row = [
-              registration.studentCode,
-              registration.fullName,
-              formatAttendanceMark(Boolean(registration.faceVerified), registration.faceVerifiedTime),
-            ];
-            if (attendanceCount === 3) row.push(formatAttendanceMark(Boolean(registration.middleAttended), registration.middleCheckinTime));
-            if (attendanceCount >= 2) row.push(formatAttendanceMark(Boolean(registration.finalAttended), registration.finalCheckinTime));
-            row.push(formatAttendanceResult(registration), registration.checkinTime ? formatDateTime(registration.checkinTime) : "");
-            return row;
-          }),
-        ],
-      },
-    ]);
-    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
+    exportXlsxFile(
+      `tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`,
+      [
+        {
+          name: "Tong ket",
+          rows: [
+            ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
+            ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
+            [
+              "H\u00ecnh th\u1ee9c",
+              activityParticipationLabels[participationType],
+            ],
+            ["S\u1ed1 l\u1ea7n \u0111i\u1ec3m danh", attendanceCount],
+            [
+              "M\u1edf \u0111\u0103ng k\u00fd",
+              participationType === "LIMITED"
+                ? formatDateTime(activity.registrationStartTime)
+                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
+            ],
+            [
+              "\u0110\u00f3ng \u0111\u0103ng k\u00fd",
+              participationType === "LIMITED"
+                ? formatDateTime(activity.registrationEndTime)
+                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
+            ],
+            [
+              "Th\u1eddi gian b\u1eaft \u0111\u1ea7u",
+              formatDateTime(activity.startTime),
+            ],
+            [
+              "Th\u1eddi gian k\u1ebft th\u00fac",
+              formatDateTime(activity.endTime),
+            ],
+            ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
+            [
+              "S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a",
+              participationType === "LIMITED"
+                ? (activity.capacity ?? "")
+                : "Kh\u00f4ng gi\u1edbi h\u1ea1n",
+            ],
+            [
+              "S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd",
+              participationType === "LIMITED"
+                ? registrations.length
+                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
+            ],
+            [
+              "S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh",
+              attended,
+            ],
+            [
+              "S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh",
+              notAttended,
+            ],
+            [
+              "S\u1ed1 sinh vi\u00ean ch\u01b0a x\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t",
+              faceMissing,
+            ],
+            [
+              "S\u1ed1 sinh vi\u00ean \u0111i\u1ec3m danh kh\u00f4ng \u0111\u1ee7",
+              incomplete,
+            ],
+          ],
+        },
+        {
+          name: "Danh sach",
+          rows: [
+            detailHeader,
+            ...registrations.map((registration) => {
+              const row = [
+                registration.studentCode,
+                registration.fullName,
+                formatAttendanceMark(
+                  Boolean(registration.faceVerified),
+                  registration.faceVerifiedTime,
+                ),
+              ];
+              if (attendanceCount === 3) {
+                row.push(
+                  formatAttendanceMark(
+                    Boolean(registration.middleAttended),
+                    registration.middleCheckinTime,
+                  ),
+                  formatLocationMark(
+                    registration.middleLocationVerified,
+                    registration.middleDistanceMeters,
+                  ),
+                );
+              }
+              if (attendanceCount >= 2) {
+                row.push(
+                  formatAttendanceMark(
+                    Boolean(registration.finalAttended),
+                    registration.finalCheckinTime,
+                  ),
+                  formatLocationMark(
+                    registration.finalLocationVerified,
+                    registration.finalDistanceMeters,
+                  ),
+                );
+              }
+              row.push(
+                formatAttendanceResult(registration),
+                registration.checkinTime
+                  ? formatDateTime(registration.checkinTime)
+                  : "",
+              );
+              return row;
+            }),
+          ],
+        },
+      ],
+    );
+    setMessage(
+      "\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.",
+    );
   };
 
   const createQrSession = async (session: QrAttendanceSession) => {
@@ -439,19 +658,46 @@ function ActivityDetailPage() {
       return;
     }
 
+    const radiusMeters = Number(qrRadiusMeters || 100);
+    if (
+      !Number.isFinite(radiusMeters) ||
+      radiusMeters < 10 ||
+      radiusMeters > 1000
+    ) {
+      setMessage("Bán kính kiểm tra vị trí phải từ 10 đến 1000 mét.");
+      return;
+    }
+
     setCreatingQrSession(session);
     setMessage("");
     try {
-      const created = await activityApi.createQrSession(id, session, minutes);
+      let locationPayload = {};
+      if (qrLocationRequired) {
+        setMessage("Đang lấy vị trí máy admin để gắn vào mã QR...");
+        const location = await getCurrentBrowserLocation();
+        locationPayload = location;
+      }
+
+      const created = await activityApi.createQrSession(id, {
+        session,
+        expiresInMinutes: minutes,
+        locationRequired: qrLocationRequired,
+        allowedRadiusMeters: radiusMeters,
+        ...locationPayload,
+      });
       setQrSession(created);
       const updated = await activityApi.get(id).catch(() => null);
       if (updated) {
         setActivity(updated);
         setForm(toForm(updated));
       }
-      setMessage(`Đã tạo QR ${attendanceSessionLabels[session].toLowerCase()}.`);
+      setMessage(
+        `Đã tạo QR ${attendanceSessionLabels[session].toLowerCase()}.`,
+      );
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không tạo được QR điểm danh.");
+      setMessage(
+        err instanceof Error ? err.message : "Không tạo được QR điểm danh.",
+      );
     } finally {
       setCreatingQrSession("");
     }
@@ -464,8 +710,15 @@ function ActivityDetailPage() {
     setMessage("");
     try {
       const validated = checkerSchema.parse(checkerForm);
-      const profile = await userApi.getByStudentId(validated.checkerCode.trim());
-      const matchedProfile = requireMatchingProfile(profile, validated.checkerCode, validated.checkerName, "người điểm danh");
+      const profile = await userApi.getByStudentId(
+        validated.checkerCode.trim(),
+      );
+      const matchedProfile = requireMatchingProfile(
+        profile,
+        validated.checkerCode,
+        validated.checkerName,
+        "người điểm danh",
+      );
       const created = await activityApi.addChecker(id, {
         checkerCode: matchedProfile.studentId,
         checkerName: matchedProfile.fullName,
@@ -474,20 +727,70 @@ function ActivityDetailPage() {
       setCheckerForm(emptyChecker);
       setMessage("Đã thêm người điểm danh.");
     } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không thêm được người điểm danh."));
+      setMessage(
+        getZodMessage(
+          err,
+          err instanceof Error
+            ? err.message
+            : "Không thêm được người điểm danh.",
+        ),
+      );
     }
   };
 
   const removeChecker = async (checker: ActivityCheckerResponse) => {
-    if (!id || !window.confirm(`Gỡ người điểm danh ${checker.checkerName}?`)) return;
+    if (!id || !window.confirm(`Gỡ người điểm danh ${checker.checkerName}?`))
+      return;
 
     setMessage("");
     try {
       await activityApi.removeChecker(id, checker.id);
-      setCheckers((current) => current.filter((item) => item.id !== checker.id));
+      setCheckers((current) =>
+        current.filter((item) => item.id !== checker.id),
+      );
       setMessage("Đã gỡ người điểm danh.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không gỡ được người điểm danh.");
+      setMessage(
+        err instanceof Error ? err.message : "Không gỡ được người điểm danh.",
+      );
+    }
+  };
+
+  const adjustFaceVerification = async (
+    registration: ActivityRegistrationResponse,
+    faceVerified: boolean,
+  ) => {
+    if (!id) return;
+    const note = window.prompt(
+      faceVerified
+        ? "Ghi chú xác nhận khuôn mặt đạt"
+        : "Ghi chú điều chỉnh khuôn mặt không đạt",
+      faceVerified
+        ? "Đã đối chiếu minh chứng tại phòng CTSV"
+        : "Điều chỉnh sau khi rà soát minh chứng",
+    );
+    if (note === null) return;
+
+    setMessage("");
+    try {
+      const updated = await activityApi.updateFaceVerification(
+        id,
+        registration.id,
+        {
+          faceVerified,
+          note: note.trim(),
+        },
+      );
+      setRegistrations((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setMessage("Đã cập nhật kết quả xác thực khuôn mặt.");
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không cập nhật được kết quả xác thực khuôn mặt.",
+      );
     }
   };
 
@@ -510,54 +813,97 @@ function ActivityDetailPage() {
   } = usePaginatedList(registrations);
 
   if (loading) {
-    return <div className="panel p-6 text-on-surface-variant">Đang tải chi tiết hoạt động...</div>;
+    return (
+      <div className="panel p-6 text-on-surface-variant">
+        Đang tải chi tiết hoạt động...
+      </div>
+    );
   }
 
   if (!activity || !form) {
     return (
       <div className="space-y-gutter">
-        <PageHeader title="Không tìm thấy hoạt động" subtitle="Hoạt động này không còn tồn tại hoặc bạn không có quyền xem." />
-        {message && <div className="rounded-lg bg-error-container px-4 py-3 text-sm font-semibold text-error">{message}</div>}
+        <PageHeader
+          title="Không tìm thấy hoạt động"
+          subtitle="Hoạt động này không còn tồn tại hoặc bạn không có quyền xem."
+        />
+        {message && (
+          <div className="rounded-lg bg-error-container px-4 py-3 text-sm font-semibold text-error">
+            {message}
+          </div>
+        )}
         <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
       </div>
     );
   }
 
   const statusTarget = nextStatus(activity.status);
-  const checkedInCount = registrations.filter((registration) => registration.attended).length;
-  const attendanceSessionCount = activity.attendanceSessionCount || ((activity.participationType || "LIMITED") === "OPEN" ? 1 : 2);
-  const isLimitedActivity = (activity.participationType || "LIMITED") === "LIMITED";
+  const checkedInCount = registrations.filter(
+    (registration) => registration.attended,
+  ).length;
+  const attendanceSessionCount =
+    activity.attendanceSessionCount ||
+    ((activity.participationType || "LIMITED") === "OPEN" ? 1 : 2);
+  const isLimitedActivity =
+    (activity.participationType || "LIMITED") === "LIMITED";
 
   return (
     <div className="space-y-gutter">
-      <PageHeader title={activity.title} subtitle="Quản lý chi tiết hoạt động, cấu hình đăng ký, người điểm danh và trạng thái tổ chức." />
+      <PageHeader
+        title={activity.title}
+        subtitle="Quản lý chi tiết hoạt động, cấu hình đăng ký, người điểm danh và trạng thái tổ chức."
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
         <StatusBadge status={activity.status} />
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container" onClick={exportActivityDetail} type="button">
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
+          onClick={exportActivityDetail}
+          type="button"
+        >
           <Download className="h-5 w-5" />
           Xuất Excel
         </button>
       </div>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
       <div className="grid gap-gutter xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-primary">Thông tin hoạt động</p>
-              <h2 className="text-xl font-bold text-on-surface">{activityCategoryLabels[activity.category]}</h2>
+              <p className="text-sm font-semibold text-primary">
+                Thông tin hoạt động
+              </p>
+              <h2 className="text-xl font-bold text-on-surface">
+                {activityCategoryLabels[activity.category]}
+              </h2>
             </div>
             <div className="flex flex-wrap gap-2">
               {statusTarget && (
-                <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-semibold text-on-primary" onClick={changeStatus} type="button">
-                  {statusTarget === "ONGOING" ? <PlayCircle className="h-5 w-5" /> : <SquareCheckBig className="h-5 w-5" />}
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-semibold text-on-primary"
+                  onClick={changeStatus}
+                  type="button"
+                >
+                  {statusTarget === "ONGOING" ? (
+                    <PlayCircle className="h-5 w-5" />
+                  ) : (
+                    <SquareCheckBig className="h-5 w-5" />
+                  )}
                   {statusTarget === "ONGOING" ? "Bắt đầu" : "Hoàn thành"}
                 </button>
               )}
-              <button className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-error hover:bg-error-container" onClick={deleteActivity} type="button">
+              <button
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-error hover:bg-error-container"
+                onClick={deleteActivity}
+                type="button"
+              >
                 <Trash2 className="h-5 w-5" />
                 Xóa
               </button>
@@ -565,57 +911,147 @@ function ActivityDetailPage() {
           </div>
 
           <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSave}>
-            <FormField label="Tên hoạt động" onChange={(event) => updateField("title", event.target.value)} required value={form.title} />
+            <FormField
+              label="Tên hoạt động"
+              onChange={(event) => updateField("title", event.target.value)}
+              required
+              value={form.title}
+            />
             <FormField
               as="select"
               label="Loại hoạt động"
               onChange={(event) => updateField("category", event.target.value)}
-              options={["ACADEMIC", "MOVEMENT", "FACULTY", "UNIVERSITY", "OTHER"]}
+              options={[
+                "ACADEMIC",
+                "MOVEMENT",
+                "FACULTY",
+                "UNIVERSITY",
+                "OTHER",
+              ]}
               value={form.category}
             />
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">Hình thức tham gia</span>
+              <span className="text-sm font-semibold text-on-surface">
+                Hình thức tham gia
+              </span>
               <select
                 className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-70"
-                disabled={activity.status !== "UPCOMING" || registrations.length > 0}
-                onChange={(event) => updateField("participationType", event.target.value)}
+                disabled={
+                  activity.status !== "UPCOMING" || registrations.length > 0
+                }
+                onChange={(event) =>
+                  updateField("participationType", event.target.value)
+                }
                 value={form.participationType}
               >
                 <option value="LIMITED">Giới hạn đăng ký</option>
                 <option value="OPEN">Tự do tham gia</option>
               </select>
-              {registrations.length > 0 && <span className="text-xs text-on-surface-variant">Đã có sinh viên đăng ký/điểm danh nên không được đổi hình thức.</span>}
+              {registrations.length > 0 && (
+                <span className="text-xs text-on-surface-variant">
+                  Đã có sinh viên đăng ký/điểm danh nên không được đổi hình
+                  thức.
+                </span>
+              )}
             </label>
-            <FormField label="Điểm rèn luyện" onChange={(event) => updateField("reward", event.target.value)} required value={form.reward} />
+            <FormField
+              label="Điểm rèn luyện"
+              onChange={(event) => updateField("reward", event.target.value)}
+              required
+              value={form.reward}
+            />
             {form.participationType === "LIMITED" && (
               <>
-                <FormField label="Thời gian mở đăng ký" onChange={(event) => updateField("registrationStartTime", event.target.value)} required type="datetime-local" value={form.registrationStartTime} />
-                <FormField label="Thời gian đóng đăng ký" onChange={(event) => updateField("registrationEndTime", event.target.value)} required type="datetime-local" value={form.registrationEndTime} />
-                <FormField label="Số lượng tối đa" min={Math.max(registrations.length, 1)} onChange={(event) => updateField("capacity", event.target.value)} required type="number" value={form.capacity} />
+                <FormField
+                  label="Thời gian mở đăng ký"
+                  onChange={(event) =>
+                    updateField("registrationStartTime", event.target.value)
+                  }
+                  required
+                  type="datetime-local"
+                  value={form.registrationStartTime}
+                />
+                <FormField
+                  label="Thời gian đóng đăng ký"
+                  onChange={(event) =>
+                    updateField("registrationEndTime", event.target.value)
+                  }
+                  required
+                  type="datetime-local"
+                  value={form.registrationEndTime}
+                />
+                <FormField
+                  label="Số lượng tối đa"
+                  min={Math.max(registrations.length, 1)}
+                  onChange={(event) =>
+                    updateField("capacity", event.target.value)
+                  }
+                  required
+                  type="number"
+                  value={form.capacity}
+                />
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-semibold text-on-surface">Số lần điểm danh</span>
+                  <span className="text-sm font-semibold text-on-surface">
+                    Số lần điểm danh
+                  </span>
                   <select
                     className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-70"
-                    disabled={activity.status !== "UPCOMING" || registrations.some((registration) => registration.faceVerified || registration.middleAttended || registration.finalAttended)}
-                    onChange={(event) => updateField("attendanceSessionCount", event.target.value)}
+                    disabled={
+                      activity.status !== "UPCOMING" ||
+                      registrations.some(
+                        (registration) =>
+                          registration.faceVerified ||
+                          registration.middleAttended ||
+                          registration.finalAttended,
+                      )
+                    }
+                    onChange={(event) =>
+                      updateField("attendanceSessionCount", event.target.value)
+                    }
                     value={form.attendanceSessionCount}
                   >
-                    <option value="2">2 lần: khuôn mặt đầu giờ + QR cuối giờ</option>
-                    <option value="3">3 lần: khuôn mặt đầu giờ + QR giữa giờ + QR cuối giờ</option>
+                    <option value="2">
+                      2 lần: khuôn mặt đầu giờ + QR cuối giờ
+                    </option>
+                    <option value="3">
+                      3 lần: khuôn mặt đầu giờ + QR giữa giờ + QR cuối giờ
+                    </option>
                   </select>
                 </label>
               </>
             )}
-            <FormField label="Thời gian bắt đầu hoạt động" onChange={(event) => updateField("startTime", event.target.value)} required type="datetime-local" value={form.startTime} />
-            <FormField label="Thời gian kết thúc hoạt động" onChange={(event) => updateField("endTime", event.target.value)} required type="datetime-local" value={form.endTime} />
-            <FormField label="Địa điểm" onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
+            <FormField
+              label="Thời gian bắt đầu hoạt động"
+              onChange={(event) => updateField("startTime", event.target.value)}
+              required
+              type="datetime-local"
+              value={form.startTime}
+            />
+            <FormField
+              label="Thời gian kết thúc hoạt động"
+              onChange={(event) => updateField("endTime", event.target.value)}
+              required
+              type="datetime-local"
+              value={form.endTime}
+            />
+            <FormField
+              label="Địa điểm"
+              onChange={(event) => updateField("location", event.target.value)}
+              required
+              value={form.location}
+            />
             {form.participationType === "OPEN" && (
               <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                Hoạt động tự do không cần đăng ký trước. Khi điểm danh, sinh viên chỉ cần có hồ sơ hợp lệ trong hệ thống.
+                Hoạt động tự do không có danh sách đăng ký trước. Checker xác
+                thực khuôn mặt một lần để ghi nhận sinh viên tham gia.
               </div>
             )}
             <div className="md:col-span-2">
-              <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={saving} type="submit">
+              <button
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
+                disabled={saving}
+                type="submit"
+              >
                 <Save className="h-5 w-5" />
                 {saving ? "Đang lưu..." : "Lưu thay đổi"}
               </button>
@@ -627,25 +1063,52 @@ function ActivityDetailPage() {
           <p className="text-sm font-semibold text-primary">Thống kê</p>
           <div className="mt-4 grid grid-cols-3 gap-3">
             <div className="rounded-lg bg-surface-container-low p-4">
-              <p className="text-2xl font-bold text-on-surface">{registrations.length}</p>
-              <p className="text-xs text-on-surface-variant">{isLimitedActivity ? "Đăng ký" : "Đã ghi nhận"}</p>
+              <p className="text-2xl font-bold text-on-surface">
+                {registrations.length}
+              </p>
+              <p className="text-xs text-on-surface-variant">
+                {isLimitedActivity ? "Đăng ký" : "Đã ghi nhận"}
+              </p>
             </div>
             <div className="rounded-lg bg-surface-container-low p-4">
-              <p className="text-2xl font-bold text-on-surface">{checkedInCount}</p>
+              <p className="text-2xl font-bold text-on-surface">
+                {checkedInCount}
+              </p>
               <p className="text-xs text-on-surface-variant">Đã điểm danh</p>
             </div>
             <div className="rounded-lg bg-surface-container-low p-4">
-              <p className="text-2xl font-bold text-on-surface">{checkers.length}</p>
-              <p className="text-xs text-on-surface-variant">Người quét</p>
+              <p className="text-2xl font-bold text-on-surface">
+                {checkers.length}
+              </p>
+              <p className="text-xs text-on-surface-variant">Người xác thực</p>
             </div>
           </div>
           <div className="mt-4 space-y-2 text-sm text-on-surface-variant">
-            <p>Hình thức: {activityParticipationLabels[activity.participationType || "LIMITED"]}</p>
+            <p>
+              Hình thức:{" "}
+              {
+                activityParticipationLabels[
+                  activity.participationType || "LIMITED"
+                ]
+              }
+            </p>
             {isLimitedActivity && (
               <>
-                <p>Mở đăng ký: {formatDateTime(activity.registrationStartTime)}</p>
-                <p>Đóng đăng ký: {formatDateTime(activity.registrationEndTime)}</p>
-                <p>Còn trống: {activity.remainingSlots ?? Math.max((activity.capacity ?? 0) - registrations.length, 0)} slot</p>
+                <p>
+                  Mở đăng ký: {formatDateTime(activity.registrationStartTime)}
+                </p>
+                <p>
+                  Đóng đăng ký: {formatDateTime(activity.registrationEndTime)}
+                </p>
+                <p>
+                  Còn trống:{" "}
+                  {activity.remainingSlots ??
+                    Math.max(
+                      (activity.capacity ?? 0) - registrations.length,
+                      0,
+                    )}{" "}
+                  slot
+                </p>
               </>
             )}
             <p>Bắt đầu: {formatDateTime(activity.startTime)}</p>
@@ -660,13 +1123,18 @@ function ActivityDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-primary">QR điểm danh</p>
-              <h2 className="text-xl font-bold text-on-surface">T?o QR điểm danh</h2>
+              <h2 className="text-xl font-bold text-on-surface">
+                Tạo QR điểm danh
+              </h2>
               <p className="mt-2 text-sm text-on-surface-variant">
-                Hoạt động đăng ký luôn xác thực khuôn mặt đầu giờ; QR được dùng cho giữa giờ hoặc cuối giờ theo số lần điểm danh đã chọn.
+                Hoạt động đăng ký luôn xác thực khuôn mặt đầu giờ; QR được dùng
+                cho giữa giờ hoặc cuối giờ theo số lần điểm danh đã chọn.
               </p>
             </div>
             <label className="flex min-w-48 flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">Thời gian tồn tại QR (phút)</span>
+              <span className="text-sm font-semibold text-on-surface">
+                Thời gian tồn tại QR (phút)
+              </span>
               <input
                 className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
                 min={1}
@@ -678,38 +1146,106 @@ function ActivityDetailPage() {
             </label>
           </div>
 
+          <div className="mt-5 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-low p-4 md:grid-cols-[1fr_220px]">
+            <label className="flex items-start gap-3 text-sm text-on-surface">
+              <input
+                checked={qrLocationRequired}
+                className="mt-1 h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
+                onChange={(event) =>
+                  setQrLocationRequired(event.target.checked)
+                }
+                type="checkbox"
+              />
+              <span>
+                <span className="flex items-center gap-2 font-semibold">
+                  <MapPin className="h-4 w-4" />
+                  Kiểm tra vị trí khi sinh viên quét QR
+                </span>
+                <span className="mt-1 block text-on-surface-variant">
+                  Khi bật, hệ thống lấy vị trí máy admin lúc tạo QR và chỉ ghi
+                  nhận sinh viên ở trong bán kính cho phép.
+                </span>
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-on-surface">
+                Bán kính hợp lệ (m)
+              </span>
+              <input
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-60"
+                disabled={!qrLocationRequired}
+                min={10}
+                max={1000}
+                onChange={(event) => setQrRadiusMeters(event.target.value)}
+                type="number"
+                value={qrRadiusMeters}
+              />
+            </label>
+          </div>
+
           <div className="mt-5 flex flex-wrap gap-3">
             {attendanceSessionCount === 3 && (
               <button
                 className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary disabled:opacity-60"
-                disabled={activity.status !== "ONGOING" || creatingQrSession === "MIDDLE"}
+                disabled={
+                  activity.status !== "ONGOING" ||
+                  creatingQrSession === "MIDDLE"
+                }
                 onClick={() => void createQrSession("MIDDLE")}
                 type="button"
               >
                 <QrCode className="h-5 w-5" />
-                {creatingQrSession === "MIDDLE" ? "Đang tạo..." : "Tạo QR giữa giờ"}
+                {creatingQrSession === "MIDDLE"
+                  ? "Đang tạo..."
+                  : "Tạo QR giữa giờ"}
               </button>
             )}
             <button
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
-              disabled={activity.status !== "ONGOING" || creatingQrSession === "FINAL"}
+              disabled={
+                activity.status !== "ONGOING" || creatingQrSession === "FINAL"
+              }
               onClick={() => void createQrSession("FINAL")}
               type="button"
             >
               <QrCode className="h-5 w-5" />
-              {creatingQrSession === "FINAL" ? "Đang tạo..." : "Tạo QR cuối giờ"}
+              {creatingQrSession === "FINAL"
+                ? "Đang tạo..."
+                : "Tạo QR cuối giờ"}
             </button>
           </div>
 
-          {activity.status !== "ONGOING" && <p className="mt-3 text-sm text-on-surface-variant">Chỉ tạo QR khi hoạt động đang diễn ra.</p>}
+          {activity.status !== "ONGOING" && (
+            <p className="mt-3 text-sm text-on-surface-variant">
+              Chỉ tạo QR khi hoạt động đang diễn ra.
+            </p>
+          )}
 
           {qrSession && (
             <div className="mt-5 grid gap-4 rounded-lg border border-outline-variant p-4 md:grid-cols-[auto_1fr]">
-              <img alt="QR điểm danh" className="h-56 w-56 rounded-lg border border-outline-variant bg-white p-3" src={toQrImageDataUrl(qrSession.qrPayload)} />
+              <img
+                alt="QR điểm danh"
+                className="h-56 w-56 rounded-lg border border-outline-variant bg-white p-3"
+                src={toQrImageDataUrl(qrSession.qrPayload)}
+              />
               <div className="space-y-2 text-sm text-on-surface-variant">
-                <p className="text-base font-semibold text-on-surface">{attendanceSessionLabels[qrSession.session as QrAttendanceSession]}</p>
+                <p className="text-base font-semibold text-on-surface">
+                  {
+                    attendanceSessionLabels[
+                      qrSession.session as QrAttendanceSession
+                    ]
+                  }
+                </p>
                 <p>Hết hạn: {formatDateTime(qrSession.expiresAt)}</p>
-                <p className="break-all rounded-lg bg-surface-container-low p-3 font-mono text-xs">{qrSession.qrPayload}</p>
+                <p>
+                  Kiểm tra vị trí:{" "}
+                  {qrSession.locationRequired
+                    ? `Có - bán kính ${qrSession.allowedRadiusMeters ?? qrRadiusMeters}m${qrSession.accuracyMeters !== undefined ? `, sai số máy tạo QR khoảng ${Math.round(qrSession.accuracyMeters)}m` : ""}`
+                    : "Không"}
+                </p>
+                <p className="break-all rounded-lg bg-surface-container-low p-3 font-mono text-xs">
+                  {qrSession.qrPayload}
+                </p>
               </div>
             </div>
           )}
@@ -719,9 +1255,14 @@ function ActivityDetailPage() {
       <Card>
         <div className="mb-5">
           <p className="text-sm font-semibold text-primary">Người điểm danh</p>
-          <h2 className="text-xl font-bold text-on-surface">Phân quyền quét mã cho hoạt động</h2>
+          <h2 className="text-xl font-bold text-on-surface">
+            Phân quyền xác thực đầu vào cho hoạt động
+          </h2>
         </div>
-        <form className="grid gap-4 md:grid-cols-[1fr_1.2fr_auto]" onSubmit={addChecker}>
+        <form
+          className="grid gap-4 md:grid-cols-[1fr_1.2fr_auto]"
+          onSubmit={addChecker}
+        >
           <StudentAutocompleteField
             label="Mã người điểm danh"
             onChange={(value) => updateCheckerField("checkerCode", value)}
@@ -738,7 +1279,10 @@ function ActivityDetailPage() {
             profiles={studentProfiles}
             value={checkerForm.checkerName}
           />
-          <button className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" type="submit">
+          <button
+            className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary"
+            type="submit"
+          >
             <UserPlus className="h-5 w-5" />
             Thêm
           </button>
@@ -746,15 +1290,28 @@ function ActivityDetailPage() {
 
         <div className="mt-5 divide-y divide-outline-variant">
           {checkers.length === 0 ? (
-            <p className="py-4 text-sm text-on-surface-variant">Chưa có người điểm danh.</p>
+            <p className="py-4 text-sm text-on-surface-variant">
+              Chưa có người điểm danh.
+            </p>
           ) : (
             paginatedCheckers.map((checker) => (
-              <div key={checker.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div
+                key={checker.id}
+                className="flex flex-wrap items-center justify-between gap-3 py-4"
+              >
                 <div>
-                  <p className="font-semibold text-on-surface">{checker.checkerName}</p>
-                  <p className="text-sm text-on-surface-variant">{checker.checkerCode}</p>
+                  <p className="font-semibold text-on-surface">
+                    {checker.checkerName}
+                  </p>
+                  <p className="text-sm text-on-surface-variant">
+                    {checker.checkerCode}
+                  </p>
                 </div>
-                <button className="rounded-lg px-3 py-2 text-sm font-semibold text-error hover:bg-error-container" onClick={() => void removeChecker(checker)} type="button">
+                <button
+                  className="rounded-lg px-3 py-2 text-sm font-semibold text-error hover:bg-error-container"
+                  onClick={() => void removeChecker(checker)}
+                  type="button"
+                >
                   Gỡ
                 </button>
               </div>
@@ -775,47 +1332,135 @@ function ActivityDetailPage() {
 
       <Card className="p-0">
         <div className="border-b border-outline-variant px-5 py-4">
-          <h2 className="text-lg font-semibold text-on-surface">{isLimitedActivity ? "Danh sách sinh viên đăng ký" : "Danh sách sinh viên đã điểm danh"}</h2>
+          <h2 className="text-lg font-semibold text-on-surface">
+            {isLimitedActivity
+              ? "Danh sách sinh viên đăng ký"
+              : "Danh sách sinh viên đã điểm danh"}
+          </h2>
           {isLimitedActivity && (
             <p className="mt-2 text-sm text-on-surface-variant">
-              Danh sách này được sinh viên tự đăng ký trực tiếp trên hệ thống. Admin chỉ được xem và xuất báo cáo, không được thêm, sửa hoặc gỡ sinh viên khỏi danh sách.
+              Danh sách này được sinh viên tự đăng ký trực tiếp trên hệ thống.
+              Admin chỉ được xem và xuất báo cáo, không được thêm, sửa hoặc gỡ
+              sinh viên khỏi danh sách.
             </p>
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
             <thead className="bg-surface-container-low">
               <tr>
-                <th className="px-5 py-4 font-semibold text-on-surface">MSSV</th>
-                <th className="px-5 py-4 font-semibold text-on-surface">Họ tên</th>
-                <th className="px-5 py-4 font-semibold text-on-surface">Xác thực khuôn mặt</th>
-                {attendanceSessionCount === 3 && <th className="px-5 py-4 font-semibold text-on-surface">QR giữa giờ</th>}
-                {attendanceSessionCount >= 2 && <th className="px-5 py-4 font-semibold text-on-surface">QR cuối giờ</th>}
-                <th className="px-5 py-4 font-semibold text-on-surface">Kết quả</th>
-                <th className="px-5 py-4 font-semibold text-on-surface">Thời gian cuối</th>
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  MSSV
+                </th>
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  Họ tên
+                </th>
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  Xác thực khuôn mặt
+                </th>
+                {attendanceSessionCount === 3 && (
+                  <th className="px-5 py-4 font-semibold text-on-surface">
+                    QR giữa giờ
+                  </th>
+                )}
+                {attendanceSessionCount >= 2 && (
+                  <th className="px-5 py-4 font-semibold text-on-surface">
+                    QR cuối giờ
+                  </th>
+                )}
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  Kết quả
+                </th>
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  Thời gian cuối
+                </th>
+                <th className="px-5 py-4 font-semibold text-on-surface">
+                  Điều chỉnh
+                </th>
               </tr>
             </thead>
             <tbody>
               {paginatedRegistrations.map((registration) => (
-                <tr key={registration.id} className="border-t border-outline-variant">
-                  <td className="px-5 py-4 font-semibold text-on-surface">{registration.studentCode}</td>
-                  <td className="px-5 py-4 text-on-surface-variant">{registration.fullName}</td>
-                  <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.faceVerified), registration.faceVerifiedTime)}</td>
-                  {attendanceSessionCount === 3 && <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.middleAttended), registration.middleCheckinTime)}</td>}
-                  {attendanceSessionCount >= 2 && <td className="px-5 py-4 text-on-surface-variant">{formatAttendanceMark(Boolean(registration.finalAttended), registration.finalCheckinTime)}</td>}
+                <tr
+                  key={registration.id}
+                  className="border-t border-outline-variant"
+                >
+                  <td className="px-5 py-4 font-semibold text-on-surface">
+                    {registration.studentCode}
+                  </td>
+                  <td className="px-5 py-4 text-on-surface-variant">
+                    {registration.fullName}
+                  </td>
+                  <td className="px-5 py-4 text-on-surface-variant">
+                    {formatAttendanceMark(
+                      Boolean(registration.faceVerified),
+                      registration.faceVerifiedTime,
+                    )}
+                  </td>
+                  {attendanceSessionCount === 3 && (
+                    <td className="px-5 py-4 text-on-surface-variant">
+                      {formatAttendanceMark(
+                        Boolean(registration.middleAttended),
+                        registration.middleCheckinTime,
+                      )}
+                    </td>
+                  )}
+                  {attendanceSessionCount >= 2 && (
+                    <td className="px-5 py-4 text-on-surface-variant">
+                      {formatAttendanceMark(
+                        Boolean(registration.finalAttended),
+                        registration.finalCheckinTime,
+                      )}
+                    </td>
+                  )}
                   <td className="px-5 py-4">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registration.attended ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${registration.attended ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}
+                    >
                       {formatAttendanceResult(registration)}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-on-surface-variant">{registration.checkinTime ? formatDateTime(registration.checkinTime) : "-"}</td>
+                  <td className="px-5 py-4 text-on-surface-variant">
+                    {registration.checkinTime
+                      ? formatDateTime(registration.checkinTime)
+                      : "-"}
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                        onClick={() =>
+                          void adjustFaceVerification(registration, true)
+                        }
+                        type="button"
+                      >
+                        Xác thực đạt
+                      </button>
+                      <button
+                        className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        onClick={() =>
+                          void adjustFaceVerification(registration, false)
+                        }
+                        type="button"
+                      >
+                        Không đạt
+                      </button>
+                    </div>
+                    {registration.faceVerificationNote && (
+                      <p className="mt-2 max-w-xs text-xs text-on-surface-variant">
+                        {registration.faceVerificationNote}
+                      </p>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {registrations.length === 0 && (
             <p className="px-5 py-6 text-sm text-on-surface-variant">
-              {isLimitedActivity ? "Chưa có sinh viên đăng ký." : "Chưa có sinh viên nào điểm danh."}
+              {isLimitedActivity
+                ? "Chưa có sinh viên đăng ký."
+                : "Chưa có sinh viên nào điểm danh."}
             </p>
           )}
         </div>

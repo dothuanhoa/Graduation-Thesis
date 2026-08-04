@@ -47,11 +47,33 @@ const sortDashboardNotices = (items: NotificationResponse[]) =>
     return priorityDiff || getNoticeTime(right) - getNoticeTime(left);
   });
 
+const isRegistrationWindowActive = (activity: ActivityResponse, now = Date.now()) => {
+  if (activity.status !== "UPCOMING" || !activity.registrationStartTime || !activity.registrationEndTime) {
+    return false;
+  }
+
+  const registrationStart = new Date(activity.registrationStartTime).getTime();
+  const registrationEnd = new Date(activity.registrationEndTime).getTime();
+  return !Number.isNaN(registrationStart) && !Number.isNaN(registrationEnd) && now >= registrationStart && now <= registrationEnd;
+};
+
+const isStudentVisibleActivity = (activity: ActivityResponse, now = Date.now()) => {
+  if (activity.status === "COMPLETED") {
+    return false;
+  }
+
+  if ((activity.participationType || "LIMITED") === "OPEN") {
+    return true;
+  }
+
+  return Boolean(activity.currentUserRegistered) || isRegistrationWindowActive(activity, now);
+};
+
 const quickActions: QuickAction[] = [
   { title: "Hồ sơ cá nhân", helper: "Cập nhật thông tin liên hệ", path: "/student/profile", icon: UserRound },
   { title: "Thông báo", helper: "Theo dõi tin mới", path: "/student/notifications", icon: Bell },
   { title: "Hoạt động", helper: "Xem lịch và form đăng ký", path: "/student/activities", icon: CalendarCheck },
-  { title: "Quét điểm danh", helper: "Mở camera quét mã", path: "/checker/scan", icon: QrCode, requiresScanPermission: true },
+  { title: "Quét điểm danh", helper: "Mở camera quét QR của hoạt động", path: "/student/attendance", icon: QrCode },
   { title: "Đơn xác nhận", helper: "Gửi yêu cầu giấy tờ", path: "/student/certificates/new", icon: FileCheck2 },
 ];
 
@@ -93,13 +115,16 @@ function StudentDashboard() {
     return () => window.clearTimeout(timerId);
   }, [loadDashboard]);
 
-  const ongoingActivities = activities.filter((activity) => activity.status === "ONGOING");
+  const studentVisibleActivities = useMemo(
+    () => activities.filter((activity) => isStudentVisibleActivity(activity)),
+    [activities],
+  );
+  const ongoingActivities = studentVisibleActivities.filter((activity) => activity.status === "ONGOING");
   const nextActivity = useMemo(
     () =>
-      [...activities]
-        .filter((activity) => activity.status !== "COMPLETED")
+      [...studentVisibleActivities]
         .sort((left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime())[0] ?? null,
-    [activities],
+    [studentVisibleActivities],
   );
   const urgentNotices = notices.filter((notice) => notice.priority === "URGENT");
   const canScanAttendance = scanActivities.length > 0;

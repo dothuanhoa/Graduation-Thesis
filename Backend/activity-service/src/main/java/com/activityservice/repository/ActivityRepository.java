@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findAllByOrderByCreatedAtDesc();
 
+    Optional<Activity> findFirstByMiddleQrCodeOrFinalQrCode(String middleQrCode, String finalQrCode);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select activity from Activity activity where activity.id = :id")
     Optional<Activity> findByIdForUpdate(@Param("id") Long id);
