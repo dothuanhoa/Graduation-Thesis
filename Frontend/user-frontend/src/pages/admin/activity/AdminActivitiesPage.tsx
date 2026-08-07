@@ -7,7 +7,12 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import type { StatusType, TableRow } from "../../../data/mockData";
 import { activityApi, type ActivityResponse } from "../../../services/api";
-import { activityCategoryLabels, activityParticipationLabels, formatActivityRange, formatDateTime } from "../../../utils/activityUi";
+import {
+  activityCategoryLabels,
+  activityParticipationLabels,
+  formatActivityRange,
+  formatDateTime,
+} from "../../../utils/activityUi";
 import { includesSearch } from "../../../utils/search";
 import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
 
@@ -26,7 +31,9 @@ const toRow = (activity: ActivityResponse): ActivityRow => ({
   id: activity.id,
   title: activity.title,
   category: activityCategoryLabels[activity.category],
-  participationType: activityParticipationLabels[activity.participationType || "LIMITED"],
+  participationType:
+    //activityParticipationLabels[activity.participationType || "LIMITED"]
+    (activity.participationType || "LIMITED") === "OPEN" ? "Tự do" : "Giới hạn",
   registrationTime:
     (activity.participationType || "LIMITED") === "OPEN"
       ? "Không áp dụng"
@@ -34,8 +41,8 @@ const toRow = (activity: ActivityResponse): ActivityRow => ({
   time: formatActivityRange(activity.startTime, activity.endTime),
   capacity:
     (activity.participationType || "LIMITED") === "OPEN"
-      ? `${activity.attendedCount ?? 0} đã điểm danh`
-      : `${activity.attendedCount ?? 0}/${activity.registrationCount ?? 0}${activity.capacity ? ` / ${activity.capacity}` : ""}`,
+      ? `${activity.attendedCount ?? 0}`
+      : `${activity.attendedCount ?? 0}/${activity.registrationCount ?? 0}`,
   status: activity.status,
 });
 
@@ -46,7 +53,11 @@ const columns: Column<ActivityRow>[] = [
   { header: "Thời gian đăng ký", key: "registrationTime" },
   { header: "Thời gian", key: "time" },
   { header: "Điểm danh", key: "capacity" },
-  { header: "Trạng thái", key: "status", render: (row) => <StatusBadge status={row.status} /> },
+  {
+    header: "Trạng thái",
+    key: "status",
+    render: (row) => <StatusBadge status={row.status} />,
+  },
 ];
 
 function AdminActivitiesPage() {
@@ -66,7 +77,11 @@ function AdminActivitiesPage() {
       setActivities(data);
     } catch (err) {
       setActivities([]);
-      setMessage(err instanceof Error ? err.message : "Không tải được danh sách hoạt động.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được danh sách hoạt động.",
+      );
     } finally {
       setLoading(false);
     }
@@ -83,11 +98,22 @@ function AdminActivitiesPage() {
   const filteredActivities = useMemo(
     () =>
       activities.filter((activity) => {
-        const matchesKeyword = includesSearch(`${activity.title} ${activity.location} ${activity.reward}`, keyword);
-        const matchesCategory = !categoryFilter || activity.category === categoryFilter;
-        const matchesParticipation = !participationFilter || (activity.participationType || "LIMITED") === participationFilter;
+        const matchesKeyword = includesSearch(
+          `${activity.title} ${activity.location} ${activity.reward}`,
+          keyword,
+        );
+        const matchesCategory =
+          !categoryFilter || activity.category === categoryFilter;
+        const matchesParticipation =
+          !participationFilter ||
+          (activity.participationType || "LIMITED") === participationFilter;
         const matchesStatus = !statusFilter || activity.status === statusFilter;
-        return matchesKeyword && matchesCategory && matchesParticipation && matchesStatus;
+        return (
+          matchesKeyword &&
+          matchesCategory &&
+          matchesParticipation &&
+          matchesStatus
+        );
       }),
     [activities, categoryFilter, keyword, participationFilter, statusFilter],
   );
@@ -95,57 +121,94 @@ function AdminActivitiesPage() {
   const rows = useMemo(
     () =>
       [...filteredActivities]
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+        .sort(
+          (a, b) =>
+            new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+        )
         .map(toRow),
     [filteredActivities],
   );
 
-
   const exportActivitySummary = () => {
     if (filteredActivities.length === 0) {
-      setMessage("Kh\u00f4ng c\u00f3 ho\u1ea1t \u0111\u1ed9ng ph\u00f9 h\u1ee3p \u0111\u1ec3 xu\u1ea5t Excel.");
+      setMessage(
+        "Kh\u00f4ng c\u00f3 ho\u1ea1t \u0111\u1ed9ng ph\u00f9 h\u1ee3p \u0111\u1ec3 xu\u1ea5t Excel.",
+      );
       return;
     }
 
-    const sortedActivities = [...filteredActivities].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    exportXlsxFile(`tong-ket-hoat-dong-${safeFileName(new Date().toISOString().slice(0, 10))}.xlsx`, [
-      {
-        name: "Tong ket",
-        rows: [
-          ["Ho\u1ea1t \u0111\u1ed9ng", "Lo\u1ea1i", "H\u00ecnh th\u1ee9c", "Th\u1eddi gian", "\u0110\u1ecba \u0111i\u1ec3m", "S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a", "S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd", "S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh", "S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh", "Tr\u1ea1ng th\u00e1i"],
-          ...sortedActivities.map((activity) => {
-            const participationType = activity.participationType || "LIMITED";
-            const registered = activity.registrationCount ?? 0;
-            const attended = activity.attendedCount ?? 0;
-            const notAttended = participationType === "OPEN" ? "Kh\u00f4ng \u00e1p d\u1ee5ng" : Math.max(registered - attended, 0);
-            return [
-              activity.title,
-              activityCategoryLabels[activity.category],
-              activityParticipationLabels[participationType],
-              formatActivityRange(activity.startTime, activity.endTime),
-              activity.location || "",
-              participationType === "OPEN" ? "Kh\u00f4ng gi\u1edbi h\u1ea1n" : activity.capacity ?? "",
-              registered,
-              attended,
-              notAttended,
-              activity.status,
-            ];
-          }),
-        ],
-      },
-    ]);
-    setMessage("\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.");
+    const sortedActivities = [...filteredActivities].sort(
+      (a, b) =>
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+    );
+    exportXlsxFile(
+      `tong-ket-hoat-dong-${safeFileName(new Date().toISOString().slice(0, 10))}.xlsx`,
+      [
+        {
+          name: "Tong ket",
+          rows: [
+            [
+              "Ho\u1ea1t \u0111\u1ed9ng",
+              "Lo\u1ea1i",
+              "H\u00ecnh th\u1ee9c",
+              "Th\u1eddi gian",
+              "\u0110\u1ecba \u0111i\u1ec3m",
+              "S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a",
+              "S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd",
+              "S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh",
+              "S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh",
+              "Tr\u1ea1ng th\u00e1i",
+            ],
+            ...sortedActivities.map((activity) => {
+              const participationType = activity.participationType || "LIMITED";
+              const registered = activity.registrationCount ?? 0;
+              const attended = activity.attendedCount ?? 0;
+              const notAttended =
+                participationType === "OPEN"
+                  ? "Kh\u00f4ng \u00e1p d\u1ee5ng"
+                  : Math.max(registered - attended, 0);
+              return [
+                activity.title,
+                activityCategoryLabels[activity.category],
+                activityParticipationLabels[participationType],
+                formatActivityRange(activity.startTime, activity.endTime),
+                activity.location || "",
+                participationType === "OPEN"
+                  ? "Kho"
+                  : (activity.capacity ?? ""),
+                registered,
+                attended,
+                notAttended,
+                activity.status,
+              ];
+            }),
+          ],
+        },
+      ],
+    );
+    setMessage(
+      "\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.",
+    );
   };
   const removeActivity = async (row: ActivityRow) => {
-    if (!window.confirm(`Xóa hoạt động "${row.title}"? Chỉ hoạt động sắp diễn ra mới được xóa.`)) return;
+    if (
+      !window.confirm(
+        `Xóa hoạt động "${row.title}"? Chỉ hoạt động sắp diễn ra mới được xóa.`,
+      )
+    )
+      return;
 
     setMessage("");
     try {
       await activityApi.remove(row.id);
-      setActivities((current) => current.filter((activity) => activity.id !== row.id));
+      setActivities((current) =>
+        current.filter((activity) => activity.id !== row.id),
+      );
       setMessage("Đã xóa hoạt động.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không xóa được hoạt động.");
+      setMessage(
+        err instanceof Error ? err.message : "Không xóa được hoạt động.",
+      );
     }
   };
 
@@ -157,21 +220,36 @@ function AdminActivitiesPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Link className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary" to="/admin/activities/new">
+        <Link
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary"
+          to="/admin/activities/new"
+        >
           <CalendarPlus className="h-5 w-5" />
           Tạo hoạt động
         </Link>
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadActivities} type="button">
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+          onClick={loadActivities}
+          type="button"
+        >
           <RefreshCw className="h-5 w-5" />
           Tải lại
         </button>
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={exportActivitySummary} type="button">
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+          onClick={exportActivitySummary}
+          type="button"
+        >
           <Download className="h-5 w-5" />
           {"Xu\u1ea5t Excel"}
         </button>
       </div>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
       <FilterBar
         filters={[
@@ -182,7 +260,9 @@ function AdminActivitiesPage() {
             onChange: setCategoryFilter,
             options: [
               { value: "", label: "Tất cả loại" },
-              ...Object.entries(activityCategoryLabels).map(([value, label]) => ({ value, label })),
+              ...Object.entries(activityCategoryLabels).map(
+                ([value, label]) => ({ value, label }),
+              ),
             ],
           },
           {
@@ -192,7 +272,9 @@ function AdminActivitiesPage() {
             onChange: setParticipationFilter,
             options: [
               { value: "", label: "Tất cả hình thức" },
-              ...Object.entries(activityParticipationLabels).map(([value, label]) => ({ value, label })),
+              ...Object.entries(activityParticipationLabels).map(
+                ([value, label]) => ({ value, label }),
+              ),
             ],
           },
           {
@@ -222,7 +304,9 @@ function AdminActivitiesPage() {
       />
 
       {loading ? (
-        <div className="panel p-6 text-on-surface-variant">Đang tải danh sách hoạt động...</div>
+        <div className="panel p-6 text-on-surface-variant">
+          Đang tải danh sách hoạt động...
+        </div>
       ) : (
         <DataTable
           actions={(row) => (

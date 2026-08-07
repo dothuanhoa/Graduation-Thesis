@@ -58,12 +58,12 @@ public class UserProfile {
     @Column(name = "contact_phone", length = 15)
     private String contactPhone;
 
-    @Size(max = 500, message = "???ng d?n ?nh khu?n m?t kh?ng ???c v??t qu? 500 k? t?")
+    @Size(max = 500)
     @Column(name = "face_image_url", length = 500)
     private String faceImageUrl;
 
     @JsonIgnore
-    @Size(max = 700, message = "???ng d?n l?u ?nh khu?n m?t kh?ng ???c v??t qu? 700 k? t?")
+    @Size(max = 700)
     @Column(name = "face_image_path", length = 700)
     private String faceImagePath;
 

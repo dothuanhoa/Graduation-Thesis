@@ -1,5 +1,12 @@
 import { Send, Upload } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
@@ -39,25 +46,38 @@ const isSupportedCertificateType = (type: FormType) => {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
-  return raw.includes("NVQS")
-    || raw.includes("KHAC")
-    || raw.includes("QUAN SU")
-    || raw.includes("NGHIA VU")
-    || raw.includes("VAY")
-    || raw.includes("VON");
+  return (
+    raw.includes("NVQS") ||
+    raw.includes("KHAC") ||
+    raw.includes("QUAN SU") ||
+    raw.includes("NGHIA VU") ||
+    raw.includes("VAY") ||
+    raw.includes("VON")
+  );
 };
 
-const getInitialMetadata = (profile: UserProfile | null, formType?: FormType): CertificateMetadata => {
+const getInitialMetadata = (
+  profile: UserProfile | null,
+  formType?: FormType,
+): CertificateMetadata => {
   const formCode = normalizeCertificateCode(formType?.formCode, formType?.name);
   const common: CertificateMetadata = {
     formCode,
     fullName: profile?.fullName || "",
     studentId: profile?.studentId || "",
     dob: profile?.dob || "",
-    gender: profile?.gender === "FEMALE" ? "Nữ" : profile?.gender === "MALE" ? "Nam" : "",
+    gender:
+      profile?.gender === "FEMALE"
+        ? "Nữ"
+        : profile?.gender === "MALE"
+          ? "Nam"
+          : "",
     contactPhone: profile?.contactPhone || "",
     classCode: profile?.clazz?.classCode || "",
-    facultyName: profile?.clazz?.faculty?.facultyName || profile?.clazz?.faculty?.facultyCode || "",
+    facultyName:
+      profile?.clazz?.faculty?.facultyName ||
+      profile?.clazz?.faculty?.facultyCode ||
+      "",
     educationLevel: "Đại học",
     trainingType: "Chính quy",
     semester: getCurrentSemesterStr(),
@@ -118,11 +138,14 @@ function StudentCertificateRequestPage() {
     try {
       const [types, currentProfile] = await Promise.all([
         formTypeApi.listAll(),
-        username ? userApi.getByStudentId(username, { suppressToast: true }) : Promise.resolve(null),
+        username
+          ? userApi.getByStudentId(username, { suppressToast: true })
+          : Promise.resolve(null),
       ]);
       const activeTypes = types.filter((type) => type.isActive);
       const supportedTypes = activeTypes.filter(isSupportedCertificateType);
-      const nextTypes = supportedTypes.length > 0 ? supportedTypes : activeTypes;
+      const nextTypes =
+        supportedTypes.length > 0 ? supportedTypes : activeTypes;
       const firstType = nextTypes[0];
 
       setProfile(currentProfile);
@@ -130,7 +153,11 @@ function StudentCertificateRequestPage() {
       setFormTypeId(firstType?.id || "");
       setMetadata(getInitialMetadata(currentProfile, firstType));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không tải được dữ liệu tạo đơn xác nhận.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được dữ liệu tạo đơn xác nhận.",
+      );
     } finally {
       setLoading(false);
     }
@@ -144,7 +171,9 @@ function StudentCertificateRequestPage() {
   }, [loadData]);
 
   const handleFormTypeChange = (value: string) => {
-    const nextType = formTypes.find((type) => String(type.id) === String(value));
+    const nextType = formTypes.find(
+      (type) => String(type.id) === String(value),
+    );
     setFormTypeId(value);
     setMetadata(getInitialMetadata(profile, nextType));
   };
@@ -164,13 +193,18 @@ function StudentCertificateRequestPage() {
       return;
     }
 
-    if (!metadata.contactPhone?.trim()&&selectedFormType.formCode!=="VAY_VON") {
+    if (!metadata.contactPhone?.trim()) {
       setMessage("Vui lòng nhập số điện thoại liên hệ trên đơn.");
       return;
     }
 
-    const formCode = normalizeCertificateCode(selectedFormType.formCode, selectedFormType.name);
-    const requestReason = metadata.reason?.trim() || (formCode === "VAY_VON" ? "Vay vốn sinh viên" : "");
+    const formCode = normalizeCertificateCode(
+      selectedFormType.formCode,
+      selectedFormType.name,
+    );
+    const requestReason =
+      metadata.reason?.trim() ||
+      (formCode === "VAY_VON" ? "Vay vốn sinh viên" : "");
 
     if (!requestReason) {
       setMessage("Vui lòng nhập lý do/yêu cầu xác nhận trên đơn.");
@@ -205,13 +239,21 @@ function StudentCertificateRequestPage() {
       await certificationRequestApi.create(payload);
       navigate("/student/certificates");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tạo yêu cầu.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Đã có lỗi xảy ra khi tạo yêu cầu.",
+      );
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="p-6 text-on-surface-variant">Đang tải dữ liệu tạo đơn...</div>;
+    return (
+      <div className="p-6 text-on-surface-variant">
+        Đang tải dữ liệu tạo đơn...
+      </div>
+    );
   }
 
   return (
@@ -233,14 +275,18 @@ function StudentCertificateRequestPage() {
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-on-surface">Loại đơn xác nhận</span>
+              <span className="text-sm font-semibold text-on-surface">
+                Loại đơn xác nhận
+              </span>
               <select
                 className="h-12 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-on-surface focus-ring"
                 onChange={(event) => handleFormTypeChange(event.target.value)}
                 required
                 value={formTypeId}
               >
-                <option value="" disabled>Chọn loại đơn</option>
+                <option value="" disabled>
+                  Chọn loại đơn
+                </option>
                 {formTypes.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.name}
@@ -252,7 +298,11 @@ function StudentCertificateRequestPage() {
             <label className="inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 font-semibold text-primary hover:bg-surface-container-low">
               <Upload className="h-5 w-5" />
               <span>{file ? file.name : "File minh chứng"}</span>
-              <input className="hidden" onChange={handleFileChange} type="file" />
+              <input
+                className="hidden"
+                onChange={handleFileChange}
+                type="file"
+              />
             </label>
           </div>
 
@@ -277,7 +327,8 @@ function StudentCertificateRequestPage() {
               {submitting ? "Đang gửi đơn..." : "Gửi đơn xác nhận"}
             </button>
             <p className="text-sm text-on-surface-variant">
-              Sau khi gửi, Phòng CTSV sẽ kiểm tra thông tin, yêu cầu bổ sung nếu thiếu hoặc hẹn ngày nhận giấy khi hoàn tất.
+              Sau khi gửi, Phòng CTSV sẽ kiểm tra thông tin, yêu cầu bổ sung nếu
+              thiếu hoặc hẹn ngày nhận giấy khi hoàn tất.
             </p>
           </div>
         </form>
