@@ -27,7 +27,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
     implementation platform('software.amazon.awssdk:bom:2.25.60')
-    implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:rekognition'
     
     // Swagger UI

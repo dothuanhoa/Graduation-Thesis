@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @FeignClient(name = "USER-SERVICE", path = "/api/users")
 public interface UserClient {
     @GetMapping("/profile/{studentId}")
@@ -30,6 +32,14 @@ public interface UserClient {
 
     @PostMapping(value = "/profile/face/identify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     FaceVerificationResponse identifyStudentFace(
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-User-Code") String userCode,
+            @RequestPart(value = "studentCodes", required = false) String studentCodes,
+            @RequestPart("file") MultipartFile file
+    );
+
+    @PostMapping(value = "/profile/face/identify-many", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    List<FaceVerificationResponse> identifyStudentFaces(
             @RequestHeader("X-User-Role") String role,
             @RequestHeader("X-User-Code") String userCode,
             @RequestPart(value = "studentCodes", required = false) String studentCodes,

@@ -11,15 +11,25 @@ import com.userservice.repository.ClassRepository;
 import com.userservice.repository.StudentGroupRepository;
 import com.userservice.repository.UserProfileRepository;
 import com.userservice.service.OrganizationService;
+import com.userservice.service.FaceAnalysisService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.mock.web.MockMultipartFile;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +49,9 @@ class UserServiceImplTest {
     @Mock private StudentGroupRepository studentGroupRepository;
     @Mock private AuthServiceClient authServiceClient;
     @Mock private OrganizationService organizationService;
+    @Mock private FaceAnalysisService faceAnalysisService;
+
+    @TempDir Path tempDir;
 
     private UserServiceImpl userService;
 
@@ -48,9 +63,14 @@ class UserServiceImplTest {
                 academicYearRepository,
                 studentGroupRepository,
                 authServiceClient,
-                organizationService
+                organizationService,
+                faceAnalysisService
         );
         ReflectionTestUtils.setField(userService, "studentEmailDomain", "student.edu.vn");
+        ReflectionTestUtils.setField(userService, "studentFaceUploadDir", tempDir.toString());
+        ReflectionTestUtils.setField(userService, "studentFaceMaxSizeBytes", 5L * 1024 * 1024);
+        ReflectionTestUtils.setField(userService, "studentFaceMaxBulkFiles", 200);
+        ReflectionTestUtils.setField(userService, "studentFaceRekognitionThreshold", 90F);
     }
 
     @Test
@@ -185,6 +205,121 @@ class UserServiceImplTest {
         assertThat(student.getStudentGroup()).isSameAs(targetGroup);
         assertThat(response.getUpdatedCount()).isEqualTo(1);
         verify(userProfileRepository).saveAll(List.of(student));
+    }
+
+    @Test
+    void updateFaceImageAnalyzesWithAwsThenStoresOnePublicPngPerStudent() throws Exception {
+        UserProfile student = student(1L, "DH52201258", null);
+        MockMultipartFile image = validFaceFile("portrait.jpg");
+        when(userProfileRepository.findById(1L)).thenReturn(Optional.of(student));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfile updated = userService.updateFaceImage(1L, image);
+        userService.updateFaceImage(1L, validFaceFile("replacement.png"));
+
+        Path expected = tempDir.resolve("DH52201258").resolve("DH52201258.png");
+        assertThat(expected).isRegularFile();
+        assertThat(updated.getFaceImagePath()).isEqualTo(expected.toAbsolutePath().toString());
+        assertThat(updated.getFaceImageUrl()).isEqualTo("/faceId/DH52201258/DH52201258.png");
+        assertThat(Files.list(expected.getParent()).filter(Files::isRegularFile)).hasSize(1);
+        verify(faceAnalysisService, times(2)).validateSingleReferenceFace(any(byte[].class));
+    }
+
+    @Test
+    void bulkFaceImportChecksStudentExistsBeforeCallingAws() throws Exception {
+        MockMultipartFile existingImage = validFaceFile("DH52201258.jpg");
+        MockMultipartFile missingImage = validFaceFile("DH99999999.png");
+        UserProfile existing = student(1L, "DH52201258", null);
+        when(userProfileRepository.findByStudentIdIgnoreCase("DH52201258")).thenReturn(Optional.of(existing));
+        when(userProfileRepository.findByStudentIdIgnoreCase("DH99999999")).thenReturn(Optional.empty());
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = userService.importFaceImages(List.of(existingImage, missingImage));
+
+        assertThat(response.getSucceeded()).isEqualTo(1);
+        assertThat(response.getFailed()).isEqualTo(1);
+        assertThat(response.getItems()).filteredOn(item -> !item.isSuccess())
+                .singleElement().extracting("message").asString().contains("không tồn tại");
+        verify(faceAnalysisService).validateSingleReferenceFace(any(byte[].class));
+    }
+
+    @Test
+    void bulkFaceImportReportsProgressAfterEveryProcessedFile() throws Exception {
+        MockMultipartFile existingImage = validFaceFile("DH52201258.jpg");
+        MockMultipartFile missingImage = validFaceFile("DH99999999.png");
+        UserProfile existing = student(1L, "DH52201258", null);
+        when(userProfileRepository.findByStudentIdIgnoreCase("DH52201258")).thenReturn(Optional.of(existing));
+        when(userProfileRepository.findByStudentIdIgnoreCase("DH99999999")).thenReturn(Optional.empty());
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        List<Integer> processedCounts = new ArrayList<>();
+
+        userService.importFaceImages(
+                List.of(existingImage, missingImage),
+                update -> processedCounts.add(update.getItems().size())
+        );
+
+        assertThat(processedCounts).containsExactly(1, 2);
+    }
+
+    @Test
+    void bulkFaceImportDoesNotSendUnknownStudentImageToAws() throws Exception {
+        MockMultipartFile missingImage = validFaceFile("DH99999999.png");
+        when(userProfileRepository.findByStudentIdIgnoreCase("DH99999999")).thenReturn(Optional.empty());
+
+        var response = userService.importFaceImages(List.of(missingImage));
+
+        assertThat(response.getSucceeded()).isZero();
+        verify(faceAnalysisService, never()).validateSingleReferenceFace(any(byte[].class));
+    }
+
+    @Test
+    void identifyFacesReturnsMultipleDistinctFacesFromOneGroupImage() throws Exception {
+        UserProfile first = student(1L, "DH52201258", null);
+        UserProfile second = student(2L, "DH52201259", null);
+        Path firstPath = tempDir.resolve("first.png");
+        Path secondPath = tempDir.resolve("second.png");
+        Files.write(firstPath, validFaceFile("first.png").getBytes());
+        Files.write(secondPath, validFaceFile("second.png").getBytes());
+        first.setFaceImagePath(firstPath.toString());
+        second.setFaceImagePath(secondPath.toString());
+        when(userProfileRepository.findAllWithFaceImagePath()).thenReturn(List.of(first, second));
+        when(faceAnalysisService.compareFaces(any(byte[].class), any(byte[].class), eq(90F)))
+                .thenReturn(List.of(new FaceAnalysisService.FaceMatch(99F, 0.1F, 0.1F, 0.2F, 0.2F)))
+                .thenReturn(List.of(new FaceAnalysisService.FaceMatch(98F, 0.6F, 0.1F, 0.2F, 0.2F)));
+
+        var matches = userService.identifyFaces(validFaceFile("group.jpg"), List.of());
+
+        assertThat(matches).extracting("studentId")
+                .containsExactly("DH52201258", "DH52201259");
+    }
+
+    @Test
+    void identifyFacesKeepsOnlyBestStudentForSameTargetBoundingBox() throws Exception {
+        UserProfile first = student(1L, "DH52201258", null);
+        UserProfile second = student(2L, "DH52201259", null);
+        Path firstPath = tempDir.resolve("first.png");
+        Path secondPath = tempDir.resolve("second.png");
+        Files.write(firstPath, validFaceFile("first.png").getBytes());
+        Files.write(secondPath, validFaceFile("second.png").getBytes());
+        first.setFaceImagePath(firstPath.toString());
+        second.setFaceImagePath(secondPath.toString());
+        when(userProfileRepository.findAllWithFaceImagePath()).thenReturn(List.of(first, second));
+        when(faceAnalysisService.compareFaces(any(byte[].class), any(byte[].class), eq(90F)))
+                .thenReturn(List.of(new FaceAnalysisService.FaceMatch(99F, 0.1F, 0.1F, 0.2F, 0.2F)))
+                .thenReturn(List.of(new FaceAnalysisService.FaceMatch(95F, 0.11F, 0.11F, 0.2F, 0.2F)));
+
+        var matches = userService.identifyFaces(validFaceFile("group.jpg"), List.of());
+
+        assertThat(matches).singleElement().extracting("studentId").isEqualTo("DH52201258");
+    }
+
+    private MockMultipartFile validFaceFile(String fileName) throws Exception {
+        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        String format = fileName.toLowerCase().endsWith(".png") ? "png" : "jpg";
+        ImageIO.write(image, format, output);
+        String contentType = format.equals("png") ? "image/png" : "image/jpeg";
+        return new MockMultipartFile("files", fileName, contentType, output.toByteArray());
     }
 
     private StudentGroup group(Integer id, String code, String name) {

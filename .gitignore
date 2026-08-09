@@ -3,6 +3,8 @@
 **/bin/
 **/dist/
 **/node_modules/
+Frontend/user-frontend/public/faceId/*/*
+!Frontend/user-frontend/public/faceId/.gitkeep
 **/.env
 **/.env.local
 Backend/activity-service/.idea/compiler.xml

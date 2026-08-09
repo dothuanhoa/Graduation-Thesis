@@ -5,6 +5,7 @@ import com.userservice.domain.StudentGroup;
 import com.userservice.dto.BulkStudentGroupRequest;
 import com.userservice.dto.BulkStudentUpdateResponse;
 import com.userservice.dto.FaceVerificationResponse;
+import com.userservice.dto.FaceImageBulkImportResponse;
 import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentFaceImage;
 import com.userservice.dto.StudentImportRow;
@@ -34,7 +35,13 @@ public interface UserService {
     BulkStudentUpdateResponse updateStudentGroups(BulkStudentGroupRequest request);
     UserProfile updateContactByStudentId(String studentId, String contactPhone);
     UserProfile updateFaceImage(Long id, MultipartFile file);
+    FaceImageBulkImportResponse importFaceImages(List<MultipartFile> files);
+    FaceImageBulkImportResponse importFaceImages(
+            List<MultipartFile> files,
+            Consumer<FaceImageBulkImportResponse> progressConsumer
+    );
     StudentFaceImage loadFaceImage(Long id);
     FaceVerificationResponse verifyFaceByStudentId(String studentId, MultipartFile file);
     FaceVerificationResponse identifyFace(MultipartFile file, List<String> candidateStudentIds);
+    List<FaceVerificationResponse> identifyFaces(MultipartFile file, List<String> candidateStudentIds);
 }

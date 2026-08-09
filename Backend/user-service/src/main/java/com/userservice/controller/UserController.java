@@ -13,6 +13,7 @@ import com.userservice.dto.StudentImportProgress;
 import com.userservice.dto.StudentImportRow;
 import com.userservice.dto.UpdateContactRequest;
 import com.userservice.service.ExcelService;
+import com.userservice.service.FaceImageImportJobService;
 import com.userservice.service.StudentImportJobService;
 import com.userservice.service.UserService;
 import jakarta.validation.Valid;
@@ -49,6 +50,7 @@ public class UserController {
     private final UserService userService;
     private final ExcelService excelService;
     private final StudentImportJobService studentImportJobService;
+    private final FaceImageImportJobService faceImageImportJobService;
 
     @GetMapping
     public ResponseEntity<Object> getUsers(
@@ -259,6 +261,41 @@ public class UserController {
         return ResponseEntity.ok(userService.updateFaceImage(id, file));
     }
 
+    @PostMapping(path = "/face-images/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> importStudentFaceImages(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestPart("files") List<MultipartFile> files
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        return ResponseEntity.ok(userService.importFaceImages(files));
+    }
+
+    @PostMapping(path = "/face-images/import/jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> startStudentFaceImageImportJob(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestPart("files") List<MultipartFile> files
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        return ResponseEntity.accepted().body(faceImageImportJobService.start(files));
+    }
+
+    @GetMapping("/face-images/import/jobs/{jobId}")
+    public ResponseEntity<Object> getStudentFaceImageImportJob(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @PathVariable String jobId
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        return faceImageImportJobService.get(jobId)
+                .<ResponseEntity<Object>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/{id}/face-image")
     public ResponseEntity<Object> getStudentFaceImage(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
@@ -310,6 +347,24 @@ public class UserController {
                         .toList();
         FaceVerificationResponse response = userService.identifyFace(file, candidateStudentIds);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(path = "/profile/face/identify-many", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> identifyStudentFaces(
+            @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
+            @RequestPart(value = "studentCodes", required = false) String studentCodes,
+            @RequestPart("file") MultipartFile file
+    ) {
+        if (!isAdminOrSystem(role)) {
+            return forbidden();
+        }
+        List<String> candidateStudentIds = studentCodes == null || studentCodes.isBlank()
+                ? List.of()
+                : Arrays.stream(studentCodes.split(","))
+                        .map(String::trim)
+                        .filter(value -> !value.isBlank())
+                        .toList();
+        return ResponseEntity.ok(userService.identifyFaces(file, candidateStudentIds));
     }
 
     private boolean isAdminOrSystem(String role) {

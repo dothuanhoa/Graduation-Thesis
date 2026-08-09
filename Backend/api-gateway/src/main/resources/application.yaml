@@ -16,6 +16,8 @@ spring:
       port: ${REDIS_PORT:6379}
   cloud:
     gateway:
+      httpclient:
+        response-timeout: 300s
       globalcors:
         add-to-simple-url-handler-mapping: true
         corsConfigurations:

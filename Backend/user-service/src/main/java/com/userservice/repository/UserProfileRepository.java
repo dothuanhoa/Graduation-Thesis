@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
     List<UserProfile> findAllByOrderByStudentIdAsc();
     Optional<UserProfile> findByStudentId(String studentId);
+    Optional<UserProfile> findByStudentIdIgnoreCase(String studentId);
     List<UserProfile> findByStudentIdIn(Collection<String> studentIds);
     @Query("""
             select user from UserProfile user

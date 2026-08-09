@@ -10,6 +10,7 @@ import com.activityservice.dto.CheckerRequest;
 import com.activityservice.dto.CheckerResponse;
 import com.activityservice.dto.CheckinRequest;
 import com.activityservice.dto.FaceVerificationAdjustmentRequest;
+import com.activityservice.dto.FaceCheckinBatchResponse;
 import com.activityservice.dto.FaceVerificationResponse;
 import com.activityservice.dto.QrCheckinRequest;
 import com.activityservice.dto.QrSessionRequest;
@@ -32,6 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -277,7 +279,7 @@ public class ActivityService {
     }
 
     @Transactional
-    public RegistrationResponse faceCheckin(Long activityId, String currentUserRole, String currentUserCode, MultipartFile faceImage) {
+    public FaceCheckinBatchResponse faceCheckin(Long activityId, String currentUserRole, String currentUserCode, MultipartFile faceImage) {
         Activity activity = getActivity(activityId);
         if (activity.getStatus() != Activity.Status.ONGOING) {
             throw new BadRequestException("Chi duoc xac thuc khuon mat khi hoat dong dang dien ra");
@@ -287,42 +289,61 @@ public class ActivityService {
         }
 
         String candidateStudentCodes = resolveFaceIdentificationCandidates(activity);
-        FaceVerificationResponse verification;
+        List<FaceVerificationResponse> verifications;
         try {
-            verification = userClient.identifyStudentFace(INTERNAL_ROLE, INTERNAL_USER_CODE, candidateStudentCodes, faceImage);
+            verifications = userClient.identifyStudentFaces(INTERNAL_ROLE, INTERNAL_USER_CODE, candidateStudentCodes, faceImage);
         } catch (FeignException.NotFound ex) {
             throw new BadRequestException("Khong tim thay anh khuon mat mau de xac thuc");
         } catch (FeignException ex) {
             throw new BadRequestException("Khong nhan dien duoc khuon mat sinh vien, vui long thu lai");
         }
-        if (verification == null || !verification.isVerified() || verification.getStudentId() == null || verification.getStudentId().isBlank()) {
-            String detail = verification != null && verification.getSimilarity() != null
-                    ? " Do tuong dong: " + String.format(Locale.ROOT, "%.2f", verification.getSimilarity()) + "%"
-                    : "";
-            throw new BadRequestException("Khong nhan dien duoc khuon mat sinh vien trong hoat dong nay." + detail);
+        if (verifications == null || verifications.isEmpty()) {
+            throw new BadRequestException("Không nhận diện được khuôn mặt sinh viên trong hoạt động này");
         }
 
-        UserProfileDTO studentProfile = new UserProfileDTO();
-        studentProfile.setId(verification.getUserId());
-        studentProfile.setStudentId(verification.getStudentId().trim());
-        studentProfile.setFullName(verification.getFullName() == null || verification.getFullName().isBlank()
-                ? verification.getStudentId().trim()
-                : verification.getFullName().trim());
-        ActivityRegistration registration = resolveFaceCheckinRegistration(activity, studentProfile);
-        if (registration.isFaceVerified()) {
-            throw new BadRequestException("Sinh vien " + registration.getStudentCode() + " da diem danh xac thuc khuon mat dau vao");
-        }
-        syncRegistrationIdentity(registration, studentProfile);
-        LocalDateTime now = LocalDateTime.now();
-        registration.setFaceVerified(true);
-        registration.setFaceVerifiedTime(now);
-        if (registration.getCheckinTime() == null) {
-            registration.setCheckinTime(now);
-        }
-        registration.setFaceVerifiedBy(currentUserCode);
+        List<RegistrationResponse> checkedIn = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        for (FaceVerificationResponse verification : verifications) {
+            if (verification == null || !verification.isVerified()
+                    || verification.getStudentId() == null || verification.getStudentId().isBlank()) {
+                continue;
+            }
+            String studentCode = verification.getStudentId().trim();
+            try {
+                UserProfileDTO studentProfile = new UserProfileDTO();
+                studentProfile.setId(verification.getUserId());
+                studentProfile.setStudentId(studentCode);
+                studentProfile.setFullName(verification.getFullName() == null || verification.getFullName().isBlank()
+                        ? studentCode
+                        : verification.getFullName().trim());
+                ActivityRegistration registration = resolveFaceCheckinRegistration(activity, studentProfile);
+                if (registration.isFaceVerified()) {
+                    skipped.add(studentCode + ": đã điểm danh khuôn mặt trước đó");
+                    continue;
+                }
+                syncRegistrationIdentity(registration, studentProfile);
+                LocalDateTime now = LocalDateTime.now();
+                registration.setFaceVerified(true);
+                registration.setFaceVerifiedTime(now);
+                if (registration.getCheckinTime() == null) {
+                    registration.setCheckinTime(now);
+                }
+                registration.setFaceVerifiedBy(currentUserCode);
         registration.setFaceVerificationNote("Xác thực khuôn mặt đầu vào");
         refreshAttendanceResult(activity, registration, now);
-        return toRegistrationResponse(registrationRepository.save(registration));
+                checkedIn.add(toRegistrationResponse(registrationRepository.save(registration)));
+            } catch (BadRequestException | ResourceNotFoundException ex) {
+                skipped.add(studentCode + ": " + ex.getMessage());
+            }
+        }
+
+        return FaceCheckinBatchResponse.builder()
+                .recognizedCount(verifications.size())
+                .checkedInCount(checkedIn.size())
+                .skippedCount(skipped.size())
+                .registrations(checkedIn)
+                .skipped(skipped)
+                .build();
     }
 
     @Transactional
@@ -422,6 +443,7 @@ public class ActivityService {
 
         List<String> registeredStudentCodes = registrationRepository.findByActivityIdOrderByStudentCodeAsc(activity.getId())
                 .stream()
+                .filter(registration -> !registration.isFaceVerified())
                 .map(ActivityRegistration::getStudentCode)
                 .filter(studentCode -> studentCode != null && !studentCode.isBlank())
                 .map(String::trim)

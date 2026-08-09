@@ -8,6 +8,7 @@ import com.activityservice.dto.CheckerRequest;
 import com.activityservice.dto.CheckerResponse;
 import com.activityservice.dto.CheckinRequest;
 import com.activityservice.dto.FaceVerificationAdjustmentRequest;
+import com.activityservice.dto.FaceCheckinBatchResponse;
 import com.activityservice.dto.QrCheckinRequest;
 import com.activityservice.dto.QrSessionRequest;
 import com.activityservice.dto.QrSessionResponse;
@@ -175,7 +176,7 @@ public class ActivityController {
     }
 
     @PostMapping(path = "/{id}/face-checkin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<RegistrationResponse> faceCheckin(
+    public ResponseEntity<FaceCheckinBatchResponse> faceCheckin(
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role,
             @RequestHeader(value = "X-User-Code") String currentUserCode,
             @PathVariable Long id,

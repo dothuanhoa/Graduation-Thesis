@@ -127,19 +127,46 @@ class ActivityServiceTest {
         when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
         when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
                 .thenReturn(true);
-        when(userClient.identifyStudentFace("SYSTEM", "activity-service", "", faceImage))
-                .thenReturn(verifiedFace());
+        when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
+                .thenReturn(List.of(verifiedFace()));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
 
-        assertThat(response.getStudentCode()).isEqualTo("DH52201258");
-        assertThat(response.getUserTsid()).isEqualTo("1001");
-        assertThat(response.isFaceVerified()).isTrue();
-        assertThat(response.isAttended()).isTrue();
-        assertThat(response.getCheckinTime()).isNotNull();
-        assertThat(response.getAttendanceResult()).isEqualTo(ActivityRegistration.AttendanceResult.ATTENDED);
+        assertThat(response.getCheckedInCount()).isEqualTo(1);
+        assertThat(response.getRegistrations()).singleElement().satisfies(registrationResponse -> {
+            assertThat(registrationResponse.getStudentCode()).isEqualTo("DH52201258");
+            assertThat(registrationResponse.getUserTsid()).isEqualTo("1001");
+            assertThat(registrationResponse.isFaceVerified()).isTrue();
+            assertThat(registrationResponse.isAttended()).isTrue();
+            assertThat(registrationResponse.getCheckinTime()).isNotNull();
+            assertThat(registrationResponse.getAttendanceResult()).isEqualTo(ActivityRegistration.AttendanceResult.ATTENDED);
+        });
+    }
+
+    @Test
+    void groupFaceCheckinMarksMultipleRecognizedStudentsAtOnce() {
+        Activity activity = activity(1L, Activity.ParticipationType.OPEN, Activity.Status.ONGOING);
+        MockMultipartFile faceImage = new MockMultipartFile("file", "group.jpg", "image/jpeg", "fake".getBytes());
+        FaceVerificationResponse first = verifiedFace("1001", "DH52201258", "Tran Thanh Hoai Phuc");
+        FaceVerificationResponse second = verifiedFace("1002", "DH52201259", "Nguyen Van A");
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
+        when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
+                .thenReturn(true);
+        when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
+                .thenReturn(List.of(first, second));
+        when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
+        when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201259")).thenReturn(Optional.empty());
+        when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
+
+        assertThat(response.getRecognizedCount()).isEqualTo(2);
+        assertThat(response.getCheckedInCount()).isEqualTo(2);
+        assertThat(response.getRegistrations()).extracting("studentCode")
+                .containsExactly("DH52201258", "DH52201259");
+        verify(registrationRepository, org.mockito.Mockito.times(4)).save(any(ActivityRegistration.class));
     }
 
     @Test
@@ -155,14 +182,15 @@ class ActivityServiceTest {
         when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
         when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
                 .thenReturn(true);
-        when(userClient.identifyStudentFace("SYSTEM", "activity-service", "", faceImage))
-                .thenReturn(verifiedFace());
+        when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
+                .thenReturn(List.of(verifiedFace()));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
 
-        assertThatThrownBy(() -> service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("da diem danh");
+        var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
+
+        assertThat(response.getCheckedInCount()).isZero();
+        assertThat(response.getSkipped()).singleElement().asString().contains("DH52201258");
         assertThat(registration.getCheckinTime()).isEqualTo(firstCheckinTime);
         verify(registrationRepository, never()).save(any(ActivityRegistration.class));
     }
@@ -178,17 +206,17 @@ class ActivityServiceTest {
         when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
                 .thenReturn(true);
         when(registrationRepository.findByActivityIdOrderByStudentCodeAsc(1L)).thenReturn(List.of(registration));
-        when(userClient.identifyStudentFace("SYSTEM", "activity-service", "DH52201258", faceImage))
-                .thenReturn(verifiedFace());
+        when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "DH52201258", faceImage))
+                .thenReturn(List.of(verifiedFace()));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
 
-        assertThat(response.getUserTsid()).isEqualTo("1001");
+        assertThat(response.getRegistrations()).singleElement().extracting("userTsid").isEqualTo("1001");
         assertThat(registration.getUserTsid()).isEqualTo("1001");
-        assertThat(response.getCheckinTime()).isNotNull();
+        assertThat(response.getRegistrations().get(0).getCheckinTime()).isNotNull();
     }
 
     @Test
@@ -200,12 +228,14 @@ class ActivityServiceTest {
                 .thenReturn(true);
         ActivityRegistration otherRegistration = registration(activity, "DH52209999", "Nguyen Van A");
         when(registrationRepository.findByActivityIdOrderByStudentCodeAsc(1L)).thenReturn(List.of(otherRegistration));
-        when(userClient.identifyStudentFace("SYSTEM", "activity-service", "DH52209999", faceImage))
-                .thenReturn(verifiedFace());
+        when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "DH52209999", faceImage))
+                .thenReturn(List.of(verifiedFace()));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage))
-                .isInstanceOf(ResourceNotFoundException.class);
+        var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
+
+        assertThat(response.getCheckedInCount()).isZero();
+        assertThat(response.getSkippedCount()).isEqualTo(1);
         verify(registrationRepository, never()).save(any(ActivityRegistration.class));
     }
 
@@ -446,11 +476,15 @@ class ActivityServiceTest {
     }
 
     private FaceVerificationResponse verifiedFace() {
+        return verifiedFace("1001", "DH52201258", "Tran Thanh Hoai Phuc");
+    }
+
+    private FaceVerificationResponse verifiedFace(String userId, String studentId, String fullName) {
         FaceVerificationResponse response = new FaceVerificationResponse();
         response.setVerified(true);
-        response.setUserId(1001L);
-        response.setStudentId("DH52201258");
-        response.setFullName("Tran Thanh Hoai Phuc");
+        response.setUserId(Long.valueOf(userId));
+        response.setStudentId(studentId);
+        response.setFullName(fullName);
         response.setSimilarity(99F);
         response.setThreshold(80F);
         return response;
