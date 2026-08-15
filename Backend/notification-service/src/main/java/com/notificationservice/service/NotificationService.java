@@ -119,7 +119,7 @@ public class NotificationService {
 
     private void normalizeAndValidateTarget(NotificationRequest request) {
         if (request.getTargetType() == Notification.TargetType.USER) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hệ thống không còn hỗ trợ gửi thông báo theo từng USER");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hệ thống không còn hỗ trợ gửi thông báo theo từng người dùng riêng lẻ");
         }
 
         if (request.getTargetType() == Notification.TargetType.ALL) {

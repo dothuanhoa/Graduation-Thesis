@@ -39,7 +39,7 @@ public class FaceImageImportJobService {
 
     public FaceImageImportProgress start(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
-            throw new BadRequestException("Vui lòng chọn một folder ảnh sinh viên");
+            throw new BadRequestException("Vui lòng chọn một thư mục ảnh sinh viên");
         }
         if (files.size() > maxBulkFiles) {
             throw new BadRequestException("Mỗi lần chỉ được gửi tối đa " + maxBulkFiles + " ảnh");
@@ -61,7 +61,7 @@ public class FaceImageImportJobService {
                 .totalFiles(files.size())
                 .processedFiles(0)
                 .progressPercent(0)
-                .message("Đã nhận folder ảnh, đang chờ xử lý.")
+                .message("Đã nhận thư mục ảnh, đang chờ xử lý.")
                 .startedAt(Instant.now())
                 .build();
         jobs.put(jobId, progress);
@@ -99,7 +99,7 @@ public class FaceImageImportJobService {
         } catch (Exception ex) {
             progress.setStatus(FaceImageImportProgress.Status.FAILED);
             progress.setError(ex.getMessage());
-            progress.setMessage("Import folder ảnh chưa hoàn tất. Vui lòng kiểm tra và thử lại.");
+            progress.setMessage("Nhập thư mục ảnh chưa hoàn tất. Vui lòng kiểm tra và thử lại.");
             progress.setFinishedAt(Instant.now());
         } finally {
             deleteDirectory(jobDirectory);
@@ -120,7 +120,7 @@ public class FaceImageImportJobService {
         try {
             return Files.createTempDirectory("student-face-import-").toAbsolutePath().normalize();
         } catch (IOException ex) {
-            throw new BadRequestException("Không tạo được thư mục tạm để xử lý folder ảnh");
+            throw new BadRequestException("Không tạo được thư mục tạm để xử lý thư mục ảnh");
         }
     }
 
@@ -129,7 +129,7 @@ public class FaceImageImportJobService {
         for (int index = 0; index < files.size(); index++) {
             MultipartFile file = files.get(index);
             if (file == null) {
-                throw new BadRequestException("Folder ảnh chứa file không hợp lệ");
+                throw new BadRequestException("Thư mục ảnh chứa file không hợp lệ");
             }
             Path target = jobDirectory.resolve(String.format("%04d.upload", index)).normalize();
             if (!target.startsWith(jobDirectory)) {

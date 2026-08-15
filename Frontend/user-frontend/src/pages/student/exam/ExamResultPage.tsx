@@ -73,7 +73,7 @@ function ExamResultPage() {
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               <div className="rounded-xl bg-surface-container-low p-5">
                 <p className="text-sm text-on-surface-variant">Điểm</p>
-                <p className="mt-2 text-4xl font-bold text-primary">{result.score ?? "N/A"}</p>
+                <p className="mt-2 text-4xl font-bold text-primary">{result.score ?? "Chưa có"}</p>
               </div>
               <div className="rounded-xl bg-surface-container-low p-5">
                 <p className="text-sm text-on-surface-variant">Số câu đúng</p>

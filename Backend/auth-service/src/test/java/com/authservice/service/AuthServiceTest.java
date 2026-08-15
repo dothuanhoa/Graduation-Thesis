@@ -2,6 +2,7 @@ package com.authservice.service;
 
 import com.authservice.domain.AuthUser;
 import com.authservice.dto.BulkRegisterMessage;
+import com.authservice.dto.ChangePasswordRequest;
 import com.authservice.dto.LoginRequest;
 import com.authservice.repository.AuthUserRepository;
 import com.authservice.repository.PasswordResetTokenRepository;
@@ -131,6 +132,34 @@ class AuthServiceTest {
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
 
         verify(accountEmailService, never()).sendForgotPasswordEmail(any(), any(), any(), any(Long.class));
+    }
+
+    @Test
+    void firstChangePasswordRejectsWeakPasswordWithMissingConditions() {
+        AuthUser user = activeStudent("DH52201258", "dh52201258@student.edu.vn");
+        user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.setUsername("DH52201258");
+        request.setOldPassword("temporary-password");
+        request.setNewPassword("abc");
+
+        when(authUserRepository.findByUsername("DH52201258")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("temporary-password", user.getPasswordHash())).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.firstChangePassword(request))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException responseException = (ResponseStatusException) ex;
+                    assertThat(responseException.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(responseException.getReason())
+                            .contains("ít nhất 8 ký tự")
+                            .contains("1 chữ hoa")
+                            .contains("1 chữ số")
+                            .contains("1 ký tự đặc biệt");
+                });
+
+        verify(passwordEncoder, never()).encode(any());
+        verify(authUserRepository, never()).save(any());
     }
 
     @Test

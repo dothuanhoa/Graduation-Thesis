@@ -23,7 +23,7 @@ public class NotificationController {
             @RequestHeader(value = "X-User-Role", defaultValue = "STUDENT") String role) {
 
         if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền xem danh sách bảng tin");
+            return ResponseEntity.status(403).body("Chỉ quản trị viên mới có quyền xem danh sách bảng tin");
         }
         return ResponseEntity.ok(notificationService.getAllNotifications());
     }
@@ -35,7 +35,7 @@ public class NotificationController {
             @Valid @RequestBody NotificationRequest request) {
         
         if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền tạo bảng tin");
+            return ResponseEntity.status(403).body("Chỉ quản trị viên mới có quyền tạo bảng tin");
         }
         return ResponseEntity.ok(notificationService.createNotification(request, adminId));
     }
@@ -47,7 +47,7 @@ public class NotificationController {
             @Valid @RequestBody NotificationRequest request) {
             
         if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền sửa bảng tin");
+            return ResponseEntity.status(403).body("Chỉ quản trị viên mới có quyền sửa bảng tin");
         }
         return ResponseEntity.ok(notificationService.updateNotification(id, request));
     }
@@ -58,7 +58,7 @@ public class NotificationController {
             @PathVariable Long id) {
             
         if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403).body("Chỉ Admin mới có quyền thu hồi bảng tin");
+            return ResponseEntity.status(403).body("Chỉ quản trị viên mới có quyền thu hồi bảng tin");
         }
         notificationService.revokeNotification(id);
         return ResponseEntity.noContent().build();

@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -23,8 +24,63 @@ import {
   type UserProfile,
 } from "../../../services/api";
 import { normalizeCertificateCode } from "../../../utils/certificateUtils";
+import {
+  reportFormError,
+  scrollToFormMessage,
+} from "../../../utils/formFeedback";
 
 type CertificateMetadata = Record<string, string>;
+type RequiredMetadataField = {
+  key: string;
+  label: string;
+};
+
+const commonRequiredFields: RequiredMetadataField[] = [
+  { key: "fullName", label: "Họ và tên" },
+  { key: "studentId", label: "Mã số sinh viên" },
+  { key: "dob", label: "Ngày sinh" },
+  { key: "gender", label: "Giới tính" },
+  { key: "contactPhone", label: "Số điện thoại" },
+  { key: "classCode", label: "Lớp" },
+  { key: "facultyName", label: "Khoa" },
+  { key: "educationLevel", label: "Hệ đào tạo" },
+  { key: "trainingType", label: "Hệ đào tạo" },
+  { key: "requestDate", label: "Ngày làm đơn" },
+];
+
+const requiredFieldsByFormCode: Record<string, RequiredMetadataField[]> = {
+  NVQS: [
+    { key: "permanentAddress", label: "Hộ khẩu thường trú" },
+    { key: "academicYear", label: "Khóa học" },
+    { key: "requestSchoolYear", label: "Năm học" },
+    { key: "reason", label: "Lý do xác nhận" },
+  ],
+  KHAC: [
+    { key: "permanentAddress", label: "Hộ khẩu thường trú" },
+    { key: "reason", label: "Lý do/yêu cầu xác nhận" },
+    { key: "deductionType", label: "Xác nhận giảm trừ gia cảnh" },
+  ],
+  VAY_VON: [
+    { key: "cmnd", label: "CMND/CCCD" },
+    { key: "issueDate", label: "Ngày cấp CMND/CCCD" },
+    { key: "issuePlace", label: "Nơi cấp CMND/CCCD" },
+    { key: "schoolCode", label: "Mã trường" },
+    { key: "schoolName", label: "Tên trường" },
+    { key: "major", label: "Ngành học" },
+    { key: "academicYear", label: "Khóa học" },
+    { key: "enrollmentDate", label: "Ngày nhập học" },
+    { key: "graduationMonth", label: "Tháng ra trường dự kiến" },
+    { key: "graduationYear", label: "Năm ra trường dự kiến" },
+    { key: "studyDurationMonths", label: "Thời gian học tại trường" },
+    { key: "monthlyTuition", label: "Học phí hằng tháng" },
+    { key: "tuitionSupportType", label: "Diện miễn/giảm học phí" },
+    { key: "orphanStatus", label: "Đối tượng mồ côi" },
+    { key: "bankAccount", label: "Số tài khoản của nhà trường" },
+    { key: "principalName", label: "Người ký xác nhận" },
+  ],
+};
+
+const phonePattern = /^\s*(0|\+84)\d{8,10}\s*$/;
 
 const getCurrentSemesterStr = () => {
   const now = new Date();
@@ -40,6 +96,72 @@ const getCurrentSchoolYear = () => {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const getRequiredFields = (formCode: string) => [
+  ...commonRequiredFields,
+  ...(requiredFieldsByFormCode[formCode] ?? requiredFieldsByFormCode.KHAC),
+];
+
+const metadataValue = (metadata: CertificateMetadata, key: string) =>
+  (metadata[key] || "").trim();
+
+const validateMetadataForForm = (
+  formCode: string,
+  metadata: CertificateMetadata,
+) => {
+  const missingFields = getRequiredFields(formCode)
+    .filter((field) => !metadataValue(metadata, field.key))
+    .map((field) => field.label);
+
+  if (missingFields.length > 0) {
+    return `Vui lòng nhập đầy đủ thông tin trên đơn: ${missingFields.join(", ")}.`;
+  }
+
+  const contactPhone = metadataValue(metadata, "contactPhone");
+  if (!phonePattern.test(contactPhone)) {
+    return "Số điện thoại liên hệ không hợp lệ.";
+  }
+
+  if (formCode === "VAY_VON") {
+    const graduationMonth = Number(metadataValue(metadata, "graduationMonth"));
+    const graduationYear = Number(metadataValue(metadata, "graduationYear"));
+    const studyDurationMonths = Number(
+      metadataValue(metadata, "studyDurationMonths"),
+    );
+    const monthlyTuition = Number(metadataValue(metadata, "monthlyTuition"));
+
+    if (
+      !Number.isInteger(graduationMonth) ||
+      graduationMonth < 1 ||
+      graduationMonth > 12
+    ) {
+      return "Tháng ra trường dự kiến phải từ 1 đến 12.";
+    }
+    if (
+      !Number.isInteger(graduationYear) ||
+      graduationYear < 2000 ||
+      graduationYear > 2100
+    ) {
+      return "Năm ra trường dự kiến phải từ 2000 đến 2100.";
+    }
+    if (
+      !Number.isInteger(studyDurationMonths) ||
+      studyDurationMonths < 1 ||
+      studyDurationMonths > 120
+    ) {
+      return "Thời gian học tại trường phải từ 1 đến 120 tháng.";
+    }
+    if (
+      !Number.isInteger(monthlyTuition) ||
+      monthlyTuition < 1 ||
+      monthlyTuition > 100_000_000
+    ) {
+      return "Học phí hằng tháng phải là số tiền hợp lệ.";
+    }
+  }
+
+  return "";
+};
 
 const isSupportedCertificateType = (type: FormType) => {
   const raw = `${type.formCode || ""} ${type.name || ""}`
@@ -61,6 +183,7 @@ const getInitialMetadata = (
   formType?: FormType,
 ): CertificateMetadata => {
   const formCode = normalizeCertificateCode(formType?.formCode, formType?.name);
+  const academicYear = profile?.clazz?.academicYear?.yearName || "";
   const common: CertificateMetadata = {
     formCode,
     fullName: profile?.fullName || "",
@@ -80,6 +203,7 @@ const getInitialMetadata = (
       "",
     educationLevel: "Đại học",
     trainingType: "Chính quy",
+    academicYear,
     semester: getCurrentSemesterStr(),
     schoolYear: getCurrentSchoolYear(),
     requestSchoolYear: getCurrentSchoolYear(),
@@ -125,6 +249,7 @@ function StudentCertificateRequestPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const messageRef = useRef<HTMLDivElement | null>(null);
 
   const selectedFormType = useMemo(
     () => formTypes.find((type) => String(type.id) === String(formTypeId)),
@@ -188,13 +313,18 @@ function StudentCertificateRequestPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const showError = (errorMessage: string) => {
+      setMessage(errorMessage);
+      reportFormError(errorMessage, messageRef.current);
+    };
+
     if (!selectedFormType) {
-      setMessage("Vui lòng chọn loại đơn xác nhận.");
+      showError("Vui lòng chọn loại đơn xác nhận.");
       return;
     }
 
     if (!metadata.contactPhone?.trim()) {
-      setMessage("Vui lòng nhập số điện thoại liên hệ trên đơn.");
+      showError("Vui lòng nhập số điện thoại liên hệ trên đơn.");
       return;
     }
 
@@ -206,8 +336,23 @@ function StudentCertificateRequestPage() {
       metadata.reason?.trim() ||
       (formCode === "VAY_VON" ? "Vay vốn sinh viên" : "");
 
+    const preparedMetadata: CertificateMetadata = {
+      ...metadata,
+      reason: requestReason,
+      contactPhone: metadata.contactPhone?.trim() || "",
+      semester: metadata.semester?.trim() || getCurrentSemesterStr(),
+      formTypeName: selectedFormType.name,
+      formCode,
+    };
+
     if (!requestReason) {
-      setMessage("Vui lòng nhập lý do/yêu cầu xác nhận trên đơn.");
+      showError("Vui lòng nhập lý do/yêu cầu xác nhận trên đơn.");
+      return;
+    }
+
+    const metadataError = validateMetadataForForm(formCode, preparedMetadata);
+    if (metadataError) {
+      showError(metadataError);
       return;
     }
 
@@ -225,15 +370,10 @@ function StudentCertificateRequestPage() {
       const payload: CreateConfirmationRequestPayload = {
         formTypeId: selectedFormType.id,
         reason: requestReason,
-        contactPhone: metadata.contactPhone,
-        semester: metadata.semester || getCurrentSemesterStr(),
+        contactPhone: preparedMetadata.contactPhone,
+        semester: preparedMetadata.semester,
         proofFileUrl,
-        metadata: {
-          ...metadata,
-          reason: requestReason,
-          formTypeName: selectedFormType.name,
-          formCode,
-        },
+        metadata: preparedMetadata,
       };
 
       await certificationRequestApi.create(payload);
@@ -244,6 +384,7 @@ function StudentCertificateRequestPage() {
           ? err.message
           : "Đã có lỗi xảy ra khi tạo yêu cầu.",
       );
+      scrollToFormMessage(messageRef.current);
       setSubmitting(false);
     }
   };
@@ -266,7 +407,11 @@ function StudentCertificateRequestPage() {
       />
 
       {message && (
-        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+        <div
+          className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary"
+          data-form-message
+          ref={messageRef}
+        >
           {message}
         </div>
       )}

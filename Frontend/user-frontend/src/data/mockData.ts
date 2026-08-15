@@ -367,8 +367,8 @@ export const adminModuleMeta: Record<string, ModuleMeta> = {
     kind: "form",
   },
   studentsImport: {
-    title: "Import sinh viên từ Excel",
-    subtitle: "Tải file theo mẫu, validate dữ liệu và tạo tài khoản hàng loạt.",
+    title: "Nhập sinh viên từ Excel",
+    subtitle: "Tải file theo mẫu, kiểm tra dữ liệu và tạo tài khoản hàng loạt.",
     module: "Sinh viên",
     kind: "form",
   },
@@ -403,7 +403,7 @@ export const adminModuleMeta: Record<string, ModuleMeta> = {
     subtitle: "Quản lý câu hỏi và đáp án trắc nghiệm theo từng kỳ thi.",
     module: "Kỳ thi",
     kind: "table",
-    actionLabel: "Import câu hỏi",
+    actionLabel: "Nhập câu hỏi",
   },
   examResults: {
     title: "Kết quả kỳ thi",
@@ -413,7 +413,7 @@ export const adminModuleMeta: Record<string, ModuleMeta> = {
   },
   activities: {
     title: "Quản lý hoạt động",
-    subtitle: "Tạo sự kiện, import đăng ký và theo dõi trạng thái.",
+    subtitle: "Tạo sự kiện, nhập đăng ký và theo dõi trạng thái.",
     module: "Hoạt động",
     kind: "table",
     actionLabel: "Tạo hoạt động",
@@ -426,7 +426,7 @@ export const adminModuleMeta: Record<string, ModuleMeta> = {
   },
   activityDetail: {
     title: "Chi tiết hoạt động đăng ký",
-    subtitle: "Danh sách đăng ký hợp lệ, checker và dữ liệu điểm danh.",
+    subtitle: "Danh sách đăng ký hợp lệ, người điểm danh và dữ liệu điểm danh.",
     module: "Hoạt động",
     kind: "detail",
   },
@@ -498,7 +498,7 @@ export const adminModuleMeta: Record<string, ModuleMeta> = {
   },
   users: {
     title: "Quản lý người dùng nội bộ",
-    subtitle: "Tài khoản chuyên viên CTSV, quản trị và checker.",
+    subtitle: "Tài khoản chuyên viên CTSV, quản trị và người điểm danh.",
     module: "Cài đặt",
     kind: "table",
   },

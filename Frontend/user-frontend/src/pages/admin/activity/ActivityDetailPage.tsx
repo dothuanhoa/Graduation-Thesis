@@ -1,7 +1,6 @@
 import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import {
   Download,
-  MapPin,
   PlayCircle,
   QrCode,
   Save,
@@ -42,7 +41,6 @@ import {
   toInputDateTime,
 } from "../../../utils/activityUi";
 import { exportXlsxFile, safeFileName } from "../../../utils/xlsxExport";
-import { getCurrentBrowserLocation } from "../../../utils/geolocation";
 import { toUserFacingMessage } from "../../../utils/messages";
 import { emitToast } from "../../../utils/toastBus";
 import {
@@ -142,23 +140,57 @@ const attendanceResultLabels: Record<string, string> = {
   ATTENDED: "\u0110\u00e3 \u0111i\u1ec3m danh",
 };
 
+const activityCategoryOptions = Object.entries(activityCategoryLabels).map(
+  ([value, label]) => ({ value, label }),
+);
+
 const formatAttendanceResult = (registration: ActivityRegistrationResponse) =>
   attendanceResultLabels[registration.attendanceResult || ""] ||
   (registration.attended
     ? "\u0110\u00e3 \u0111i\u1ec3m danh"
     : "Ch\u01b0a \u0111i\u1ec3m danh");
 
-const formatAttendanceMark = (done: boolean, time?: string) =>
-  done ? `C\u00f3${time ? ` - ${formatDateTime(time)}` : ""}` : "-";
+const exportSortCollator = new Intl.Collator("vi-VN", {
+  numeric: true,
+  sensitivity: "base",
+});
 
-const formatDistanceMeters = (distance?: number) => {
-  if (distance === undefined || distance === null || Number.isNaN(distance))
-    return "-";
-  return `${Math.round(distance)} m`;
+const formatExportAttendanceStatus = (
+  registration: ActivityRegistrationResponse,
+) => {
+  if (registration.attendanceResult === "ATTENDED") {
+    return "Đủ";
+  }
+  if (
+    registration.attendanceResult === "NOT_ATTENDED" ||
+    (!registration.attendanceResult && !registration.attended)
+  ) {
+    return "Vắng";
+  }
+  return "Thiếu";
 };
 
-const formatLocationMark = (verified?: boolean, distance?: number) =>
-  verified ? `Hợp lệ - ${formatDistanceMeters(distance)}` : "-";
+const formatExportResult = (
+  activity: ActivityResponse,
+  registration: ActivityRegistrationResponse,
+) =>
+  formatExportAttendanceStatus(registration) === "Đủ"
+    ? activity.reward || ""
+    : "Xử lý kỷ luật";
+
+const compareExportRegistrations = (
+  left: ActivityRegistrationResponse,
+  right: ActivityRegistrationResponse,
+) => {
+  const leftClass = left.classCode || "\uffff";
+  const rightClass = right.classCode || "\uffff";
+  const classCompare = exportSortCollator.compare(leftClass, rightClass);
+  if (classCompare !== 0) return classCompare;
+  return exportSortCollator.compare(left.studentCode || "", right.studentCode || "");
+};
+
+const formatAttendanceMark = (done: boolean, time?: string) =>
+  done ? `C\u00f3${time ? ` - ${formatDateTime(time)}` : ""}` : "-";
 
 const toQrImageDataUrl = (payload: string) => {
   const matrix = new QRCodeWriter().encode(
@@ -322,10 +354,9 @@ function ActivityDetailPage() {
     useState<ActivityCheckerPayload>(emptyChecker);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingActivityDetail, setExportingActivityDetail] = useState(false);
   const [message, setMessage] = useState("");
   const [qrTtlMinutes, setQrTtlMinutes] = useState("10");
-  const [qrLocationRequired, setQrLocationRequired] = useState(true);
-  const [qrRadiusMeters, setQrRadiusMeters] = useState("100");
   const [qrSession, setQrSession] = useState<ActivityQrSessionResponse | null>(
     null,
   );
@@ -501,153 +532,128 @@ function ActivityDetailPage() {
     }
   };
 
-  const exportActivityDetail = () => {
+  const resolveRegistrationClassCode = async (
+    registration: ActivityRegistrationResponse,
+  ) => {
+    if (registration.classCode?.trim()) {
+      return registration.classCode.trim();
+    }
+
+    const profileFromList = studentProfiles.find(
+      (profile) =>
+        normalizeLookupText(profile.studentId) ===
+        normalizeLookupText(registration.studentCode),
+    );
+    const listClassCode = profileFromList?.clazz?.classCode?.trim();
+    if (listClassCode) {
+      return listClassCode;
+    }
+
+    try {
+      const profile = await userApi.getByStudentId(registration.studentCode, {
+        suppressToast: true,
+      });
+      return profile?.clazz?.classCode?.trim() || "";
+    } catch {
+      return "";
+    }
+  };
+
+  const exportActivityDetail = async () => {
     if (!activity) return;
+    if (activity.status !== "COMPLETED") {
+      const userMessage = "Chỉ xuất Excel khi hoạt động đã hoàn thành.";
+      setMessage(userMessage);
+      emitToast({ variant: "warning", message: userMessage });
+      return;
+    }
 
     const participationType = activity.participationType || "LIMITED";
     const attendanceCount =
       activity.attendanceSessionCount || (participationType === "OPEN" ? 1 : 2);
-    const attended = registrations.filter(
-      (registration) => registration.attended,
-    ).length;
-    const incomplete = registrations.filter(
-      (registration) => registration.attendanceResult === "INCOMPLETE",
-    ).length;
-    const faceMissing = registrations.filter(
-      (registration) => registration.attendanceResult === "FACE_NOT_VERIFIED",
-    ).length;
-    const notAttended = registrations.filter(
-      (registration) =>
-        registration.attendanceResult === "NOT_ATTENDED" ||
-        (!registration.attendanceResult && !registration.attended),
-    ).length;
-    const detailHeader = [
-      "MSSV",
-      "H\u1ecd t\u00ean",
-      "X\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t",
-    ];
-    if (attendanceCount === 3)
-      detailHeader.push("QR gi\u1eefa gi\u1edd", "Vị trí giữa giờ");
-    if (attendanceCount >= 2)
-      detailHeader.push("QR cu\u1ed1i gi\u1edd", "Vị trí cuối giờ");
-    detailHeader.push("K\u1ebft qu\u1ea3", "Th\u1eddi gian cu\u1ed1i");
 
-    exportXlsxFile(
-      `tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`,
-      [
-        {
-          name: "Tong ket",
-          rows: [
-            ["Ho\u1ea1t \u0111\u1ed9ng", activity.title],
-            ["Lo\u1ea1i", activityCategoryLabels[activity.category]],
-            [
-              "H\u00ecnh th\u1ee9c",
-              activityParticipationLabels[participationType],
+    setExportingActivityDetail(true);
+    setMessage("Đang chuẩn bị file Excel tổng kết hoạt động...");
+    try {
+      const enrichedRegistrations = await Promise.all(
+        registrations.map(async (registration) => ({
+          ...registration,
+          classCode: await resolveRegistrationClassCode(registration),
+        })),
+      );
+      setRegistrations(enrichedRegistrations);
+
+      const sortedRegistrations = [...enrichedRegistrations].sort(
+        compareExportRegistrations,
+      );
+      const attended = sortedRegistrations.filter(
+        (registration) => formatExportAttendanceStatus(registration) === "Đủ",
+      ).length;
+      const incomplete = sortedRegistrations.filter(
+        (registration) => formatExportAttendanceStatus(registration) === "Thiếu",
+      ).length;
+      const absent = sortedRegistrations.filter(
+        (registration) => formatExportAttendanceStatus(registration) === "Vắng",
+      ).length;
+
+      exportXlsxFile(
+        `tong-ket-hoat-dong-${safeFileName(activity.title || "hoat-dong")}.xlsx`,
+        [
+          {
+            name: "Tong ket",
+            rows: [
+              ["Hoạt động", activity.title],
+              ["Loại", activityCategoryLabels[activity.category]],
+              ["Hình thức", activityParticipationLabels[participationType]],
+              ["Số lần điểm danh", attendanceCount],
+              [
+                "Mở đăng ký",
+                participationType === "LIMITED"
+                  ? formatDateTime(activity.registrationStartTime)
+                  : "Không áp dụng",
+              ],
+              [
+                "Đóng đăng ký",
+                participationType === "LIMITED"
+                  ? formatDateTime(activity.registrationEndTime)
+                  : "Không áp dụng",
+              ],
+              ["Thời gian bắt đầu", formatDateTime(activity.startTime)],
+              ["Thời gian kết thúc", formatDateTime(activity.endTime)],
+              ["Địa điểm", activity.location || ""],
+              ["Điểm cộng", activity.reward || ""],
+              ["Tổng số sinh viên", sortedRegistrations.length],
+              ["Đủ", attended],
+              ["Thiếu", incomplete],
+              ["Vắng", absent],
             ],
-            ["S\u1ed1 l\u1ea7n \u0111i\u1ec3m danh", attendanceCount],
-            [
-              "M\u1edf \u0111\u0103ng k\u00fd",
-              participationType === "LIMITED"
-                ? formatDateTime(activity.registrationStartTime)
-                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
-            ],
-            [
-              "\u0110\u00f3ng \u0111\u0103ng k\u00fd",
-              participationType === "LIMITED"
-                ? formatDateTime(activity.registrationEndTime)
-                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
-            ],
-            [
-              "Th\u1eddi gian b\u1eaft \u0111\u1ea7u",
-              formatDateTime(activity.startTime),
-            ],
-            [
-              "Th\u1eddi gian k\u1ebft th\u00fac",
-              formatDateTime(activity.endTime),
-            ],
-            ["\u0110\u1ecba \u0111i\u1ec3m", activity.location || ""],
-            [
-              "S\u1ed1 l\u01b0\u1ee3ng t\u1ed1i \u0111a",
-              participationType === "LIMITED"
-                ? (activity.capacity ?? "")
-                : "Kh\u00f4ng gi\u1edbi h\u1ea1n",
-            ],
-            [
-              "S\u1ed1 sinh vi\u00ean \u0111\u0103ng k\u00fd",
-              participationType === "LIMITED"
-                ? registrations.length
-                : "Kh\u00f4ng \u00e1p d\u1ee5ng",
-            ],
-            [
-              "S\u1ed1 sinh vi\u00ean \u0111\u00e3 \u0111i\u1ec3m danh",
-              attended,
-            ],
-            [
-              "S\u1ed1 sinh vi\u00ean ch\u01b0a \u0111i\u1ec3m danh",
-              notAttended,
-            ],
-            [
-              "S\u1ed1 sinh vi\u00ean ch\u01b0a x\u00e1c th\u1ef1c khu\u00f4n m\u1eb7t",
-              faceMissing,
-            ],
-            [
-              "S\u1ed1 sinh vi\u00ean \u0111i\u1ec3m danh kh\u00f4ng \u0111\u1ee7",
-              incomplete,
-            ],
-          ],
-        },
-        {
-          name: "Danh sach",
-          rows: [
-            detailHeader,
-            ...registrations.map((registration) => {
-              const row = [
+          },
+          {
+            name: "Danh sach",
+            columnWidths: [18, 30, 18, 16, 32],
+            rows: [
+              ["MSSV", "Họ và tên", "Lớp", "Điểm danh", "Kết quả"],
+              ...sortedRegistrations.map((registration) => [
                 registration.studentCode,
                 registration.fullName,
-                formatAttendanceMark(
-                  Boolean(registration.faceVerified),
-                  registration.faceVerifiedTime,
-                ),
-              ];
-              if (attendanceCount === 3) {
-                row.push(
-                  formatAttendanceMark(
-                    Boolean(registration.middleAttended),
-                    registration.middleCheckinTime,
-                  ),
-                  formatLocationMark(
-                    registration.middleLocationVerified,
-                    registration.middleDistanceMeters,
-                  ),
-                );
-              }
-              if (attendanceCount >= 2) {
-                row.push(
-                  formatAttendanceMark(
-                    Boolean(registration.finalAttended),
-                    registration.finalCheckinTime,
-                  ),
-                  formatLocationMark(
-                    registration.finalLocationVerified,
-                    registration.finalDistanceMeters,
-                  ),
-                );
-              }
-              row.push(
-                formatAttendanceResult(registration),
-                registration.checkinTime
-                  ? formatDateTime(registration.checkinTime)
-                  : "",
-              );
-              return row;
-            }),
-          ],
-        },
-      ],
-    );
-    setMessage(
-      "\u0110\u00e3 xu\u1ea5t file Excel t\u1ed5ng k\u1ebft ho\u1ea1t \u0111\u1ed9ng.",
-    );
+                registration.classCode || "",
+                formatExportAttendanceStatus(registration),
+                formatExportResult(activity, registration),
+              ]),
+            ],
+          },
+        ],
+      );
+      setMessage("Đã xuất file Excel tổng kết hoạt động.");
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không xuất được file Excel tổng kết hoạt động.",
+      );
+    } finally {
+      setExportingActivityDetail(false);
+    }
   };
 
   const createQrSession = async (session: QrAttendanceSession) => {
@@ -658,32 +664,13 @@ function ActivityDetailPage() {
       return;
     }
 
-    const radiusMeters = Number(qrRadiusMeters || 100);
-    if (
-      !Number.isFinite(radiusMeters) ||
-      radiusMeters < 10 ||
-      radiusMeters > 1000
-    ) {
-      setMessage("Bán kính kiểm tra vị trí phải từ 10 đến 1000 mét.");
-      return;
-    }
-
     setCreatingQrSession(session);
     setMessage("");
     try {
-      let locationPayload = {};
-      if (qrLocationRequired) {
-        setMessage("Đang lấy vị trí máy admin để gắn vào mã QR...");
-        const location = await getCurrentBrowserLocation();
-        locationPayload = location;
-      }
-
       const created = await activityApi.createQrSession(id, {
         session,
         expiresInMinutes: minutes,
-        locationRequired: qrLocationRequired,
-        allowedRadiusMeters: radiusMeters,
-        ...locationPayload,
+        locationRequired: false,
       });
       setQrSession(created);
       const updated = await activityApi.get(id).catch(() => null);
@@ -858,12 +845,18 @@ function ActivityDetailPage() {
         <BackButton to="/admin/activities">Quay lại danh sách</BackButton>
         <StatusBadge status={activity.status} />
         <button
-          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
-          onClick={exportActivityDetail}
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={activity.status !== "COMPLETED" || exportingActivityDetail}
+          onClick={() => void exportActivityDetail()}
+          title={
+            activity.status === "COMPLETED"
+              ? "Xuất danh sách tổng kết hoạt động"
+              : "Chỉ xuất Excel khi hoạt động đã hoàn thành"
+          }
           type="button"
         >
           <Download className="h-5 w-5" />
-          Xuất Excel
+          {exportingActivityDetail ? "Đang xuất..." : "Xuất Excel"}
         </button>
       </div>
 
@@ -921,13 +914,7 @@ function ActivityDetailPage() {
               as="select"
               label="Loại hoạt động"
               onChange={(event) => updateField("category", event.target.value)}
-              options={[
-                "ACADEMIC",
-                "MOVEMENT",
-                "FACULTY",
-                "UNIVERSITY",
-                "OTHER",
-              ]}
+              options={activityCategoryOptions}
               value={form.category}
             />
             <label className="flex flex-col gap-1.5">
@@ -1146,43 +1133,6 @@ function ActivityDetailPage() {
             </label>
           </div>
 
-          <div className="mt-5 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-low p-4 md:grid-cols-[1fr_220px]">
-            <label className="flex items-start gap-3 text-sm text-on-surface">
-              <input
-                checked={qrLocationRequired}
-                className="mt-1 h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary"
-                onChange={(event) =>
-                  setQrLocationRequired(event.target.checked)
-                }
-                type="checkbox"
-              />
-              <span>
-                <span className="flex items-center gap-2 font-semibold">
-                  <MapPin className="h-4 w-4" />
-                  Kiểm tra vị trí khi sinh viên quét QR
-                </span>
-                <span className="mt-1 block text-on-surface-variant">
-                  Khi bật, hệ thống lấy vị trí máy admin lúc tạo QR và chỉ ghi
-                  nhận sinh viên ở trong bán kính cho phép.
-                </span>
-              </span>
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">
-                Bán kính hợp lệ (m)
-              </span>
-              <input
-                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring disabled:opacity-60"
-                disabled={!qrLocationRequired}
-                min={10}
-                max={1000}
-                onChange={(event) => setQrRadiusMeters(event.target.value)}
-                type="number"
-                value={qrRadiusMeters}
-              />
-            </label>
-          </div>
-
           <div className="mt-5 flex flex-wrap gap-3">
             {attendanceSessionCount === 3 && (
               <button
@@ -1237,12 +1187,6 @@ function ActivityDetailPage() {
                   }
                 </p>
                 <p>Hết hạn: {formatDateTime(qrSession.expiresAt)}</p>
-                <p>
-                  Kiểm tra vị trí:{" "}
-                  {qrSession.locationRequired
-                    ? `Có - bán kính ${qrSession.allowedRadiusMeters ?? qrRadiusMeters}m${qrSession.accuracyMeters !== undefined ? `, sai số máy tạo QR khoảng ${Math.round(qrSession.accuracyMeters)}m` : ""}`
-                    : "Không"}
-                </p>
                 <p className="break-all rounded-lg bg-surface-container-low p-3 font-mono text-xs">
                   {qrSession.qrPayload}
                 </p>
@@ -1415,7 +1359,7 @@ function ActivityDetailPage() {
                   )}
                   <td className="px-5 py-4">
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${registration.attended ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${registration.attendanceResult === "ATTENDED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}
                     >
                       {formatAttendanceResult(registration)}
                     </span>

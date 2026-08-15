@@ -103,9 +103,9 @@ function FacultyManagementPage() {
     try {
       const result = await facultyApi.importExcel(file);
       await loadFaculties();
-      setMessage(result || "Đã import khoa từ Excel.");
+      setMessage(result || "Đã nhập khoa từ Excel.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không import được danh sách khoa.");
+      setMessage(err instanceof Error ? err.message : "Không nhập được danh sách khoa.");
     } finally {
       setImporting(false);
     }
@@ -155,7 +155,7 @@ function FacultyManagementPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý khoa"
-        subtitle="Tạo, cập nhật và import danh mục khoa để phân lớp, lọc thông báo và quản lý hồ sơ sinh viên."
+        subtitle="Tạo, cập nhật và nhập danh mục khoa để phân lớp, lọc thông báo và quản lý hồ sơ sinh viên."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}

@@ -171,7 +171,7 @@ public class OrganizationController {
 
     private void requireAdmin(String role) {
         if (!"ADMIN".equalsIgnoreCase(role)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ Admin mới có quyền thực hiện thao tác này");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ quản trị viên mới có quyền thực hiện thao tác này");
         }
     }
 }

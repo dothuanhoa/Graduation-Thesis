@@ -47,7 +47,7 @@ export const contactPhoneSchema = yup.object({
 export const excelImportSchema = yup.object({
   file: yup
     .mixed<File>()
-    .required("Vui lòng chọn file Excel trước khi import")
+    .required("Vui lòng chọn file Excel trước khi nhập")
     .test("fileType", "Chỉ chấp nhận file .xlsx hoặc .xls", (file) => {
       if (!file) return false;
       return /\.(xlsx|xls)$/i.test(file.name);

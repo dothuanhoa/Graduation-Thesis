@@ -105,9 +105,9 @@ function AcademicYearManagementPage() {
     try {
       const result = await academicYearApi.importExcel(file);
       await loadAcademicYears();
-      setMessage(result || "Đã import niên khóa từ Excel.");
+      setMessage(result || "Đã nhập niên khóa từ Excel.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không import được danh sách niên khóa.");
+      setMessage(err instanceof Error ? err.message : "Không nhập được danh sách niên khóa.");
     } finally {
       setImporting(false);
     }
@@ -163,7 +163,7 @@ function AcademicYearManagementPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý niên khóa"
-        subtitle="Tạo, cập nhật và import niên khóa để gắn với lớp học, khóa tuyển sinh và hồ sơ sinh viên."
+        subtitle="Tạo, cập nhật và nhập niên khóa để gắn với lớp học, khóa tuyển sinh và hồ sơ sinh viên."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}

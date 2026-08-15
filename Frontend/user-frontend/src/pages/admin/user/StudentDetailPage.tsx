@@ -174,7 +174,7 @@ function StudentDetailPage() {
       setFaceImageVersion(Date.now());
       setMessage("Đã cập nhật ảnh khuôn mặt mẫu cho sinh viên " + updated.studentId + ".");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không upload được ảnh khuôn mặt mẫu.");
+      setMessage(err instanceof Error ? err.message : "Không tải lên được ảnh khuôn mặt mẫu.");
     } finally {
       setFaceUploading(false);
     }
@@ -320,7 +320,7 @@ function StudentDetailPage() {
             </Card>
 
             <Card>
-              <p className="text-sm font-semibold text-primary">Xac thuc khuon mat</p>
+              <p className="text-sm font-semibold text-primary">Xác thực khuôn mặt</p>
               <h2 className="mt-2 text-lg font-bold text-on-surface">Ảnh khuôn mặt mẫu</h2>
               <p className="mt-2 text-sm text-on-surface-variant">
                 Ảnh được AWS kiểm tra khuôn mặt trước khi lưu dạng PNG trong thư mục public của hệ thống.
@@ -343,7 +343,7 @@ function StudentDetailPage() {
               </div>
               <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
                 <Upload className="h-5 w-5" />
-                {faceUploading ? "Đang upload..." : "Tải ảnh mẫu"}
+                {faceUploading ? "Đang tải lên..." : "Tải ảnh mẫu"}
                 <input
                   accept="image/jpeg,image/png"
                   className="sr-only"

@@ -69,7 +69,7 @@ export const formatVietnamDate = (value?: string) => {
   return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
 };
 
-export const formatVietnamDateTime = (value?: string, fallback = "N/A") => {
+export const formatVietnamDateTime = (value?: string, fallback = "Chưa cập nhật") => {
   if (!value) return fallback;
 
   const date = toLocalDate(value);

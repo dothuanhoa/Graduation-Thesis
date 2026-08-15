@@ -1,11 +1,11 @@
 import { LogOut, UserRound, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import StudentSidebar from "../components/StudentSidebar";
 import { useAuth } from "../context/useAuth";
 import { studentBottomNav } from "../data/studentPortalData";
-import { activityApi, type ActivityResponse } from "../services/api";
+import { activityApi, userApi, type ActivityResponse } from "../services/api";
 import { isActivityScanActive } from "../utils/activityUi";
 
 export type StudentLayoutContext = {
@@ -22,12 +22,18 @@ const getInitials = (value: string) => {
 function StudentLayout() {
   const { logout, username } = useAuth();
   const navigate = useNavigate();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem("studentSidebarCollapsed") === "true");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () => localStorage.getItem("studentSidebarCollapsed") === "true",
+  );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [checkerActivities, setCheckerActivities] = useState<ActivityResponse[]>([]);
+  const [checkerActivities, setCheckerActivities] = useState<
+    ActivityResponse[]
+  >([]);
   const canScanAttendance = checkerActivities.length > 0;
-  const displayName = username || "Sinh viên";
-  const visibleBottomNav = studentBottomNav.filter((item) => canScanAttendance || item.path !== "/checker/scan");
+  const [displayName, setDisplayName] = useState<string>("");
+  const visibleBottomNav = studentBottomNav.filter(
+    (item) => canScanAttendance || item.path !== "/checker/scan",
+  );
   const accountActions = [
     { label: "Hồ sơ", path: "/student/profile", icon: UserRound },
     {
@@ -40,6 +46,18 @@ function StudentLayout() {
       },
     },
   ];
+
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const profile = await userApi.getByStudentId(username, {
+        suppressToast: true,
+      });
+      setDisplayName(profile!.fullName);
+    } catch (err) {
+      setDisplayName(username);
+      console.log(err);
+    }
+  }, [username]);
 
   useEffect(() => {
     localStorage.setItem("studentSidebarCollapsed", String(isSidebarCollapsed));
@@ -57,9 +75,16 @@ function StudentLayout() {
       }
 
       try {
-        const checkerActivities = await activityApi.listMyCheckerActivities({ suppressToast: true }).catch(() => []);
+        const checkerActivities = await activityApi
+          .listMyCheckerActivities({ suppressToast: true })
+          .catch(() => []);
         if (isMounted) {
-          setCheckerActivities(checkerActivities.filter((activity) => isActivityScanActive(activity)));
+          setCheckerActivities(
+            checkerActivities.filter((activity) =>
+              isActivityScanActive(activity),
+            ),
+          );
+          void fetchUserProfile();
         }
       } catch {
         if (isMounted) {
@@ -72,7 +97,7 @@ function StudentLayout() {
       isMounted = false;
       window.clearTimeout(timerId);
     };
-  }, [username]);
+  }, [username, fetchUserProfile]);
 
   const handleToggleSidebar = () => {
     if (window.matchMedia("(min-width: 768px)").matches) {
@@ -85,7 +110,12 @@ function StudentLayout() {
 
   return (
     <div className="flex min-h-screen bg-background text-on-background">
-      <StudentSidebar canScanAttendance={canScanAttendance} collapsed={isSidebarCollapsed} studentCode={username} studentName={displayName} />
+      <StudentSidebar
+        canScanAttendance={canScanAttendance}
+        collapsed={isSidebarCollapsed}
+        studentCode={username}
+        studentName={displayName}
+      />
       {isMobileSidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button
@@ -103,7 +133,13 @@ function StudentLayout() {
             >
               <X className="h-5 w-5" />
             </button>
-            <StudentSidebar canScanAttendance={canScanAttendance} isMobile onNavigate={() => setIsMobileSidebarOpen(false)} studentCode={username} studentName={displayName} />
+            <StudentSidebar
+              canScanAttendance={canScanAttendance}
+              isMobile
+              onNavigate={() => setIsMobileSidebarOpen(false)}
+              studentCode={username}
+              studentName={displayName}
+            />
           </div>
         </div>
       )}
@@ -119,7 +155,9 @@ function StudentLayout() {
         />
         <main className="flex-1 px-4 py-6 md:px-padding-page md:py-padding-page">
           <div className="mx-auto flex max-w-container-max flex-col gap-gutter">
-            <Outlet context={{ checkerActivities } satisfies StudentLayoutContext} />
+            <Outlet
+              context={{ checkerActivities } satisfies StudentLayoutContext}
+            />
           </div>
         </main>
       </div>
@@ -132,7 +170,9 @@ function StudentLayout() {
               key={item.path}
               className={({ isActive }) =>
                 `flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold ${
-                  isActive ? "bg-primary text-on-primary" : "text-on-surface-variant"
+                  isActive
+                    ? "bg-primary text-on-primary"
+                    : "text-on-surface-variant"
                 }`
               }
               to={item.path}

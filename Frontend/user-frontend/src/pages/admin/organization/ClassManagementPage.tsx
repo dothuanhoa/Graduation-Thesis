@@ -148,9 +148,9 @@ function ClassManagementPage() {
     try {
       const result = await classApi.importExcel(file);
       await loadData();
-      setMessage(result || "Đã import lớp từ Excel.");
+      setMessage(result || "Đã nhập lớp từ Excel.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không import được danh sách lớp.");
+      setMessage(err instanceof Error ? err.message : "Không nhập được danh sách lớp.");
     } finally {
       setImporting(false);
     }
@@ -209,7 +209,7 @@ function ClassManagementPage() {
     <div className="space-y-gutter">
       <PageHeader
         title="Quản lý lớp"
-        subtitle="Tạo, cập nhật và import lớp theo khoa, niên khóa để quản lý hồ sơ sinh viên chính xác hơn."
+        subtitle="Tạo, cập nhật và nhập lớp theo khoa, niên khóa để quản lý hồ sơ sinh viên chính xác hơn."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}

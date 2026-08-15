@@ -20,6 +20,9 @@ const PRINCIPAL_NAME = "PGS. TS. Cao Hào Thi";
 const text = (value: unknown) =>
   value === null || value === undefined ? "" : String(value);
 
+const hasMetadataValue = (metadata: Metadata, key: string) =>
+  Object.prototype.hasOwnProperty.call(metadata, key);
+
 const getDefaultValue = (
   key: string,
   metadata: Metadata,
@@ -66,6 +69,18 @@ const getDefaultValue = (
   return defaults[key] || "";
 };
 
+const getEditableValue = (
+  key: string,
+  metadata: Metadata,
+  profile?: UserProfile | null,
+) => {
+  if (hasMetadataValue(metadata, key)) {
+    const current = text(metadata[key]);
+    return key === "enrollmentDate" && current ? formatVietnamDate(current) : current;
+  }
+  return getDefaultValue(key, metadata, profile);
+};
+
 const splitDate = (value: string) => {
   if (!value) return { day: "", month: "", year: "" };
   const parts = value.includes("-") ? value.split("-") : value.split("/");
@@ -96,10 +111,13 @@ function Field({
   className?: string;
   type?: string;
 }) {
-  const value = getDefaultValue(name, metadata, profile);
+  const isEditable = canEdit({ editable, editScope }, name);
+  const value = isEditable
+    ? getEditableValue(name, metadata, profile)
+    : getDefaultValue(name, metadata, profile);
   const compactWidth = `${Math.max(Math.min((value || "").length + 1, 52), 2)}ch`;
 
-  if (!canEdit({ editable, editScope }, name)) {
+  if (!isEditable) {
     if (adminMode) {
       return (
         <span className="certificate-plain-text">{value || "\u00A0"}</span>
@@ -152,8 +170,12 @@ function DateFields({
   adminMode?: boolean;
   onChange?: (key: string, value: string) => void;
 }) {
-  const date = splitDate(getDefaultValue(name, metadata, profile));
   const isEditable = canEdit({ editable, editScope }, name);
+  const date = splitDate(
+    isEditable
+      ? getEditableValue(name, metadata, profile)
+      : getDefaultValue(name, metadata, profile),
+  );
   const updatePart = (part: "day" | "month" | "year", value: string) => {
     const next = { ...date, [part]: value };
     onChange?.(name, `${next.year}-${next.month}-${next.day}`);
@@ -214,8 +236,10 @@ function RadioLine({
   editScope?: "all" | "school";
   onChange?: (key: string, value: string) => void;
 }) {
-  const value = getDefaultValue(name, metadata, profile);
   const isEditable = canEdit({ editable, editScope }, name);
+  const value = isEditable
+    ? getEditableValue(name, metadata, profile)
+    : getDefaultValue(name, metadata, profile);
   return (
     <span className="inline-flex flex-wrap gap-3 align-middle">
       {options.map((option) => (

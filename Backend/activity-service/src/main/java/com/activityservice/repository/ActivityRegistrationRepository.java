@@ -18,6 +18,7 @@ public interface ActivityRegistrationRepository extends JpaRepository<ActivityRe
     boolean existsByActivityIdAndUserTsidIgnoreCase(Long activityId, String userTsid);
     long countByActivityId(Long activityId);
     long countByActivityIdAndAttendedTrue(Long activityId);
+    long countByActivityIdAndFaceVerifiedTrue(Long activityId);
 
     @EntityGraph(attributePaths = "activity")
     @Query("""

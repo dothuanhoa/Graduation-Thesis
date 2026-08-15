@@ -40,7 +40,7 @@ public class NotificationImageService {
         try {
             Files.createDirectories(this.imageStorageLocation);
         } catch (IOException ex) {
-            throw new IllegalStateException("Khong tao duoc thu muc luu anh thong bao.", ex);
+            throw new IllegalStateException("Không tạo được thư mục lưu ảnh thông báo.", ex);
         }
     }
 
@@ -52,13 +52,13 @@ public class NotificationImageService {
         String yearFolder = String.valueOf(LocalDate.now().getYear());
         Path yearLocation = imageStorageLocation.resolve(yearFolder).normalize();
         if (!yearLocation.startsWith(imageStorageLocation)) {
-            throw new IllegalArgumentException("Thu muc luu anh khong hop le.");
+            throw new IllegalArgumentException("Thư mục lưu ảnh không hợp lệ.");
         }
         Files.createDirectories(yearLocation);
 
         Path targetLocation = yearLocation.resolve(fileName).normalize();
         if (!targetLocation.startsWith(yearLocation)) {
-            throw new IllegalArgumentException("Ten file anh khong hop le.");
+            throw new IllegalArgumentException("Tên file ảnh không hợp lệ.");
         }
 
         Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
@@ -72,20 +72,20 @@ public class NotificationImageService {
 
     private void validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Vui long chon anh can tai len.");
+            throw new IllegalArgumentException("Vui lòng chọn ảnh cần tải lên.");
         }
         if (file.getSize() > maxSizeBytes) {
-            throw new IllegalArgumentException("Anh khong duoc vuot qua " + (maxSizeBytes / 1024 / 1024) + "MB.");
+            throw new IllegalArgumentException("Ảnh không được vượt quá " + (maxSizeBytes / 1024 / 1024) + "MB.");
         }
 
         String contentType = Objects.toString(file.getContentType(), "").toLowerCase(Locale.ROOT);
         if (!contentType.isBlank() && !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("File tai len phai la hinh anh.");
+            throw new IllegalArgumentException("File tải lên phải là hình ảnh.");
         }
 
         String extension = resolveExtension(file);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("Chi ho tro anh JPG, PNG, GIF hoac WEBP.");
+            throw new IllegalArgumentException("Chỉ hỗ trợ ảnh JPG, PNG, GIF hoặc WEBP.");
         }
     }
 
@@ -109,7 +109,7 @@ public class NotificationImageService {
             case "image/png", "image/x-png" -> "png";
             case "image/gif" -> "gif";
             case "image/webp" -> "webp";
-            default -> throw new IllegalArgumentException("Anh tai len can co dinh dang JPG, PNG, GIF hoac WEBP.");
+            default -> throw new IllegalArgumentException("Ảnh tải lên cần có định dạng JPG, PNG, GIF hoặc WEBP.");
         };
     }
 

@@ -17,6 +17,7 @@ public class RegistrationResponse {
     private String userTsid;
     private String studentCode;
     private String fullName;
+    private String classCode;
     @JsonSerialize(using = ToStringSerializer.class)
     private Long activityId;
     private String activityTitle;

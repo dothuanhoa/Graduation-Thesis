@@ -207,7 +207,7 @@ public class ActivityController {
 
     private void requireAdmin(String role) {
         if (!"ADMIN".equalsIgnoreCase(role)) {
-            throw new ForbiddenException("Chỉ Admin mới có quyền thực hiện thao tác này");
+            throw new ForbiddenException("Chỉ quản trị viên mới có quyền thực hiện thao tác này");
         }
     }
 

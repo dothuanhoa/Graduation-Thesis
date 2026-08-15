@@ -105,7 +105,7 @@ public class ActivityService {
             throw new BadRequestException("Số lượng tối đa không được nhỏ hơn số sinh viên đã đăng ký");
         }
         if (activity.getStatus() != Activity.Status.UPCOMING) {
-            throw new BadRequestException("Chỉ được chỉnh sửa hoạt động ở trạng thái UPCOMING");
+            throw new BadRequestException("Chỉ được chỉnh sửa hoạt động ở trạng thái Sắp diễn ra");
         }
 
         applyRequest(activity, request);
@@ -118,13 +118,13 @@ public class ActivityService {
         Activity.Status currentStatus = activity.getStatus();
 
         if (currentStatus == Activity.Status.COMPLETED) {
-            throw new BadRequestException("Hoạt động đã COMPLETED không được chuyển trạng thái");
+            throw new BadRequestException("Hoạt động đã hoàn tất nên không được chuyển trạng thái");
         }
         if (currentStatus == Activity.Status.UPCOMING && nextStatus == Activity.Status.COMPLETED) {
-            throw new BadRequestException("Hoạt động phải chuyển sang ONGOING trước khi COMPLETED");
+            throw new BadRequestException("Hoạt động phải chuyển sang Đang diễn ra trước khi Hoàn tất");
         }
         if (currentStatus == Activity.Status.ONGOING && nextStatus == Activity.Status.UPCOMING) {
-            throw new BadRequestException("Không được chuyển ngược hoạt động từ ONGOING về UPCOMING");
+            throw new BadRequestException("Không được chuyển ngược hoạt động từ Đang diễn ra về Sắp diễn ra");
         }
 
         activity.setStatus(nextStatus);
@@ -135,7 +135,7 @@ public class ActivityService {
     public void delete(Long id) {
         Activity activity = getActivity(id);
         if (activity.getStatus() != Activity.Status.UPCOMING) {
-            throw new BadRequestException("Chỉ được xóa hoạt động ở trạng thái UPCOMING");
+            throw new BadRequestException("Chỉ được xóa hoạt động ở trạng thái Sắp diễn ra");
         }
         activityRepository.delete(activity);
     }
@@ -189,6 +189,7 @@ public class ActivityService {
         registration.setActivity(activity);
         registration.setStudentCode(studentProfile.getStudentId().trim());
         registration.setFullName(studentProfile.getFullName().trim());
+        registration.setClassCode(resolveClassCode(studentProfile));
         registration.setUserTsid(userTsid);
 
         try {
@@ -202,7 +203,7 @@ public class ActivityService {
     public CheckerResponse addChecker(Long activityId, CheckerRequest request) {
         Activity activity = getActivity(activityId);
         if (activity.getStatus() == Activity.Status.COMPLETED) {
-            throw new BadRequestException("Không được thêm checker cho hoạt động đã COMPLETED");
+            throw new BadRequestException("Không được thêm người điểm danh cho hoạt động đã hoàn tất");
         }
 
         String checkerCode = request.getCheckerCode().trim();
@@ -214,7 +215,7 @@ public class ActivityService {
 
         if (checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCase(activityId, checkerTsid)
                 || checkerRepository.existsByActivityIdAndCheckerCodeIgnoreCase(activityId, checkerCode)) {
-            throw new BadRequestException("Checker đã được phân quyền cho hoạt động này");
+            throw new BadRequestException("Người điểm danh đã được phân quyền cho hoạt động này");
         }
 
         ActivityChecker checker = new ActivityChecker();
@@ -236,16 +237,16 @@ public class ActivityService {
     @Transactional
     public void removeChecker(Long activityId, Long checkerId) {
         ActivityChecker checker = checkerRepository.findById(checkerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy checker"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người điểm danh"));
         if (!checker.getActivity().getId().equals(activityId)) {
-            throw new BadRequestException("Checker không thuộc hoạt động này");
+            throw new BadRequestException("Người điểm danh không thuộc hoạt động này");
         }
         checkerRepository.delete(checker);
     }
 
     @Transactional
     public RegistrationResponse checkin(Long activityId, String checkerCodeOrTsid, CheckinRequest request) {
-        throw new BadRequestException("Nghiệp vụ điểm danh đầu giờ hiện sử dụng xác thực khuôn mặt. Vui lòng dùng chức năng xác thực khuôn mặt của checker.");
+        throw new BadRequestException("Nghiệp vụ điểm danh đầu giờ hiện sử dụng xác thực khuôn mặt. Vui lòng dùng chức năng xác thực khuôn mặt của người điểm danh.");
     }
 
     @Transactional
@@ -282,7 +283,7 @@ public class ActivityService {
     public FaceCheckinBatchResponse faceCheckin(Long activityId, String currentUserRole, String currentUserCode, MultipartFile faceImage) {
         Activity activity = getActivity(activityId);
         if (activity.getStatus() != Activity.Status.ONGOING) {
-            throw new BadRequestException("Chi duoc xac thuc khuon mat khi hoat dong dang dien ra");
+            throw new BadRequestException("Chỉ được xác thực khuôn mặt khi hoạt động đang diễn ra");
         }
         if (!isAdminOrSystem(currentUserRole) && !isCheckerForActivity(activityId, currentUserCode)) {
             throw new ForbiddenException("Tài khoản hiện tại chưa được phân quyền xác thực khuôn mặt cho hoạt động này");
@@ -293,9 +294,9 @@ public class ActivityService {
         try {
             verifications = userClient.identifyStudentFaces(INTERNAL_ROLE, INTERNAL_USER_CODE, candidateStudentCodes, faceImage);
         } catch (FeignException.NotFound ex) {
-            throw new BadRequestException("Khong tim thay anh khuon mat mau de xac thuc");
+            throw new BadRequestException("Không tìm thấy ảnh khuôn mặt mẫu để xác thực");
         } catch (FeignException ex) {
-            throw new BadRequestException("Khong nhan dien duoc khuon mat sinh vien, vui long thu lai");
+            throw new BadRequestException("Không nhận diện được khuôn mặt sinh viên, vui lòng thử lại");
         }
         if (verifications == null || verifications.isEmpty()) {
             throw new BadRequestException("Không nhận diện được khuôn mặt sinh viên trong hoạt động này");
@@ -310,12 +311,7 @@ public class ActivityService {
             }
             String studentCode = verification.getStudentId().trim();
             try {
-                UserProfileDTO studentProfile = new UserProfileDTO();
-                studentProfile.setId(verification.getUserId());
-                studentProfile.setStudentId(studentCode);
-                studentProfile.setFullName(verification.getFullName() == null || verification.getFullName().isBlank()
-                        ? studentCode
-                        : verification.getFullName().trim());
+                UserProfileDTO studentProfile = findStudentProfile(studentCode, verification);
                 ActivityRegistration registration = resolveFaceCheckinRegistration(activity, studentProfile);
                 if (registration.isFaceVerified()) {
                     skipped.add(studentCode + ": đã điểm danh khuôn mặt trước đó");
@@ -329,8 +325,8 @@ public class ActivityService {
                     registration.setCheckinTime(now);
                 }
                 registration.setFaceVerifiedBy(currentUserCode);
-        registration.setFaceVerificationNote("Xác thực khuôn mặt đầu vào");
-        refreshAttendanceResult(activity, registration, now);
+                registration.setFaceVerificationNote("Xác thực khuôn mặt đầu vào");
+                refreshAttendanceResult(activity, registration, now);
                 checkedIn.add(toRegistrationResponse(registrationRepository.save(registration)));
             } catch (BadRequestException | ResourceNotFoundException ex) {
                 skipped.add(studentCode + ": " + ex.getMessage());
@@ -374,31 +370,31 @@ public class ActivityService {
     public RegistrationResponse qrCheckin(Long activityId, String studentCode, QrCheckinRequest request) {
         Activity activity = getActivity(activityId);
         if (activity.getStatus() != Activity.Status.ONGOING) {
-            throw new BadRequestException("Ch? ???c qu?t QR khi ho?t ??ng ?ang di?n ra");
+            throw new BadRequestException("Chỉ được quét QR khi hoạt động đang diễn ra");
         }
         if (getParticipationType(activity) == Activity.ParticipationType.OPEN) {
-            throw new BadRequestException("Ho?t ??ng t? do ch? ?i?m danh b?ng x?c th?c khu?n m?t");
+            throw new BadRequestException("Hoạt động tự do chỉ điểm danh bằng xác thực khuôn mặt");
         }
         if (studentCode == null || studentCode.isBlank()) {
-            throw new BadRequestException("Kh?ng x?c ??nh ???c sinh vi?n ?ang ??ng nh?p");
+            throw new BadRequestException("Không xác định được sinh viên đang đăng nhập");
         }
 
         Activity.AttendanceSession session = resolveQrSession(activity, request.getQrCode());
         ActivityRegistration registration = registrationRepository
                 .findByActivityIdAndStudentCodeIgnoreCase(activityId, studentCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("MSSV kh?ng n?m trong danh s?ch ??ng k? h?p l?"));
+                .orElseThrow(() -> new ResourceNotFoundException("MSSV không nằm trong danh sách đăng ký hợp lệ"));
 
         LocalDateTime now = LocalDateTime.now();
         if (session == Activity.AttendanceSession.MIDDLE) {
             if (registration.isMiddleAttended()) {
-                throw new BadRequestException("Sinh vien da diem danh QR giua gio cho hoat dong nay");
+                throw new BadRequestException("Sinh viên đã điểm danh QR giữa giờ cho hoạt động này");
             }
             validateAndStoreQrCheckinLocation(activity, registration, session, request);
             registration.setMiddleAttended(true);
             registration.setMiddleCheckinTime(now);
         } else {
             if (registration.isFinalAttended()) {
-                throw new BadRequestException("Sinh vien da diem danh QR cuoi gio cho hoat dong nay");
+                throw new BadRequestException("Sinh viên đã điểm danh QR cuối giờ cho hoạt động này");
             }
             validateAndStoreQrCheckinLocation(activity, registration, session, request);
             registration.setFinalAttended(true);
@@ -441,15 +437,19 @@ public class ActivityService {
             return "";
         }
 
-        List<String> registeredStudentCodes = registrationRepository.findByActivityIdOrderByStudentCodeAsc(activity.getId())
-                .stream()
+        List<ActivityRegistration> registrations = registrationRepository.findByActivityIdOrderByStudentCodeAsc(activity.getId());
+        if (registrations.isEmpty()) {
+            throw new BadRequestException("Hoạt động chưa có sinh viên đăng ký để xác thực khuôn mặt");
+        }
+
+        List<String> registeredStudentCodes = registrations.stream()
                 .filter(registration -> !registration.isFaceVerified())
                 .map(ActivityRegistration::getStudentCode)
                 .filter(studentCode -> studentCode != null && !studentCode.isBlank())
                 .map(String::trim)
                 .toList();
         if (registeredStudentCodes.isEmpty()) {
-            throw new BadRequestException("Hoat dong chua co sinh vien dang ky de xac thuc khuon mat");
+            throw new BadRequestException("Tất cả sinh viên đăng ký đã được xác thực khuôn mặt");
         }
         return String.join(",", registeredStudentCodes);
     }
@@ -478,6 +478,7 @@ public class ActivityService {
         registration.setActivity(activity);
         registration.setStudentCode(studentProfile.getStudentId().trim());
         registration.setFullName(studentProfile.getFullName().trim());
+        registration.setClassCode(resolveClassCode(studentProfile));
         registration.setUserTsid(resolveUserTsid(studentProfile));
         try {
             return registrationRepository.save(registration);
@@ -502,6 +503,42 @@ public class ActivityService {
                 && studentProfile.getFullName() != null && !studentProfile.getFullName().isBlank()) {
             registration.setFullName(studentProfile.getFullName().trim());
         }
+        String classCode = resolveClassCode(studentProfile);
+        if (classCode != null && !classCode.isBlank()
+                && (registration.getClassCode() == null || registration.getClassCode().isBlank())) {
+            registration.setClassCode(classCode);
+        }
+    }
+
+    private UserProfileDTO findStudentProfile(String studentCode, FaceVerificationResponse verification) {
+        try {
+            UserProfileDTO profile = requireExistingStudent(studentCode, "sinh viên");
+            if ((profile.getId() == null) && verification.getUserId() != null) {
+                profile.setId(verification.getUserId());
+            }
+            if ((profile.getFullName() == null || profile.getFullName().isBlank())
+                    && verification.getFullName() != null && !verification.getFullName().isBlank()) {
+                profile.setFullName(verification.getFullName().trim());
+            }
+            return profile;
+        } catch (BadRequestException | ResourceNotFoundException ex) {
+            UserProfileDTO profile = new UserProfileDTO();
+            profile.setId(verification.getUserId());
+            profile.setStudentId(studentCode);
+            profile.setFullName(verification.getFullName() == null || verification.getFullName().isBlank()
+                    ? studentCode
+                    : verification.getFullName().trim());
+            return profile;
+        }
+    }
+
+    private String resolveClassCode(UserProfileDTO studentProfile) {
+        if (studentProfile == null || studentProfile.getClazz() == null
+                || studentProfile.getClazz().getClassCode() == null) {
+            return null;
+        }
+        String classCode = studentProfile.getClazz().getClassCode().trim();
+        return classCode.isBlank() ? null : classCode;
     }
 
     private String resolveUserTsid(UserProfileDTO studentProfile) {
@@ -542,7 +579,7 @@ public class ActivityService {
             return 2;
         }
         if (count != 2 && count != 3) {
-            throw new BadRequestException("Ho?t ??ng gi?i h?n ch? ???c ch?n 2 ho?c 3 l?n ?i?m danh");
+            throw new BadRequestException("Hoạt động giới hạn chỉ được chọn 2 hoặc 3 lần điểm danh");
         }
         return count;
     }
@@ -698,6 +735,12 @@ public class ActivityService {
             Activity.AttendanceSession session,
             QrCheckinRequest request
     ) {
+        // Location-based QR anti-cheat is temporarily disabled while the app is not hosted.
+        // Keep the schema and DTO fields intact so this can be re-enabled without a data change.
+        if (isQrLocationValidationPaused()) {
+            return;
+        }
+
         if (!isQrLocationRequired(activity, session)) {
             return;
         }
@@ -744,6 +787,10 @@ public class ActivityService {
         registration.setFinalLongitude(request.getLongitude());
         registration.setFinalLocationAccuracyMeters(request.getAccuracyMeters());
         registration.setFinalDistanceMeters(distanceMeters);
+    }
+
+    private boolean isQrLocationValidationPaused() {
+        return true;
     }
 
     private boolean isQrLocationRequired(Activity activity, Activity.AttendanceSession session) {
@@ -878,7 +925,7 @@ public class ActivityService {
             complete = registration.isMiddleAttended() && registration.isFinalAttended();
         }
 
-        registration.setAttended(complete);
+        registration.setAttended(true);
         registration.setAttendanceResult(complete
                 ? ActivityRegistration.AttendanceResult.ATTENDED
                 : ActivityRegistration.AttendanceResult.INCOMPLETE);
@@ -992,6 +1039,7 @@ public class ActivityService {
                 .updatedAt(activity.getUpdatedAt())
                 .registrationCount(registrationCount)
                 .attendedCount(registrationRepository.countByActivityIdAndAttendedTrue(activityId))
+                .faceVerifiedCount(registrationRepository.countByActivityIdAndFaceVerifiedTrue(activityId))
                 .checkerCount(checkerRepository.countByActivityId(activityId))
                 .currentUserRegistered(currentUserRegistered)
                 .registrationOpen(registrationOpen)
@@ -1007,6 +1055,7 @@ public class ActivityService {
                 .userTsid(registration.getUserTsid())
                 .studentCode(registration.getStudentCode())
                 .fullName(registration.getFullName())
+                .classCode(registration.getClassCode())
                 .activityId(activity.getId())
                 .activityTitle(activity.getTitle())
                 .activityCategory(activity.getCategory())

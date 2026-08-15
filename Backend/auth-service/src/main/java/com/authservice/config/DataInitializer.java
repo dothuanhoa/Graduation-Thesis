@@ -44,13 +44,13 @@ public class DataInitializer implements CommandLineRunner {
                 || !StringUtils.hasText(adminEmail)
                 || !StringUtils.hasText(adminPassword)) {
             throw new IllegalStateException(
-                    "Admin bootstrap is enabled but username, email or password is blank"
+                    "Chức năng khởi tạo tài khoản quản trị đang bật nhưng tên đăng nhập, email hoặc mật khẩu bị trống"
             );
         }
 
         String username = adminUsername.trim();
         if (isLegacyDefaultAdminCredential(username, adminPassword)) {
-            throw new IllegalStateException("Refuse to bootstrap legacy default admin credential");
+            throw new IllegalStateException("Không cho phép khởi tạo tài khoản quản trị bằng thông tin mặc định cũ");
         }
 
         if (authUserRepository.findByUsername(username).isPresent()) {
@@ -64,7 +64,7 @@ public class DataInitializer implements CommandLineRunner {
         admin.setRole(AuthUser.Role.ADMIN);
         admin.setStatus(AuthUser.Status.ACTIVE);
         authUserRepository.save(admin);
-        log.info("Admin bootstrap account '{}' was created", username);
+        log.info("Đã khởi tạo tài khoản quản trị '{}'", username);
     }
 
     private void deactivateLegacyDefaultAdmin() {
@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
                 .ifPresent(user -> {
                     user.setStatus(AuthUser.Status.INACTIVE);
                     authUserRepository.save(user);
-                    log.warn("Legacy default admin account '{}' was deactivated. Create a secure admin account via ADMIN_BOOTSTRAP_* env vars.",
+                    log.warn("Tài khoản quản trị mặc định cũ '{}' đã bị khóa. Hãy tạo tài khoản quản trị an toàn bằng các biến môi trường ADMIN_BOOTSTRAP_*.",
                             LEGACY_DEFAULT_ADMIN_USERNAME);
                 });
     }

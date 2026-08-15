@@ -1,15 +1,20 @@
 import { CheckCircle2, KeyRound, Lock } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import BackButton from "../../components/BackButton";
 import Card from "../../components/Card";
 import FormField from "../../components/FormField";
 import { authApi } from "../../services/api";
+import {
+  formatStrongPasswordIssues,
+  strongPasswordHint,
+} from "../../validation/passwordValidation";
+import { reportFormError, scrollToFormMessage } from "../../utils/formFeedback";
 
 const resetPasswordSchema = z
   .object({
-    newPassword: z.string().min(6, "Mật khẩu mới cần tối thiểu 6 ký tự."),
+    newPassword: z.string().min(1, "Vui lòng nhập mật khẩu mới."),
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu mới."),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -25,6 +30,16 @@ function ResetPasswordPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState(token ? "" : "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
   const [loading, setLoading] = useState(false);
+  const messageRef = useRef<HTMLDivElement | null>(null);
+
+  const showError = (errorMessage: string, toast = true) => {
+    setError(errorMessage);
+    if (toast) {
+      reportFormError(errorMessage, messageRef.current);
+    } else {
+      scrollToFormMessage(messageRef.current);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -32,13 +47,19 @@ function ResetPasswordPage() {
     setError("");
 
     if (!token) {
-      setError("Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+      showError("Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+      return;
+    }
+
+    const passwordIssueMessage = formatStrongPasswordIssues(newPassword);
+    if (passwordIssueMessage) {
+      showError(passwordIssueMessage);
       return;
     }
 
     const parsed = resetPasswordSchema.safeParse({ newPassword, confirmPassword });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại mật khẩu.");
+      showError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại mật khẩu.");
       return;
     }
 
@@ -52,7 +73,7 @@ function ResetPasswordPage() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không đặt lại được mật khẩu. Vui lòng thử lại.");
+      showError(err instanceof Error ? err.message : "Không đặt lại được mật khẩu. Vui lòng thử lại.", false);
     } finally {
       setLoading(false);
     }
@@ -84,7 +105,11 @@ function ResetPasswordPage() {
         )}
 
         {error && (
-          <div className="mt-5 rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error">
+          <div
+            className="mt-5 rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error"
+            data-form-message
+            ref={messageRef}
+          >
             {error}
           </div>
         )}
@@ -95,8 +120,9 @@ function ResetPasswordPage() {
               autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
               label="Mật khẩu mới"
+              hint={strongPasswordHint}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Nhập mật khẩu mới"
+              placeholder="Ví dụ: Stu@2026"
               type="password"
               value={newPassword}
             />

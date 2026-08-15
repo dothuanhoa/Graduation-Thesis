@@ -70,19 +70,19 @@ const getDefaultDataset = (module: string) => {
 };
 
 function FormContent({ meta }: { meta: ModuleMeta }) {
-  if (meta.title.includes("Import")) {
+  if (meta.title.includes("Nhập")) {
     return (
       <Card>
         <UploadBox />
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <Card className="bg-surface-container-low">
-            <p className="font-semibold text-on-surface">1. Tải template</p>
+            <p className="font-semibold text-on-surface">1. Tải file mẫu</p>
             <p className="mt-2 text-sm text-on-surface-variant">
               MSSV, họ tên, ngày sinh, giới tính, lớp.
             </p>
           </Card>
           <Card className="bg-surface-container-low">
-            <p className="font-semibold text-on-surface">2. Validate dữ liệu</p>
+            <p className="font-semibold text-on-surface">2. Kiểm tra dữ liệu</p>
             <p className="mt-2 text-sm text-on-surface-variant">
               Kiểm tra trùng MSSV và lớp tồn tại.
             </p>

@@ -183,7 +183,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME:-}
       - MAIL_PASSWORD=${MAIL_PASSWORD:-}
       - MAIL_FROM=${MAIL_FROM:-no-reply@stu.edu.vn}
-      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Cong sinh vien STU}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Cổng sinh viên STU}
       - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
       - MAIL_STARTTLS_ENABLE=${MAIL_STARTTLS_ENABLE:-true}
       - MAIL_QUEUE_CAPACITY=${MAIL_QUEUE_CAPACITY:-20000}

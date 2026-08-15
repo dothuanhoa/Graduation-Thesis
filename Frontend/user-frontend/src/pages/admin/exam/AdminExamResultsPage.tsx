@@ -86,7 +86,7 @@ function AdminExamResultsPage() {
                 <tr key={attempt.id} className="border-t border-outline-variant">
                   <td className="px-4 py-3 font-semibold text-on-surface">{attempt.examTitle}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{attempt.userTsid}</td>
-                  <td className="px-4 py-3 text-on-surface-variant">{attempt.score ?? "N/A"}</td>
+                  <td className="px-4 py-3 text-on-surface-variant">{attempt.score ?? "Chưa có"}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{attempt.correctCount ?? 0}/{attempt.totalQuestions ?? 0}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{attempt.violationCount}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{attemptLabel[attempt.status] || attempt.status}</td>

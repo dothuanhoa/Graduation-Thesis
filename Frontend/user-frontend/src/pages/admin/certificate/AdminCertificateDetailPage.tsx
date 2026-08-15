@@ -167,11 +167,11 @@ function AdminCertificateDetailPage() {
         <Card>
           <h2 className="mb-4 text-lg font-bold text-on-surface">Thông tin sinh viên</h2>
           <div className="space-y-3 text-sm text-on-surface">
-            <p><span className="font-semibold">Họ tên:</span> {getMetadataText(printMetadata, "fullName") || request.studentProfile?.fullName || "N/A"}</p>
+            <p><span className="font-semibold">Họ tên:</span> {getMetadataText(printMetadata, "fullName") || request.studentProfile?.fullName || "Chưa có"}</p>
             <p><span className="font-semibold">MSSV:</span> {request.studentId}</p>
-            <p><span className="font-semibold">Lớp:</span> {getMetadataText(printMetadata, "classCode") || request.studentProfile?.clazz?.classCode || "N/A"}</p>
-            <p><span className="font-semibold">Khoa:</span> {getMetadataText(printMetadata, "facultyName") || "N/A"}</p>
-            <p><span className="font-semibold">SĐT liên hệ:</span> {request.contactPhone || getMetadataText(printMetadata, "contactPhone") || "N/A"}</p>
+            <p><span className="font-semibold">Lớp:</span> {getMetadataText(printMetadata, "classCode") || request.studentProfile?.clazz?.classCode || "Chưa có"}</p>
+            <p><span className="font-semibold">Khoa:</span> {getMetadataText(printMetadata, "facultyName") || "Chưa có"}</p>
+            <p><span className="font-semibold">SĐT liên hệ:</span> {request.contactPhone || getMetadataText(printMetadata, "contactPhone") || "Chưa có"}</p>
           </div>
         </Card>
 
@@ -180,8 +180,8 @@ function AdminCertificateDetailPage() {
           <div className="space-y-3 text-sm text-on-surface">
             <p><span className="font-semibold">Loại giấy:</span> {request.formTypeName}</p>
             <p><span className="font-semibold">Mã mẫu:</span> {documentCode}</p>
-            <p><span className="font-semibold">Học kỳ:</span> {request.semester || getMetadataText(printMetadata, "semester") || "N/A"}</p>
-            <p><span className="font-semibold">Lý do:</span> {request.reason || getMetadataText(printMetadata, "reason") || "N/A"}</p>
+            <p><span className="font-semibold">Học kỳ:</span> {request.semester || getMetadataText(printMetadata, "semester") || "Chưa có"}</p>
+            <p><span className="font-semibold">Lý do:</span> {request.reason || getMetadataText(printMetadata, "reason") || "Chưa có"}</p>
             <p className="flex items-center gap-2">
               <span className="font-semibold">Trạng thái:</span>
               <StatusBadge status={request.status as StatusType} />

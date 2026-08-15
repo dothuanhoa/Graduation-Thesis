@@ -41,6 +41,7 @@ public class ActivityResponse {
     private LocalDateTime updatedAt;
     private long registrationCount;
     private long attendedCount;
+    private long faceVerifiedCount;
     private long checkerCount;
     private boolean currentUserRegistered;
     private boolean registrationOpen;

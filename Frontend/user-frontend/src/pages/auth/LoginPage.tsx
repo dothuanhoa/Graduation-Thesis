@@ -1,10 +1,15 @@
 import { Lock, LogIn, UserRound } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../components/Card";
 import FormField from "../../components/FormField";
 import { useAuth } from "../../context/useAuth";
 import { ApiError } from "../../services/api";
+import {
+  formatStrongPasswordIssues,
+  strongPasswordHint,
+} from "../../validation/passwordValidation";
+import { reportFormError, scrollToFormMessage } from "../../utils/formFeedback";
 
 function LoginPage() {
   const auth = useAuth();
@@ -15,6 +20,16 @@ function LoginPage() {
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const messageRef = useRef<HTMLDivElement | null>(null);
+
+  const showError = (errorMessage: string, toast = true) => {
+    setError(errorMessage);
+    if (toast) {
+      reportFormError(errorMessage, messageRef.current);
+    } else {
+      scrollToFormMessage(messageRef.current);
+    }
+  };
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,13 +41,13 @@ function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 428) {
         setNeedsPasswordChange(true);
-        setError("Tài khoản cần đổi mật khẩu lần đầu trước khi vào hệ thống.");
+        showError("Tài khoản cần đổi mật khẩu lần đầu trước khi vào hệ thống.", false);
       } else if (err instanceof ApiError && err.status === 429) {
-        setError(err.message || "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.");
+        showError(err.message || "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.", false);
       } else if (err instanceof ApiError && err.status === 403) {
-        setError(err.message || "Tài khoản không được phép đăng nhập.");
+        showError(err.message || "Tài khoản không được phép đăng nhập.", false);
       } else {
-        setError("Mật khẩu hoặc tài khoản sai.");
+        showError("Mật khẩu hoặc tài khoản sai.", false);
       }
     } finally {
       setLoading(false);
@@ -45,13 +60,19 @@ function LoginPage() {
     event.preventDefault();
     setError("");
 
-    if (newPassword.length < 6) {
-      setError("Mật khẩu mới cần tối thiểu 6 ký tự.");
+    const passwordIssueMessage = formatStrongPasswordIssues(newPassword);
+    if (passwordIssueMessage) {
+      showError(passwordIssueMessage);
+      return;
+    }
+
+    if (newPassword === password) {
+      showError("Mật khẩu mới không được trùng với mật khẩu cũ.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("Xác nhận mật khẩu mới chưa khớp.");
+      showError("Xác nhận mật khẩu mới chưa khớp.");
       return;
     }
 
@@ -63,7 +84,7 @@ function LoginPage() {
         newPassword,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không đổi được mật khẩu.");
+      showError(err instanceof Error ? err.message : "Không đổi được mật khẩu.", false);
     } finally {
       setLoading(false);
     }
@@ -87,7 +108,11 @@ function LoginPage() {
         </p>
 
         {error && (
-          <div className="mt-5 rounded-lg border border-error-container bg-error-container px-4 py-3 text-left text-sm font-semibold text-error">
+          <div
+            className="mt-5 rounded-lg border border-error-container bg-error-container px-4 py-3 text-left text-sm font-semibold text-error"
+            data-form-message
+            ref={messageRef}
+          >
             {error}
           </div>
         )}
@@ -134,8 +159,9 @@ function LoginPage() {
               autoComplete="new-password"
               icon={<Lock className="h-5 w-5" />}
               label="Mật khẩu mới"
+              hint={strongPasswordHint}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Nhập mật khẩu mới"
+              placeholder="Ví dụ: Stu@2026"
               type="password"
               value={newPassword}
             />

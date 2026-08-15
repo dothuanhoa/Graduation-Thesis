@@ -40,7 +40,7 @@ public class NotificationRequest {
     @NotNull(message = "Trạng thái thông báo không được để trống")
     private Notification.Status status;
 
-    @AssertTrue(message = "Hệ thống không hỗ trợ gửi thông báo theo từng USER")
+    @AssertTrue(message = "Hệ thống không hỗ trợ gửi thông báo theo từng người dùng riêng lẻ")
     public boolean isUserTargetUnsupported() {
         return targetType != Notification.TargetType.USER;
     }

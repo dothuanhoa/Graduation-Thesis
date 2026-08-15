@@ -321,6 +321,7 @@ export type ActivityResponse = ActivityPayload & {
   updatedAt?: string;
   registrationCount?: number;
   attendedCount?: number;
+  faceVerifiedCount?: number;
   checkerCount?: number;
   currentUserRegistered?: boolean;
   registrationOpen?: boolean;
@@ -343,6 +344,7 @@ export type ActivityRegistrationResponse = {
   userTsid: string;
   studentCode: string;
   fullName: string;
+  classCode?: string;
   activityId?: string;
   activityTitle?: string;
   activityCategory?: ActivityCategory;
@@ -426,6 +428,19 @@ export type ExamStatus = "ACTIVE" | "INACTIVE";
 export type AttemptStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "LOCKED";
 export type StudentExamAvailability = "UPCOMING" | "AVAILABLE" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "LOCKED";
 export type ExamTargetMode = "CLASS" | "STUDENT" | "BOTH";
+
+const activityStatusLabel = (status: ActivityStatus) =>
+  ({
+    UPCOMING: "Sắp diễn ra",
+    ONGOING: "Đang diễn ra",
+    COMPLETED: "Đã hoàn thành",
+  })[status] || status;
+
+const examStatusLabel = (status: ExamStatus) =>
+  ({
+    ACTIVE: "Hoạt động",
+    INACTIVE: "Ngưng hoạt động",
+  })[status] || status;
 
 export type ExamTargetPayload = {
   id?: string | null;
@@ -574,8 +589,8 @@ const extractErrorMessage = (data: unknown): string => {
   if (Array.isArray(data)) {
     const messages = data
       .map((item) => extractErrorMessage(item))
-      .filter((message) => message && message !== "Request failed");
-    return messages[0] || "Request failed";
+      .filter((message) => message && message !== "Yêu cầu không thành công");
+    return messages[0] || "Yêu cầu không thành công";
   }
 
   if (typeof data === "object" && data !== null) {
@@ -604,7 +619,7 @@ const extractErrorMessage = (data: unknown): string => {
     return data;
   }
 
-  return "Request failed";
+  return "Yêu cầu không thành công";
 };
 
 async function refreshAccessToken() {
@@ -1015,8 +1030,8 @@ export const userApi = {
     formData.append("file", file);
     return apiRequest<UserProfile>(`/api/users/${encodeURIComponent(String(id))}/face-image`, {
       method: "POST",
-      successMessage: "Da cap nhat anh khuon mat mau cho sinh vien.",
-      errorMessage: "Khong upload duoc anh khuon mat mau.",
+      successMessage: "Đã cập nhật ảnh khuôn mặt mẫu cho sinh viên.",
+      errorMessage: "Không tải lên được ảnh khuôn mặt mẫu.",
       body: formData,
     });
   },
@@ -1025,8 +1040,8 @@ export const userApi = {
     files.forEach((file) => formData.append("files", file, file.name));
     return apiRequest<FaceImageBulkImportResponse>("/api/users/face-images/import", {
       method: "POST",
-      successMessage: `Đã xử lý folder gồm ${files.length} ảnh khuôn mặt.`,
-      errorMessage: "Không xử lý được folder ảnh khuôn mặt.",
+      successMessage: `Đã xử lý thư mục gồm ${files.length} ảnh khuôn mặt.`,
+      errorMessage: "Không xử lý được thư mục ảnh khuôn mặt.",
       body: formData,
     });
   },
@@ -1037,8 +1052,8 @@ export const userApi = {
       "/api/users/face-images/import/jobs",
       formData,
       onUploadProgress,
-      `Đã tải folder gồm ${files.length} ảnh lên hệ thống.`,
-      "Không bắt đầu được job import ảnh khuôn mặt.",
+      `Đã tải thư mục gồm ${files.length} ảnh lên hệ thống.`,
+      "Không bắt đầu được tác vụ nhập ảnh khuôn mặt.",
     );
   },
   getFaceImageImportJob(jobId: string) {
@@ -1103,8 +1118,8 @@ export const userApi = {
     formData.append("sendMail", String(options.sendMail ?? true));
     return apiRequest<string>("/api/users/import", {
       method: "POST",
-      successMessage: "Đã import file sinh viên " + file.name + ".",
-      errorMessage: "Không import được file sinh viên " + file.name + ".",
+      successMessage: "Đã nhập file sinh viên " + file.name + ".",
+      errorMessage: "Không nhập được file sinh viên " + file.name + ".",
       body: formData,
     });
   },
@@ -1115,8 +1130,8 @@ export const userApi = {
     return apiRequest<StudentImportJobStatus>("/api/users/import/jobs", {
       method: "POST",
       body: formData,
-      successMessage: "Đã bắt đầu import file sinh viên " + file.name + ".",
-      errorMessage: "Không bắt đầu được import file sinh viên " + file.name + ".",
+      successMessage: "Đã bắt đầu nhập file sinh viên " + file.name + ".",
+      errorMessage: "Không bắt đầu nhập được file sinh viên " + file.name + ".",
     });
   },
   getImportJob(jobId: string) {
@@ -1143,8 +1158,8 @@ export const facultyApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/faculties/import", {
       method: "POST",
-      successMessage: "Đã import file khoa " + file.name + ".",
-      errorMessage: "Không import được file khoa " + file.name + ".",
+      successMessage: "Đã nhập file khoa " + file.name + ".",
+      errorMessage: "Không nhập được file khoa " + file.name + ".",
       body: formData,
     });
   },
@@ -1182,8 +1197,8 @@ export const academicYearApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/academic-years/import", {
       method: "POST",
-      successMessage: "Đã import file niên khóa " + file.name + ".",
-      errorMessage: "Không import được file niên khóa " + file.name + ".",
+      successMessage: "Đã nhập file niên khóa " + file.name + ".",
+      errorMessage: "Không nhập được file niên khóa " + file.name + ".",
       body: formData,
     });
   },
@@ -1221,8 +1236,8 @@ export const classApi = {
     formData.append("file", file);
     return apiRequest<string>("/api/users/classes/import", {
       method: "POST",
-      successMessage: "Đã import file lớp " + file.name + ".",
-      errorMessage: "Không import được file lớp " + file.name + ".",
+      successMessage: "Đã nhập file lớp " + file.name + ".",
+      errorMessage: "Không nhập được file lớp " + file.name + ".",
       body: formData,
     });
   },
@@ -1420,7 +1435,7 @@ export const activityApi = {
   updateStatus(id: string, status: ActivityStatus) {
     return apiRequest<ActivityResponse>(`/api/activities/${encodeURIComponent(id)}/status`, {
       method: "PATCH",
-      successMessage: "Đã cập nhật trạng thái hoạt động thành " + status + ".",
+      successMessage: "Đã cập nhật trạng thái hoạt động thành " + activityStatusLabel(status) + ".",
       errorMessage: "Không cập nhật được trạng thái hoạt động.",
       body: JSON.stringify({ status }),
     });
@@ -1443,8 +1458,8 @@ export const activityApi = {
   createQrSession(id: string, payload: ActivityQrSessionPayload) {
     return apiRequest<ActivityQrSessionResponse>(`/api/activities/${encodeURIComponent(id)}/qr-sessions`, {
       method: "POST",
-      successMessage: "Da tao ma QR diem danh.",
-      errorMessage: "Khong tao duoc ma QR diem danh.",
+      successMessage: "Đã tạo mã QR điểm danh.",
+      errorMessage: "Không tạo được mã QR điểm danh.",
       body: JSON.stringify(payload),
     });
   },
@@ -1453,16 +1468,16 @@ export const activityApi = {
     formData.append("file", file);
     return apiRequest<FaceCheckinBatchResponse>(`/api/activities/${encodeURIComponent(id)}/face-checkin`, {
       method: "POST",
-      successMessage: "Da xac thuc khuon mat diem danh.",
-      errorMessage: "Khong xac thuc duoc khuon mat diem danh.",
+      successMessage: "Đã xác thực khuôn mặt điểm danh.",
+      errorMessage: "Không xác thực được khuôn mặt điểm danh.",
       body: formData,
     });
   },
   qrCheckin(id: string, payload: ActivityQrCheckinPayload) {
     return apiRequest<ActivityRegistrationResponse>(`/api/activities/${encodeURIComponent(id)}/qr-checkin`, {
       method: "POST",
-      successMessage: "Da ghi nhan diem danh bang QR.",
-      errorMessage: "Khong ghi nhan duoc diem danh bang QR.",
+      successMessage: "Đã ghi nhận điểm danh bằng QR.",
+      errorMessage: "Không ghi nhận được điểm danh bằng QR.",
       body: JSON.stringify(payload),
     });
   },
@@ -1535,7 +1550,7 @@ export const examApi = {
   updateStatus(id: string, status: ExamStatus) {
     return apiRequest<ExamResponse>(`/api/exams/${encodeURIComponent(id)}/status`, {
       method: "PATCH",
-      successMessage: "Đã cập nhật trạng thái kỳ thi thành " + status + ".",
+      successMessage: "Đã cập nhật trạng thái kỳ thi thành " + examStatusLabel(status) + ".",
       errorMessage: "Không cập nhật được trạng thái kỳ thi.",
       body: JSON.stringify({ status }),
     });
@@ -1578,8 +1593,8 @@ export const examApi = {
     formData.append("file", file);
     return apiRequest<QuestionImportResult>(`/api/exams/${encodeURIComponent(examId)}/questions/import`, {
       method: "POST",
-      successMessage: "Đã import file câu hỏi " + file.name + ".",
-      errorMessage: "Không import được file câu hỏi " + file.name + ".",
+      successMessage: "Đã nhập file câu hỏi " + file.name + ".",
+      errorMessage: "Không nhập được file câu hỏi " + file.name + ".",
       body: formData,
     });
   },

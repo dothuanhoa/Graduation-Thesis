@@ -56,7 +56,7 @@ export async function validateFaceFolder(
   files: File[],
   onProgress?: (processed: number, total: number) => void,
 ) {
-  if (files.length === 0) return "Folder đã chọn không có ảnh JPG hoặc PNG.";
+  if (files.length === 0) return "Thư mục đã chọn không có ảnh JPG hoặc PNG.";
   if (files.length > MAX_FACE_FOLDER_FILES) return `Mỗi lần chỉ được gửi tối đa ${MAX_FACE_FOLDER_FILES} ảnh.`;
 
   const studentIds = new Set<string>();
@@ -65,7 +65,7 @@ export async function validateFaceFolder(
     const error = await validateFaceImageFile(file, true);
     if (error) return `${file.name}: ${error}`;
     const studentId = studentIdFromFaceFile(file).toLowerCase();
-    if (studentIds.has(studentId)) return `MSSV ${studentIdFromFaceFile(file)} bị trùng trong folder.`;
+    if (studentIds.has(studentId)) return `MSSV ${studentIdFromFaceFile(file)} bị trùng trong thư mục.`;
     studentIds.add(studentId);
     onProgress?.(index + 1, files.length);
   }

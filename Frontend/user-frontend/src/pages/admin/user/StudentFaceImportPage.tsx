@@ -29,10 +29,10 @@ function StudentFaceImportPage() {
         : 0;
 
   const progressLabel = validating
-    ? `Đang kiểm tra folder trên trình duyệt (${validationProgress}%)...`
+    ? `Đang kiểm tra thư mục trên trình duyệt (${validationProgress}%)...`
     : uploading
-      ? `Đang tải folder ảnh lên máy chủ (${uploadProgress}%)...`
-      : job?.message || "Chưa bắt đầu import.";
+      ? `Đang tải thư mục ảnh lên máy chủ (${uploadProgress}%)...`
+      : job?.message || "Chưa bắt đầu nhập ảnh.";
 
   const resultItems = useMemo(() => job?.items ?? [], [job?.items]);
 
@@ -46,13 +46,13 @@ function StudentFaceImportPage() {
         if (disposed) return;
         setJob(latest);
         if (latest.status === "COMPLETED") {
-          setMessage(latest.message || "Import folder ảnh đã hoàn tất.");
+          setMessage(latest.message || "Nhập thư mục ảnh đã hoàn tất.");
         } else if (latest.status === "FAILED") {
-          setMessage(latest.error || latest.message || "Import folder ảnh thất bại.");
+          setMessage(latest.error || latest.message || "Nhập thư mục ảnh thất bại.");
         }
       } catch (error) {
         if (!disposed) {
-          setMessage(error instanceof Error ? error.message : "Không cập nhật được tiến trình import ảnh.");
+          setMessage(error instanceof Error ? error.message : "Không cập nhật được tiến trình nhập ảnh.");
         }
       }
     };
@@ -72,7 +72,7 @@ function StudentFaceImportPage() {
     setValidationProgress(0);
     setUploadProgress(0);
     const relativePath = selectedFiles[0]?.webkitRelativePath || "";
-    setFolderName(relativePath.split("/")[0] || "Folder ảnh đã chọn");
+    setFolderName(relativePath.split("/")[0] || "Thư mục ảnh đã chọn");
   };
 
   const handleImport = async () => {
@@ -94,9 +94,9 @@ function StudentFaceImportPage() {
       setUploading(true);
       const startedJob = await userApi.startFaceImageImportJob(files, setUploadProgress);
       setJob(startedJob);
-      setMessage("Đã tải folder lên hệ thống. Bạn có thể theo dõi tiến trình xử lý bên dưới.");
+      setMessage("Đã tải thư mục lên hệ thống. Bạn có thể theo dõi tiến trình xử lý bên dưới.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không import được folder ảnh khuôn mặt.");
+      setMessage(error instanceof Error ? error.message : "Không nhập được thư mục ảnh khuôn mặt.");
     } finally {
       setValidating(false);
       setUploading(false);
@@ -107,15 +107,15 @@ function StudentFaceImportPage() {
     <div className="space-y-gutter">
       <BackButton to="/admin/students">Quay lại danh sách sinh viên</BackButton>
       <PageHeader
-        title="Import ảnh khuôn mặt sinh viên"
-        subtitle="Chọn một folder ảnh, theo dõi tiến trình phân tích AWS và kết quả của từng MSSV."
+        title="Nhập ảnh khuôn mặt sinh viên"
+        subtitle="Chọn một thư mục ảnh, theo dõi tiến trình phân tích AWS và kết quả của từng MSSV."
       />
 
       <Card>
         <div className="flex flex-col gap-5">
           <div>
             <p className="text-sm font-semibold text-primary">Ảnh khuôn mặt hàng loạt</p>
-            <h2 className="mt-1 text-xl font-bold text-on-surface">Import một folder ảnh sinh viên</h2>
+            <h2 className="mt-1 text-xl font-bold text-on-surface">Nhập một thư mục ảnh sinh viên</h2>
             <p className="mt-2 text-sm leading-6 text-on-surface-variant">
               Mỗi file phải có tên là MSSV, ví dụ DH52201258.jpg. Hệ thống kiểm tra MSSV trước khi gửi ảnh cho AWS,
               sau đó lưu thành public/faceId/MSSV/MSSV.png.
@@ -124,7 +124,7 @@ function StudentFaceImportPage() {
 
           <label className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-lowest px-6 py-10 text-center transition ${isBusy ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-primary hover:bg-primary-fixed"}`}>
             <FolderOpen className="h-12 w-12 text-primary" />
-            <span className="mt-4 text-lg font-bold text-on-surface">{folderName || "Chọn folder ảnh"}</span>
+            <span className="mt-4 text-lg font-bold text-on-surface">{folderName || "Chọn thư mục ảnh"}</span>
             <span className="mt-2 text-sm text-on-surface-variant">
               {files.length ? `${files.length} file đã chọn` : "Tối đa 200 ảnh JPG/PNG, mỗi ảnh tối đa 5MB."}
             </span>
@@ -226,7 +226,7 @@ function StudentFaceImportPage() {
             type="button"
           >
             {isBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Images className="h-5 w-5" />}
-            {isBusy ? "Đang import ảnh..." : "Gửi folder ảnh"}
+            {isBusy ? "Đang nhập ảnh..." : "Gửi thư mục ảnh"}
           </button>
         </div>
       </Card>

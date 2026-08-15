@@ -89,6 +89,7 @@ class ActivityServiceTest {
         assertThat(response.getStudentCode()).isEqualTo("DH52201258");
         assertThat(response.getUserTsid()).isEqualTo("1001");
         assertThat(response.getFullName()).isEqualTo("Tran Thanh Hoai Phuc");
+        assertThat(response.getClassCode()).isEqualTo("D22_TH01");
         verify(activityRepository).findByIdForUpdate(1L);
     }
 
@@ -129,6 +130,8 @@ class ActivityServiceTest {
                 .thenReturn(true);
         when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
                 .thenReturn(List.of(verifiedFace()));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -138,6 +141,7 @@ class ActivityServiceTest {
         assertThat(response.getRegistrations()).singleElement().satisfies(registrationResponse -> {
             assertThat(registrationResponse.getStudentCode()).isEqualTo("DH52201258");
             assertThat(registrationResponse.getUserTsid()).isEqualTo("1001");
+            assertThat(registrationResponse.getClassCode()).isEqualTo("D22_TH01");
             assertThat(registrationResponse.isFaceVerified()).isTrue();
             assertThat(registrationResponse.isAttended()).isTrue();
             assertThat(registrationResponse.getCheckinTime()).isNotNull();
@@ -156,6 +160,10 @@ class ActivityServiceTest {
                 .thenReturn(true);
         when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
                 .thenReturn(List.of(first, second));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201259"))
+                .thenReturn(profile("DH52201259", "Nguyen Van A"));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201259")).thenReturn(Optional.empty());
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -184,6 +192,8 @@ class ActivityServiceTest {
                 .thenReturn(true);
         when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "", faceImage))
                 .thenReturn(List.of(verifiedFace()));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
 
@@ -208,6 +218,8 @@ class ActivityServiceTest {
         when(registrationRepository.findByActivityIdOrderByStudentCodeAsc(1L)).thenReturn(List.of(registration));
         when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "DH52201258", faceImage))
                 .thenReturn(List.of(verifiedFace()));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
         when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -216,7 +228,10 @@ class ActivityServiceTest {
 
         assertThat(response.getRegistrations()).singleElement().extracting("userTsid").isEqualTo("1001");
         assertThat(registration.getUserTsid()).isEqualTo("1001");
+        assertThat(registration.getClassCode()).isEqualTo("D22_TH01");
         assertThat(response.getRegistrations().get(0).getCheckinTime()).isNotNull();
+        assertThat(response.getRegistrations().get(0).isAttended()).isTrue();
+        assertThat(response.getRegistrations().get(0).getAttendanceResult()).isEqualTo(ActivityRegistration.AttendanceResult.INCOMPLETE);
     }
 
     @Test
@@ -230,6 +245,8 @@ class ActivityServiceTest {
         when(registrationRepository.findByActivityIdOrderByStudentCodeAsc(1L)).thenReturn(List.of(otherRegistration));
         when(userClient.identifyStudentFaces("SYSTEM", "activity-service", "DH52209999", faceImage))
                 .thenReturn(List.of(verifiedFace()));
+        when(userClient.getStudentProfile("SYSTEM", "activity-service", "DH52201258"))
+                .thenReturn(profile("DH52201258", "Tran Thanh Hoai Phuc"));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258")).thenReturn(Optional.empty());
 
         var response = service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage);
@@ -237,6 +254,39 @@ class ActivityServiceTest {
         assertThat(response.getCheckedInCount()).isZero();
         assertThat(response.getSkippedCount()).isEqualTo(1);
         verify(registrationRepository, never()).save(any(ActivityRegistration.class));
+    }
+
+    @Test
+    void limitedActivityFaceCheckinReportsAllStudentsAlreadyFaceVerified() {
+        Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.ONGOING);
+        ActivityRegistration registration = registration(activity, "DH52201258", "Tran Thanh Hoai Phuc");
+        registration.setFaceVerified(true);
+        MockMultipartFile faceImage = new MockMultipartFile("file", "face.jpg", "image/jpeg", "fake".getBytes());
+
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
+        when(checkerRepository.existsByActivityIdAndCheckerTsidIgnoreCaseOrActivityIdAndCheckerCodeIgnoreCase(1L, "CHECKER1", 1L, "CHECKER1"))
+                .thenReturn(true);
+        when(registrationRepository.findByActivityIdOrderByStudentCodeAsc(1L)).thenReturn(List.of(registration));
+
+        assertThatThrownBy(() -> service.faceCheckin(1L, "STUDENT", "CHECKER1", faceImage))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Tất cả sinh viên đăng ký đã được xác thực khuôn mặt");
+        verify(userClient, never()).identifyStudentFaces(any(), any(), any(), any());
+    }
+
+    @Test
+    void activityResponseIncludesFaceVerifiedCountForCheckerProgress() {
+        Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.ONGOING);
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
+        when(registrationRepository.countByActivityId(1L)).thenReturn(5L);
+        when(registrationRepository.countByActivityIdAndAttendedTrue(1L)).thenReturn(2L);
+        when(registrationRepository.countByActivityIdAndFaceVerifiedTrue(1L)).thenReturn(4L);
+
+        var response = service.findById(1L, null);
+
+        assertThat(response.getRegistrationCount()).isEqualTo(5L);
+        assertThat(response.getAttendedCount()).isEqualTo(2L);
+        assertThat(response.getFaceVerifiedCount()).isEqualTo(4L);
     }
 
     @Test
@@ -289,7 +339,7 @@ class ActivityServiceTest {
     }
 
     @Test
-    void qrCheckinRejectsMissingLocationWhenQrRequiresLocation() {
+    void qrCheckinAcceptsMissingLocationWhileLocationValidationIsPaused() {
         Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.ONGOING);
         activity.setAttendanceSessionCount(2);
         configureFinalQrLocation(activity);
@@ -300,16 +350,19 @@ class ActivityServiceTest {
         when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
+        when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.qrCheckin("DH52201258", request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Không lấy được vị trí hiện tại");
-        assertThat(registration.isFinalAttended()).isFalse();
-        verify(registrationRepository, never()).save(any(ActivityRegistration.class));
+        var response = service.qrCheckin("DH52201258", request);
+
+        assertThat(response.isFinalAttended()).isTrue();
+        assertThat(response.isFinalLocationVerified()).isFalse();
+        assertThat(response.getFinalDistanceMeters()).isNull();
+        verify(registrationRepository).save(any(ActivityRegistration.class));
+
     }
 
     @Test
-    void qrCheckinRejectsWhenStudentIsOutsideAllowedRadius() {
+    void qrCheckinAcceptsOutsideAllowedRadiusWhileLocationValidationIsPaused() {
         Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.ONGOING);
         activity.setAttendanceSessionCount(2);
         configureFinalQrLocation(activity);
@@ -319,16 +372,19 @@ class ActivityServiceTest {
         when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
         when(registrationRepository.findByActivityIdAndStudentCodeIgnoreCase(1L, "DH52201258"))
                 .thenReturn(Optional.of(registration));
+        when(registrationRepository.save(any(ActivityRegistration.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.qrCheckin("DH52201258", request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("ngoài phạm vi điểm danh");
-        assertThat(registration.isFinalAttended()).isFalse();
-        verify(registrationRepository, never()).save(any(ActivityRegistration.class));
+        var response = service.qrCheckin("DH52201258", request);
+
+        assertThat(response.isFinalAttended()).isTrue();
+        assertThat(response.isFinalLocationVerified()).isFalse();
+        assertThat(response.getFinalDistanceMeters()).isNull();
+        verify(registrationRepository).save(any(ActivityRegistration.class));
+
     }
 
     @Test
-    void qrCheckinStoresLocationEvidenceWhenStudentIsInsideAllowedRadius() {
+    void qrCheckinDoesNotStoreLocationEvidenceWhileLocationValidationIsPaused() {
         Activity activity = activity(1L, Activity.ParticipationType.LIMITED, Activity.Status.ONGOING);
         activity.setAttendanceSessionCount(2);
         configureFinalQrLocation(activity);
@@ -347,8 +403,8 @@ class ActivityServiceTest {
         var response = service.qrCheckin("DH52201258", request);
 
         assertThat(response.isFinalAttended()).isTrue();
-        assertThat(response.isFinalLocationVerified()).isTrue();
-        assertThat(response.getFinalDistanceMeters()).isLessThan(100D);
+        assertThat(response.isFinalLocationVerified()).isFalse();
+        assertThat(response.getFinalDistanceMeters()).isNull();
         assertThat(response.getCheckinTime()).isEqualTo(firstFaceCheckinTime);
     }
 
@@ -402,7 +458,7 @@ class ActivityServiceTest {
 
         assertThatThrownBy(() -> service.qrCheckin("DH52201258", request))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("da diem danh");
+                .hasMessageContaining("đã điểm danh");
         assertThat(registration.getCheckinTime()).isEqualTo(firstFaceCheckinTime);
         assertThat(registration.getFinalCheckinTime()).isEqualTo(firstFinalCheckinTime);
         verify(registrationRepository, never()).save(any(ActivityRegistration.class));
@@ -472,6 +528,10 @@ class ActivityServiceTest {
         profile.setId(1001L);
         profile.setStudentId(studentId);
         profile.setFullName(fullName);
+        UserProfileDTO.ClazzDTO clazz = new UserProfileDTO.ClazzDTO();
+        clazz.setId(501L);
+        clazz.setClassCode("D22_TH01");
+        profile.setClazz(clazz);
         return profile;
     }
 

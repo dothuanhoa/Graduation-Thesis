@@ -85,7 +85,7 @@ class FaceImageImportJobServiceTest {
     void rejectsAnEmptyFolderBeforeCreatingAJob() {
         assertThatThrownBy(() -> jobService.start(List.of()))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("folder ảnh");
+                .hasMessageContaining("thư mục ảnh");
     }
 
     @Test
@@ -110,6 +110,6 @@ class FaceImageImportJobServiceTest {
             }
             Thread.sleep(20);
         } while (Instant.now().isBefore(deadline));
-        throw new AssertionError("Job import ảnh không hoàn tất trong thời gian chờ");
+        throw new AssertionError("Tác vụ nhập ảnh không hoàn tất trong thời gian chờ");
     }
 }

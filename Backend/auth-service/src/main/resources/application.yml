@@ -58,7 +58,7 @@ app:
   mail:
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:no-reply@stu.edu.vn}
-    from-name: ${MAIL_FROM_NAME:Cong sinh vien STU}
+    from-name: ${MAIL_FROM_NAME:Cổng sinh viên STU}
     queue-capacity: ${MAIL_QUEUE_CAPACITY:20000}
     worker-count: ${MAIL_WORKER_COUNT:1}
     send-delay-ms: ${MAIL_SEND_DELAY_MS:1000}

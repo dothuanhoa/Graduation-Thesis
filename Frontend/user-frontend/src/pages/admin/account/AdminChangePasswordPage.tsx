@@ -1,5 +1,5 @@
 import { KeyRound, Save } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
@@ -7,6 +7,11 @@ import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import { useAuth } from "../../../context/useAuth";
 import { authApi } from "../../../services/api";
+import {
+  formatStrongPasswordIssues,
+  strongPasswordHint,
+} from "../../../validation/passwordValidation";
+import { reportFormError, scrollToFormMessage } from "../../../utils/formFeedback";
 
 function AdminChangePasswordPage() {
   const navigate = useNavigate();
@@ -16,18 +21,29 @@ function AdminChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const messageRef = useRef<HTMLDivElement | null>(null);
+
+  const showError = (errorMessage: string, toast = true) => {
+    setMessage(errorMessage);
+    if (toast) {
+      reportFormError(errorMessage, messageRef.current);
+    } else {
+      scrollToFormMessage(messageRef.current);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage("");
 
-    if (newPassword.length < 6) {
-      setMessage("Mật khẩu mới cần tối thiểu 6 ký tự.");
+    const passwordIssueMessage = formatStrongPasswordIssues(newPassword);
+    if (passwordIssueMessage) {
+      showError(passwordIssueMessage);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMessage("Mật khẩu xác nhận chưa khớp.");
+      showError("Mật khẩu xác nhận chưa khớp.");
       return;
     }
 
@@ -43,7 +59,7 @@ function AdminChangePasswordPage() {
         navigate("/login", { replace: true });
       }, 1600);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không đổi được mật khẩu.");
+      showError(err instanceof Error ? err.message : "Không đổi được mật khẩu.", false);
     } finally {
       setSaving(false);
     }
@@ -59,7 +75,15 @@ function AdminChangePasswordPage() {
       />
 
       <Card className="max-w-2xl">
-        {message && <div className="mb-5 rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+        {message && (
+          <div
+            className="mb-5 rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary"
+            data-form-message
+            ref={messageRef}
+          >
+            {message}
+          </div>
+        )}
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <FormField
             label="Mật khẩu hiện tại"
@@ -70,7 +94,9 @@ function AdminChangePasswordPage() {
           />
           <FormField
             label="Mật khẩu mới"
+            hint={strongPasswordHint}
             onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="Ví dụ: Admin@2026"
             required
             type="password"
             value={newPassword}

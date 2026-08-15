@@ -6,7 +6,7 @@ import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import { activityApi, type ActivityCategory, type ActivityParticipationType, type ActivityPayload } from "../../../services/api";
-import { toApiDateTime } from "../../../utils/activityUi";
+import { activityCategoryLabels, toApiDateTime } from "../../../utils/activityUi";
 import { activitySchema } from "../../../validation/activitySchemas";
 import { getZodMessage } from "../../../validation/userSchemas";
 
@@ -52,6 +52,10 @@ const toPayload = (form: ActivityFormState): ActivityPayload => ({
   capacity: form.participationType === "LIMITED" ? Number(form.capacity) : undefined,
   attendanceSessionCount: form.participationType === "LIMITED" ? Number(form.attendanceSessionCount || 2) : 1,
 });
+
+const activityCategoryOptions = Object.entries(activityCategoryLabels).map(
+  ([value, label]) => ({ value, label }),
+);
 
 function ActivityCreatePage() {
   const navigate = useNavigate();
@@ -107,7 +111,7 @@ function ActivityCreatePage() {
             as="select"
             label="Loại hoạt động"
             onChange={(event) => updateField("category", event.target.value)}
-            options={["ACADEMIC", "MOVEMENT", "FACULTY", "UNIVERSITY", "OTHER"]}
+            options={activityCategoryOptions}
             value={form.category}
           />
           <label className="flex flex-col gap-1.5">

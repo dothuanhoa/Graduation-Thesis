@@ -36,6 +36,9 @@ public class ActivityRegistration {
     @Column(name = "full_name", length = 150)
     private String fullName;
 
+    @Column(name = "class_code", length = 50)
+    private String classCode;
+
     @Column(name = "is_attended", nullable = false, columnDefinition = "boolean default false")
     private boolean attended = false;
 

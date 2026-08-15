@@ -12,8 +12,8 @@ type ExcelImportButtonProps = {
 function ExcelImportButton({
   disabled = false,
   loading = false,
-  label = "Import Excel",
-  loadingLabel = "Đang import...",
+  label = "Nhập Excel",
+  loadingLabel = "Đang nhập...",
   onImport,
 }: ExcelImportButtonProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);

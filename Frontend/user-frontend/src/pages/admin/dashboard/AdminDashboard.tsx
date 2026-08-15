@@ -57,7 +57,7 @@ const quickLinks: QuickLink[] = [
     icon: Plus,
   },
   {
-    title: "Import sinh viên",
+    title: "Nhập sinh viên",
     helper: "Nạp danh sách từ Excel",
     path: "/admin/students/import",
     icon: ClipboardPlus,

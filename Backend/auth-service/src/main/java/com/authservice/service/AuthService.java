@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final ZoneId PASSWORD_RESET_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final int MIN_STRONG_PASSWORD_LENGTH = 8;
     private static final String TEMPORARY_LOCKOUT_MESSAGE =
             "Tài khoản bị khóa. Vui lòng thử lại sau 15 phút.";
 
@@ -86,8 +87,8 @@ public class AuthService {
 
             if (existingUser.getStatus() == AuthUser.Status.REQUIRE_CHANGE_PWD) {
                 issueTemporaryPassword(existingUser, accountEmail, sendMail);
-                System.out.println("Re-issued temporary password for student account: " + cleanUsername
-                        + ", send mail: " + sendMail);
+                System.out.println("Đã cấp lại mật khẩu tạm cho tài khoản sinh viên: " + cleanUsername
+                        + ", gửi email: " + sendMail);
                 return;
             }
 
@@ -95,7 +96,7 @@ public class AuthService {
                 existingUser.setEmail(accountEmail);
                 authUserRepository.save(existingUser);
             }
-            System.out.println("Student account already initialized, skipped password reset for: " + cleanUsername);
+            System.out.println("Tài khoản sinh viên đã được khởi tạo, bỏ qua đặt lại mật khẩu cho: " + cleanUsername);
             return;
         }
 
@@ -109,11 +110,11 @@ public class AuthService {
         user.setStatus(AuthUser.Status.REQUIRE_CHANGE_PWD);
 
         authUserRepository.save(user);
-        logTemporaryCredential("Created single student account", cleanUsername, randomPass);
+        logTemporaryCredential("Đã tạo một tài khoản sinh viên", cleanUsername, randomPass);
         if (sendMail) {
             accountEmailService.sendInitialPasswordEmail(accountEmail, cleanUsername, randomPass);
         }
-        System.out.println("Created single account: " + cleanUsername + ", send mail: " + sendMail);
+        System.out.println("Đã tạo một tài khoản: " + cleanUsername + ", gửi email: " + sendMail);
     }
 
     @Transactional
@@ -136,7 +137,7 @@ public class AuthService {
 
         user.setEmail(accountEmail);
         authUserRepository.save(user);
-        System.out.println("Updated student auth email for: " + cleanUsername + " -> " + accountEmail);
+        System.out.println("Đã cập nhật email đăng nhập của sinh viên: " + cleanUsername + " -> " + accountEmail);
     }
 
     public TokenResponse login(LoginRequest request) {
@@ -185,6 +186,11 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mật khẩu cũ không chính xác");
+        }
+
+        validateStrongPassword(request.getNewPassword());
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mật khẩu mới không được trùng với mật khẩu cũ.");
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
@@ -269,9 +275,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Liên kết đặt lại mật khẩu không hợp lệ.");
         }
 
-        if (newPassword == null || newPassword.length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mật khẩu mới cần tối thiểu 6 ký tự.");
-        }
+        validateStrongPassword(newPassword);
 
         Instant now = Instant.now();
         PasswordResetToken resetToken = passwordResetTokenRepository.findByTokenHash(hashToken(cleanToken))
@@ -316,9 +320,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng nhập mật khẩu hiện tại.");
         }
 
-        if (newPassword == null || newPassword.length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mật khẩu mới cần tối thiểu 6 ký tự.");
-        }
+        validateStrongPassword(newPassword);
 
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mật khẩu hiện tại không chính xác.");
@@ -341,7 +343,7 @@ public class AuthService {
     @Transactional
     public void revokeUser(String username) {
         AuthUser user = authUserRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User không tồn tại"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tài khoản không tồn tại"));
 
         user.setStatus(AuthUser.Status.INACTIVE);
         authUserRepository.save(user);
@@ -383,7 +385,7 @@ public class AuthService {
         studentUsers.forEach(user -> redisService.revokeAccess(user.getUsername()));
         passwordResetTokenRepository.deleteByUserIn(studentUsers);
         authUserRepository.deleteAll(studentUsers);
-        System.out.println("Deleted student auth accounts: " + studentUsers.size() + "/" + cleanUsernames.size());
+        System.out.println("Đã xóa tài khoản đăng nhập sinh viên: " + studentUsers.size() + "/" + cleanUsernames.size());
         return studentUsers.size();
     }
 
@@ -475,18 +477,18 @@ public class AuthService {
                     )
             );
         }
-        System.out.println("Prepared bulk accounts: " + users.size() + "/" + uniqueAccounts.size()
-                + ", skipped admins: " + skippedAdmins
-                + ", created accounts: " + createdAccounts
-                + ", reset pending accounts: " + resetPendingAccounts
-                + ", skipped initialized accounts: " + skippedInitializedAccounts
-                + ", send mail: " + sendMail);
+        System.out.println("Đã chuẩn bị tài khoản hàng loạt: " + users.size() + "/" + uniqueAccounts.size()
+                + ", bỏ qua tài khoản quản trị: " + skippedAdmins
+                + ", tài khoản tạo mới: " + createdAccounts
+                + ", tài khoản cấp lại mật khẩu tạm: " + resetPendingAccounts
+                + ", tài khoản đã khởi tạo bị bỏ qua: " + skippedInitializedAccounts
+                + ", gửi email: " + sendMail);
     }
 
     @Transactional
     public void unlockUser(String username) {
         AuthUser user = authUserRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User không tồn tại"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tài khoản không tồn tại"));
 
         user.setStatus(AuthUser.Status.ACTIVE);
         user.setFailedAttempts(0);
@@ -499,7 +501,7 @@ public class AuthService {
     @Transactional
     public void resetPassword(String username) {
         AuthUser user = authUserRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User không tồn tại"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tài khoản không tồn tại"));
 
         String randomPass = UUID.randomUUID().toString().substring(0, 8);
         user.setPasswordHash(passwordEncoder.encode(randomPass));
@@ -508,9 +510,9 @@ public class AuthService {
         authUserRepository.save(user);
 
         redisService.revokeAccess(username);
-        logTemporaryCredential("Admin reset password", username, randomPass);
+        logTemporaryCredential("Quản trị viên đặt lại mật khẩu", username, randomPass);
         accountEmailService.sendResetPasswordEmail(user.getEmail(), username, randomPass);
-        System.out.println("Admin reset password for " + username);
+        System.out.println("Quản trị viên đã đặt lại mật khẩu cho " + username);
     }
 
     public List<AuthUser> getAllUsers() {
@@ -570,7 +572,7 @@ public class AuthService {
             }
             return hex.toString();
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 is not available", ex);
+            throw new IllegalStateException("Thuật toán SHA-256 không khả dụng", ex);
         }
     }
 
@@ -669,7 +671,7 @@ public class AuthService {
         authUserRepository.save(user);
         redisService.unlockUser(user.getUsername());
         redisService.revokeAccess(user.getUsername());
-        logTemporaryCredential("Issued temporary password for student account", user.getUsername(), randomPass);
+        logTemporaryCredential("Đã cấp mật khẩu tạm cho tài khoản sinh viên", user.getUsername(), randomPass);
         if (sendMail) {
             accountEmailService.sendInitialPasswordEmail(accountEmail, user.getUsername(), randomPass);
         }
@@ -687,6 +689,35 @@ public class AuthService {
 
     private String generateTemporaryPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private void validateStrongPassword(String password) {
+        List<String> missingConditions = new ArrayList<>();
+        String rawPassword = password == null ? "" : password;
+
+        if (rawPassword.length() < MIN_STRONG_PASSWORD_LENGTH) {
+            missingConditions.add("ít nhất 8 ký tự");
+        }
+        if (rawPassword.chars().noneMatch(Character::isUpperCase)) {
+            missingConditions.add("1 chữ hoa");
+        }
+        if (rawPassword.chars().noneMatch(Character::isDigit)) {
+            missingConditions.add("1 chữ số");
+        }
+        if (rawPassword.chars().noneMatch(character ->
+                !Character.isLetterOrDigit(character) && !Character.isWhitespace(character))) {
+            missingConditions.add("1 ký tự đặc biệt");
+        }
+        if (rawPassword.chars().anyMatch(Character::isWhitespace)) {
+            missingConditions.add("không chứa khoảng trắng");
+        }
+
+        if (!missingConditions.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Mật khẩu mới phải có " + String.join(", ", missingConditions) + "."
+            );
+        }
     }
 
     private void logTemporaryCredential(String action, String username, String rawPassword) {

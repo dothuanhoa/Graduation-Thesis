@@ -1,5 +1,5 @@
 import { KeyRound, Lock, Mail, Phone, RefreshCw, Save, UserRound } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
@@ -8,6 +8,11 @@ import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import { authApi, userApi, type UserProfile } from "../../../services/api";
 import { contactPhoneSchema } from "../../../validation/userSchemas";
+import {
+  formatStrongPasswordIssues,
+  strongPasswordHint,
+} from "../../../validation/passwordValidation";
+import { reportFormError, scrollToFormMessage } from "../../../utils/formFeedback";
 
 const genderLabel: Record<string, string> = {
   MALE: "Nam",
@@ -25,7 +30,7 @@ const statusText: Record<string, string> = {
 const passwordSchema = z
   .object({
     oldPassword: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại."),
-    newPassword: z.string().min(6, "Mật khẩu mới cần tối thiểu 6 ký tự."),
+    newPassword: z.string().min(1, "Vui lòng nhập mật khẩu mới."),
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu mới."),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -67,6 +72,8 @@ function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const profileMessageRef = useRef<HTMLDivElement | null>(null);
+  const passwordMessageRef = useRef<HTMLDivElement | null>(null);
 
   const studentEmail = useMemo(() => {
     if (profile?.email) return profile.email;
@@ -119,7 +126,9 @@ function StudentProfilePage() {
       setContactPhone(updated.contactPhone || "");
       setMessage("Đã cập nhật số điện thoại liên hệ.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không cập nhật được liên hệ.");
+      const errorMessage = err instanceof Error ? err.message : "Không cập nhật được liên hệ.";
+      setMessage(errorMessage);
+      reportFormError(errorMessage, profileMessageRef.current);
     } finally {
       setSaving(false);
     }
@@ -132,7 +141,16 @@ function StudentProfilePage() {
 
     const parsed = passwordSchema.safeParse({ oldPassword, newPassword, confirmPassword });
     if (!parsed.success) {
-      setPasswordError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại mật khẩu.");
+      const errorMessage = parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại mật khẩu.";
+      setPasswordError(errorMessage);
+      reportFormError(errorMessage, passwordMessageRef.current);
+      return;
+    }
+
+    const passwordIssueMessage = formatStrongPasswordIssues(newPassword);
+    if (passwordIssueMessage) {
+      setPasswordError(passwordIssueMessage);
+      reportFormError(passwordIssueMessage, passwordMessageRef.current);
       return;
     }
 
@@ -148,7 +166,9 @@ function StudentProfilePage() {
       setPasswordMessage(response.message || "Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.");
       window.setTimeout(() => auth.logout(), 1800);
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : "Không đổi được mật khẩu. Vui lòng thử lại.");
+      const errorMessage = err instanceof Error ? err.message : "Không đổi được mật khẩu. Vui lòng thử lại.";
+      setPasswordError(errorMessage);
+      scrollToFormMessage(passwordMessageRef.current);
     } finally {
       setChangingPassword(false);
     }
@@ -162,7 +182,11 @@ function StudentProfilePage() {
       />
 
       {message && (
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+        <div
+          className="rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary"
+          data-form-message
+          ref={profileMessageRef}
+        >
           {message}
         </div>
       )}
@@ -277,7 +301,11 @@ function StudentProfilePage() {
             )}
 
             {passwordError && (
-              <div className="mb-4 rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error">
+              <div
+                className="mb-4 rounded-lg border border-error-container bg-error-container px-4 py-3 text-sm font-semibold text-error"
+                data-form-message
+                ref={passwordMessageRef}
+              >
                 {passwordError}
               </div>
             )}
@@ -298,8 +326,9 @@ function StudentProfilePage() {
                   autoComplete="new-password"
                   icon={<Lock className="h-5 w-5" />}
                   label="Mật khẩu mới"
+                  hint={strongPasswordHint}
                   onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="Tối thiểu 6 ký tự"
+                  placeholder="Ví dụ: Stu@2026"
                   required
                   type="password"
                   value={newPassword}

@@ -64,7 +64,7 @@ function AdminQuestionsPage() {
     <div className="space-y-gutter">
       <BackButton to="/admin/exams">Quay lại danh sách kỳ thi</BackButton>
 
-      <PageHeader title="Ngân hàng câu hỏi" subtitle="Chọn một kỳ thi để thêm câu hỏi thủ công hoặc import Excel ngân hàng câu hỏi." />
+      <PageHeader title="Ngân hàng câu hỏi" subtitle="Chọn một kỳ thi để thêm câu hỏi thủ công hoặc nhập Excel ngân hàng câu hỏi." />
       <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={load} type="button">
         <RefreshCw className="h-5 w-5" />
         Tải lại

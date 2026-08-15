@@ -1,12 +1,33 @@
-import { ArrowRight, Bell, CalendarCheck, CalendarDays, FileCheck2, MapPin, QrCode, UserRound } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+  ArrowRight,
+  Bell,
+  CalendarCheck,
+  CalendarDays,
+  FileCheck2,
+  MapPin,
+  QrCode,
+  UserRound,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+} from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import Card from "../../../components/Card";
 import StatusBadge from "../../../components/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import type { StatusType } from "../../../data/mockData";
 import type { StudentLayoutContext } from "../../../layouts/StudentLayout";
-import { activityApi, notificationApi, userApi, type ActivityResponse, type NotificationResponse } from "../../../services/api";
+import {
+  activityApi,
+  notificationApi,
+  userApi,
+  type ActivityResponse,
+  type NotificationResponse,
+} from "../../../services/api";
 import { formatActivityRange } from "../../../utils/activityUi";
 import { formatVietnamDateTime } from "../../../utils/dateTime";
 
@@ -26,7 +47,8 @@ type QuickAction = {
   requiresScanPermission?: boolean;
 };
 
-const formatDateTime = (value?: string) => formatVietnamDateTime(value, "Vừa cập nhật");
+const formatDateTime = (value?: string) =>
+  formatVietnamDateTime(value, "Vừa cập nhật");
 
 const toDashboardNotice = (item: NotificationResponse): DashboardNotice => ({
   id: item.id,
@@ -43,21 +65,38 @@ const getNoticeTime = (item: NotificationResponse) => {
 
 const sortDashboardNotices = (items: NotificationResponse[]) =>
   [...items].sort((left, right) => {
-    const priorityDiff = (left.priority === "URGENT" ? 0 : 1) - (right.priority === "URGENT" ? 0 : 1);
+    const priorityDiff =
+      (left.priority === "URGENT" ? 0 : 1) -
+      (right.priority === "URGENT" ? 0 : 1);
     return priorityDiff || getNoticeTime(right) - getNoticeTime(left);
   });
 
-const isRegistrationWindowActive = (activity: ActivityResponse, now = Date.now()) => {
-  if (activity.status !== "UPCOMING" || !activity.registrationStartTime || !activity.registrationEndTime) {
+const isRegistrationWindowActive = (
+  activity: ActivityResponse,
+  now = Date.now(),
+) => {
+  if (
+    activity.status !== "UPCOMING" ||
+    !activity.registrationStartTime ||
+    !activity.registrationEndTime
+  ) {
     return false;
   }
 
   const registrationStart = new Date(activity.registrationStartTime).getTime();
   const registrationEnd = new Date(activity.registrationEndTime).getTime();
-  return !Number.isNaN(registrationStart) && !Number.isNaN(registrationEnd) && now >= registrationStart && now <= registrationEnd;
+  return (
+    !Number.isNaN(registrationStart) &&
+    !Number.isNaN(registrationEnd) &&
+    now >= registrationStart &&
+    now <= registrationEnd
+  );
 };
 
-const isStudentVisibleActivity = (activity: ActivityResponse, now = Date.now()) => {
+const isStudentVisibleActivity = (
+  activity: ActivityResponse,
+  now = Date.now(),
+) => {
   if (activity.status === "COMPLETED") {
     return false;
   }
@@ -66,20 +105,50 @@ const isStudentVisibleActivity = (activity: ActivityResponse, now = Date.now()) 
     return true;
   }
 
-  return Boolean(activity.currentUserRegistered) || isRegistrationWindowActive(activity, now);
+  return (
+    Boolean(activity.currentUserRegistered) ||
+    isRegistrationWindowActive(activity, now)
+  );
 };
 
 const quickActions: QuickAction[] = [
-  { title: "Hồ sơ cá nhân", helper: "Cập nhật thông tin liên hệ", path: "/student/profile", icon: UserRound },
-  { title: "Thông báo", helper: "Theo dõi tin mới", path: "/student/notifications", icon: Bell },
-  { title: "Hoạt động", helper: "Xem lịch và form đăng ký", path: "/student/activities", icon: CalendarCheck },
-  { title: "Quét điểm danh", helper: "Mở camera quét QR của hoạt động", path: "/student/attendance", icon: QrCode },
-  { title: "Đơn xác nhận", helper: "Gửi yêu cầu giấy tờ", path: "/student/certificates/new", icon: FileCheck2 },
+  {
+    title: "Hồ sơ cá nhân",
+    helper: "Cập nhật thông tin liên hệ",
+    path: "/student/profile",
+    icon: UserRound,
+  },
+  {
+    title: "Thông báo",
+    helper: "Theo dõi tin mới",
+    path: "/student/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Hoạt động",
+    helper: "Xem lịch và form đăng ký",
+    path: "/student/activities",
+    icon: CalendarCheck,
+  },
+  {
+    title: "Quét điểm danh",
+    helper: "Mở camera quét QR của hoạt động",
+    path: "/student/attendance",
+    icon: QrCode,
+  },
+  {
+    title: "Đơn xác nhận",
+    helper: "Gửi yêu cầu giấy tờ",
+    path: "/student/certificates/new",
+    icon: FileCheck2,
+  },
 ];
 
 function StudentDashboard() {
   const { username } = useAuth();
-  const { checkerActivities: scanActivities = [] } = useOutletContext<StudentLayoutContext>();
+  const { checkerActivities: scanActivities = [] } =
+    useOutletContext<StudentLayoutContext>();
+  const [studentName, setStudentName] = useState<string>("");
   const [notices, setNotices] = useState<DashboardNotice[]>([]);
   const [activities, setActivities] = useState<ActivityResponse[]>([]);
   const [message, setMessage] = useState("");
@@ -90,18 +159,31 @@ function StudentDashboard() {
     setMessage("");
 
     try {
-      const profile = await userApi.getByStudentId(username, { suppressToast: true });
+      const profile = await userApi.getByStudentId(username, {
+        suppressToast: true,
+      });
       const [notificationData, activityData] = await Promise.all([
         notificationApi.listMineForProfile(profile).catch(() => []),
         activityApi.list({ suppressToast: true }).catch(() => []),
       ]);
 
-      setNotices(sortDashboardNotices(notificationData).slice(0, 3).map(toDashboardNotice));
+      setNotices(
+        sortDashboardNotices(notificationData)
+          .slice(0, 3)
+          .map(toDashboardNotice),
+      );
       setActivities(activityData);
+      if (profile) {
+        setStudentName(profile!.fullName);
+      }
     } catch (err) {
       setNotices([]);
       setActivities([]);
-      setMessage(err instanceof Error ? err.message : "Không tải được dữ liệu tổng quan.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được dữ liệu tổng quan.",
+      );
     } finally {
       setLoading(false);
     }
@@ -119,40 +201,63 @@ function StudentDashboard() {
     () => activities.filter((activity) => isStudentVisibleActivity(activity)),
     [activities],
   );
-  const ongoingActivities = studentVisibleActivities.filter((activity) => activity.status === "ONGOING");
+  const ongoingActivities = studentVisibleActivities.filter(
+    (activity) => activity.status === "ONGOING",
+  );
   const nextActivity = useMemo(
     () =>
-      [...studentVisibleActivities]
-        .sort((left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime())[0] ?? null,
+      [...studentVisibleActivities].sort(
+        (left, right) =>
+          new Date(left.startTime).getTime() -
+          new Date(right.startTime).getTime(),
+      )[0] ?? null,
     [studentVisibleActivities],
   );
-  const urgentNotices = notices.filter((notice) => notice.priority === "URGENT");
+  const urgentNotices = notices.filter(
+    (notice) => notice.priority === "URGENT",
+  );
   const canScanAttendance = scanActivities.length > 0;
   const visibleQuickActions = useMemo(
-    () => quickActions.filter((action) => !action.requiresScanPermission || canScanAttendance),
+    () =>
+      quickActions.filter(
+        (action) => !action.requiresScanPermission || canScanAttendance,
+      ),
     [canScanAttendance],
   );
-  const statGridClass = canScanAttendance ? "grid gap-4 md:grid-cols-3" : "grid gap-4 md:grid-cols-2";
+  const statGridClass = canScanAttendance
+    ? "grid gap-4 md:grid-cols-3"
+    : "grid gap-4 md:grid-cols-2";
 
   return (
     <div className="space-y-4">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <div className="rounded-lg bg-primary px-6 py-5 text-on-primary shadow-panel">
-          <p className="text-sm font-semibold text-on-primary-container">Cổng sinh viên STU</p>
+          <p className="text-sm font-semibold text-on-primary-container">
+            Cổng sinh viên STU
+          </p>
           <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <h1 className="truncate text-3xl font-bold">Xin chào, {username || "sinh viên"}</h1>
+              <h1 className="truncate text-3xl font-bold">
+                Xin chào, {studentName || "sinh viên"}
+              </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-on-primary-container">
-                Theo dõi thông báo, hoạt động, điểm danh và yêu cầu giấy xác nhận trong một màn hình gọn gàng.
+                Theo dõi thông báo, hoạt động, điểm danh và yêu cầu giấy xác
+                nhận trong một màn hình gọn gàng.
               </p>
             </div>
             <div className="flex flex-shrink-0 flex-wrap gap-2">
-              <Link className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-primary" to="/student/profile">
+              <Link
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-primary"
+                to="/student/profile"
+              >
                 Hồ sơ
                 <ArrowRight className="h-4 w-4" />
               </Link>
               {canScanAttendance && (
-                <Link className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2.5 text-sm font-semibold text-white" to="/checker/scan">
+                <Link
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2.5 text-sm font-semibold text-white"
+                  to="/checker/scan"
+                >
                   <QrCode className="h-4 w-4" />
                   Quét mã
                 </Link>
@@ -165,7 +270,9 @@ function StudentDashboard() {
           <div>
             <p className="text-sm font-semibold text-primary">Việc cần chú ý</p>
             <h2 className="mt-2 line-clamp-2 text-xl font-bold text-on-surface">
-              {urgentNotices[0]?.title || nextActivity?.title || "Chưa có việc cần xử lý"}
+              {urgentNotices[0]?.title ||
+                nextActivity?.title ||
+                "Chưa có việc cần xử lý"}
             </h2>
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-on-surface-variant">
               {urgentNotices.length > 0
@@ -179,26 +286,46 @@ function StudentDashboard() {
             <div className="mt-4 space-y-2 text-sm text-on-surface-variant">
               <p className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4" />
-                <span className="truncate">{formatActivityRange(nextActivity.startTime, nextActivity.endTime)}</span>
+                <span className="truncate">
+                  {formatActivityRange(
+                    nextActivity.startTime,
+                    nextActivity.endTime,
+                  )}
+                </span>
               </p>
               <p className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
-                <span className="truncate">{nextActivity.location || "Chưa cập nhật địa điểm"}</span>
+                <span className="truncate">
+                  {nextActivity.location || "Chưa cập nhật địa điểm"}
+                </span>
               </p>
             </div>
           )}
         </Card>
       </section>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
       <section className={statGridClass}>
-        <Link className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/student/notifications">
+        <Link
+          className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          to="/student/notifications"
+        >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-on-surface-variant">Thông báo mới</p>
-              <p className="mt-2 text-3xl font-bold text-on-surface">{loading ? "..." : notices.length}</p>
-              <p className="mt-1 text-sm text-on-surface-variant">{urgentNotices.length} cấp bách</p>
+              <p className="text-sm font-semibold text-on-surface-variant">
+                Thông báo mới
+              </p>
+              <p className="mt-2 text-3xl font-bold text-on-surface">
+                {loading ? "..." : notices.length}
+              </p>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                {urgentNotices.length} cấp bách
+              </p>
             </div>
             <div className="rounded-lg bg-primary-fixed p-3 text-primary">
               <Bell className="h-6 w-6" />
@@ -206,12 +333,21 @@ function StudentDashboard() {
           </div>
         </Link>
 
-        <Link className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/student/activities">
+        <Link
+          className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          to="/student/activities"
+        >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-on-surface-variant">Hoạt động đang mở</p>
-              <p className="mt-2 text-3xl font-bold text-on-surface">{loading ? "..." : ongoingActivities.length}</p>
-              <p className="mt-1 text-sm text-on-surface-variant">Xem danh sách hoạt động</p>
+              <p className="text-sm font-semibold text-on-surface-variant">
+                Hoạt động đang mở
+              </p>
+              <p className="mt-2 text-3xl font-bold text-on-surface">
+                {loading ? "..." : ongoingActivities.length}
+              </p>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Xem danh sách hoạt động
+              </p>
             </div>
             <div className="rounded-lg bg-emerald-100 p-3 text-emerald-700">
               <CalendarCheck className="h-6 w-6" />
@@ -220,12 +356,21 @@ function StudentDashboard() {
         </Link>
 
         {canScanAttendance && (
-          <Link className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2" to="/checker/scan">
+          <Link
+            className="panel block rounded-lg p-4 transition hover:shadow-raised focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            to="/checker/scan"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-on-surface-variant">Điểm danh</p>
-                <p className="mt-2 text-3xl font-bold text-on-surface">{loading ? "..." : scanActivities.length}</p>
-                <p className="mt-1 text-sm text-on-surface-variant">Hoạt động được phân quyền</p>
+                <p className="text-sm font-semibold text-on-surface-variant">
+                  Điểm danh
+                </p>
+                <p className="mt-2 text-3xl font-bold text-on-surface">
+                  {loading ? "..." : scanActivities.length}
+                </p>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Hoạt động được phân quyền
+                </p>
               </div>
               <div className="rounded-lg bg-orange-100 p-3 text-orange-800">
                 <QrCode className="h-6 w-6" />
@@ -240,17 +385,28 @@ function StudentDashboard() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-primary">Thông báo</p>
-              <h2 className="text-xl font-bold text-on-surface">Tin mới từ nhà trường</h2>
+              <h2 className="text-xl font-bold text-on-surface">
+                Tin mới từ nhà trường
+              </h2>
             </div>
-            <Link className="text-sm font-semibold text-primary" to="/student/notifications">
+            <Link
+              className="text-sm font-semibold text-primary"
+              to="/student/notifications"
+            >
               Xem tất cả
             </Link>
           </div>
           <div className="divide-y divide-outline-variant">
-            {loading && <p className="py-3 text-sm font-semibold text-on-surface-variant">Đang tải thông báo...</p>}
+            {loading && (
+              <p className="py-3 text-sm font-semibold text-on-surface-variant">
+                Đang tải thông báo...
+              </p>
+            )}
 
             {!loading && notices.length === 0 && (
-              <p className="py-3 text-sm font-semibold text-on-surface-variant">Chưa có thông báo phù hợp với tài khoản của bạn.</p>
+              <p className="py-3 text-sm font-semibold text-on-surface-variant">
+                Chưa có thông báo phù hợp với tài khoản của bạn.
+              </p>
             )}
 
             {!loading &&
@@ -258,7 +414,10 @@ function StudentDashboard() {
                 <article key={notice.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <Link className="line-clamp-1 font-bold text-on-surface hover:text-primary" to={`/student/notifications/${notice.id}`}>
+                      <Link
+                        className="line-clamp-1 font-bold text-on-surface hover:text-primary"
+                        to={`/student/notifications/${notice.id}`}
+                      >
                         {notice.title}
                       </Link>
                       <p className="mt-1 truncate text-sm text-on-surface-variant">
@@ -278,13 +437,21 @@ function StudentDashboard() {
             {visibleQuickActions.map((action) => {
               const Icon = action.icon;
               return (
-                <Link key={action.path} className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-surface-container-low" to={action.path}>
+                <Link
+                  key={action.path}
+                  className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-surface-container-low"
+                  to={action.path}
+                >
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-bold text-on-surface">{action.title}</span>
-                    <span className="block truncate text-xs text-on-surface-variant">{action.helper}</span>
+                    <span className="block truncate text-sm font-bold text-on-surface">
+                      {action.title}
+                    </span>
+                    <span className="block truncate text-xs text-on-surface-variant">
+                      {action.helper}
+                    </span>
                   </span>
                 </Link>
               );

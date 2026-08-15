@@ -46,18 +46,18 @@ public class OrganizationImportSummary {
     }
 
     public String toFacultyMessage() {
-        return "Đã import khoa: tạo mới " + facultiesCreated
+        return "Đã nhập khoa: tạo mới " + facultiesCreated
                 + ", cập nhật " + facultiesUpdated
                 + ", bỏ qua " + facultiesSkipped + ".";
     }
 
     public String toAcademicYearMessage() {
-        return "Đã import niên khóa: tạo mới " + academicYearsCreated
+        return "Đã nhập niên khóa: tạo mới " + academicYearsCreated
                 + ", bỏ qua " + academicYearsSkipped + ".";
     }
 
     public String toClassMessage() {
-        return "Đã import lớp: tạo mới " + classesCreated
+        return "Đã nhập lớp: tạo mới " + classesCreated
                 + ", cập nhật " + classesUpdated
                 + ", bỏ qua " + classesSkipped
                 + ". Tự động tạo " + facultiesCreated + " khoa và "
@@ -65,7 +65,7 @@ public class OrganizationImportSummary {
     }
 
     public String toStudentMessage(int createdStudents, int updatedStudents, int skippedStudents) {
-        return "Đã import sinh viên: tạo mới " + createdStudents
+        return "Đã nhập sinh viên: tạo mới " + createdStudents
                 + ", cập nhật " + updatedStudents
                 + ", bỏ qua " + skippedStudents
                 + ". Tự động tạo " + facultiesCreated + " khoa, "

@@ -21,8 +21,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,6 +34,56 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ConfirmationRequestServiceImpl implements ConfirmationRequestService {
+    private static final int MAX_METADATA_KEY_LENGTH = 50;
+    private static final int MAX_METADATA_TEXT_LENGTH = 500;
+    private static final List<RequiredMetadataField> COMMON_REQUIRED_METADATA_FIELDS = List.of(
+            new RequiredMetadataField("fullName", "Họ và tên"),
+            new RequiredMetadataField("studentId", "Mã số sinh viên"),
+            new RequiredMetadataField("dob", "Ngày sinh"),
+            new RequiredMetadataField("gender", "Giới tính"),
+            new RequiredMetadataField("contactPhone", "Số điện thoại"),
+            new RequiredMetadataField("classCode", "Lớp"),
+            new RequiredMetadataField("facultyName", "Khoa"),
+            new RequiredMetadataField("educationLevel", "Bậc đào tạo"),
+            new RequiredMetadataField("trainingType", "Hệ đào tạo"),
+            new RequiredMetadataField("requestDate", "Ngày làm đơn")
+    );
+    private static final Map<String, List<RequiredMetadataField>> REQUIRED_METADATA_BY_FORM_CODE = Map.of(
+            "NVQS", List.of(
+                    new RequiredMetadataField("permanentAddress", "Hộ khẩu thường trú"),
+                    new RequiredMetadataField("academicYear", "Khóa học"),
+                    new RequiredMetadataField("requestSchoolYear", "Năm học"),
+                    new RequiredMetadataField("reason", "Lý do xác nhận")
+            ),
+            "KHAC", List.of(
+                    new RequiredMetadataField("permanentAddress", "Hộ khẩu thường trú"),
+                    new RequiredMetadataField("reason", "Lý do/yêu cầu xác nhận"),
+                    new RequiredMetadataField("deductionType", "Xác nhận giảm trừ gia cảnh")
+            ),
+            "VAY_VON", List.of(
+                    new RequiredMetadataField("cmnd", "CMND/CCCD"),
+                    new RequiredMetadataField("issueDate", "Ngày cấp CMND/CCCD"),
+                    new RequiredMetadataField("issuePlace", "Nơi cấp CMND/CCCD"),
+                    new RequiredMetadataField("schoolCode", "Mã trường"),
+                    new RequiredMetadataField("schoolName", "Tên trường"),
+                    new RequiredMetadataField("major", "Ngành học"),
+                    new RequiredMetadataField("academicYear", "Khóa học"),
+                    new RequiredMetadataField("enrollmentDate", "Ngày nhập học"),
+                    new RequiredMetadataField("graduationMonth", "Tháng ra trường dự kiến"),
+                    new RequiredMetadataField("graduationYear", "Năm ra trường dự kiến"),
+                    new RequiredMetadataField("studyDurationMonths", "Thời gian học tại trường"),
+                    new RequiredMetadataField("monthlyTuition", "Học phí hằng tháng"),
+                    new RequiredMetadataField("tuitionSupportType", "Diện miễn/giảm học phí"),
+                    new RequiredMetadataField("orphanStatus", "Đối tượng mồ côi"),
+                    new RequiredMetadataField("bankAccount", "Số tài khoản của nhà trường"),
+                    new RequiredMetadataField("principalName", "Người ký xác nhận")
+            )
+    );
+    private static final Set<String> VALID_GENDERS = Set.of("Nam", "Nữ");
+    private static final Set<String> VALID_DEDUCTION_TYPES = Set.of("Có", "Không");
+    private static final Set<String> VALID_TUITION_SUPPORT_TYPES =
+            Set.of("Không miễn giảm", "Giảm học phí", "Miễn học phí");
+    private static final Set<String> VALID_ORPHAN_STATUSES = Set.of("Mồ côi", "Không mồ côi");
 
     private final ConfirmationRequestRepository requestRepository;
     private final FormTypeRepository formTypeRepository;
@@ -41,28 +95,26 @@ public class ConfirmationRequestServiceImpl implements ConfirmationRequestServic
         FormType formType = formTypeRepository.findById(dto.getFormTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy loại form này"));
         
-        if (!formType.getIsActive()) {
+        if (!Boolean.TRUE.equals(formType.getIsActive())) {
             throw new IllegalArgumentException("Loại form này hiện không hoạt động");
         }
 
-        if (dto.getSemester() != null && !dto.getSemester().isEmpty()) {
-            boolean exists = requestRepository.existsByStudentIdAndFormTypeIdAndSemesterAndStatusNot(
-                    studentId, dto.getFormTypeId(), dto.getSemester(), RequestStatus.CANCELLED);
-            if (exists) {
-                throw new IllegalArgumentException("Bạn đã gửi yêu cầu này trong học kỳ " + dto.getSemester() + " rồi");
-            }
+        Map<String, Object> metadata = validateAndNormalizeMetadata(studentId, formType, dto);
+        String semester = cleanText(dto.getSemester());
+        boolean exists = requestRepository.existsByStudentIdAndFormTypeIdAndSemesterAndStatusNot(
+                studentId, dto.getFormTypeId(), semester, RequestStatus.CANCELLED);
+        if (exists) {
+            throw new IllegalArgumentException("Bạn đã gửi yêu cầu này trong học kỳ " + semester + " rồi");
         }
 
         ConfirmationRequest request = new ConfirmationRequest();
         request.setStudentId(studentId);
         request.setFormType(formType);
-        request.setReason(dto.getReason());
-        request.setContactPhone(dto.getContactPhone());
-        request.setProofFileUrl(dto.getProofFileUrl());
-        request.setSemester(dto.getSemester());
-        if (dto.getMetadata() != null) {
-            request.setMetadata(dto.getMetadata());
-        }
+        request.setReason(cleanText(dto.getReason()));
+        request.setContactPhone(cleanText(dto.getContactPhone()));
+        request.setProofFileUrl(cleanText(dto.getProofFileUrl()));
+        request.setSemester(semester);
+        request.setMetadata(metadata);
         request.setStatus(RequestStatus.PENDING);
 
         ConfirmationRequest saved = requestRepository.save(request);
@@ -185,6 +237,156 @@ public class ConfirmationRequestServiceImpl implements ConfirmationRequestServic
                 .map(req -> mapToDTO(req, false)); // Để nhẹ, getAll không fetch UserProfile. Detail mới fetch.
     }
 
+    private Map<String, Object> validateAndNormalizeMetadata(
+            String studentId,
+            FormType formType,
+            CreateConfirmationRequestDTO dto
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (dto.getMetadata() != null) {
+            dto.getMetadata().forEach((key, value) -> {
+                if (key == null || key.isBlank()) {
+                    throw new IllegalArgumentException("Tên trường dữ liệu trên đơn không được để trống");
+                }
+                String cleanKey = key.trim();
+                if (cleanKey.length() > MAX_METADATA_KEY_LENGTH) {
+                    throw new IllegalArgumentException("Tên trường dữ liệu trên đơn không được vượt quá "
+                            + MAX_METADATA_KEY_LENGTH + " ký tự");
+                }
+                metadata.put(cleanKey, normalizeMetadataValue(cleanKey, value));
+            });
+        }
+
+        String formCode = resolveFormCode(formType);
+        metadata.put("reason", cleanText(dto.getReason()));
+        metadata.put("contactPhone", cleanText(dto.getContactPhone()));
+        metadata.put("semester", cleanText(dto.getSemester()));
+        metadata.put("formCode", formCode);
+        metadata.put("formTypeName", cleanText(formType.getName()));
+
+        String metadataStudentId = metadataText(metadata, "studentId");
+        if (metadataStudentId.isBlank()) {
+            metadata.put("studentId", studentId);
+        } else if (!metadataStudentId.equals(studentId)) {
+            throw new IllegalArgumentException("Mã số sinh viên trên đơn không khớp với tài khoản đang đăng nhập");
+        }
+
+        List<String> missingFields = requiredMetadataFields(formCode).stream()
+                .filter(field -> metadataText(metadata, field.key()).isBlank())
+                .map(RequiredMetadataField::label)
+                .collect(Collectors.toList());
+        if (!missingFields.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng nhập đầy đủ thông tin trên đơn: "
+                    + String.join(", ", missingFields));
+        }
+
+        validateMetadataOptions(metadata);
+        validateNumericMetadata(metadata);
+        return metadata;
+    }
+
+    private Object normalizeMetadataValue(String key, Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String textValue) {
+            String cleanValue = cleanText(textValue);
+            if (cleanValue.length() > MAX_METADATA_TEXT_LENGTH) {
+                throw new IllegalArgumentException("Giá trị '" + key + "' không được vượt quá "
+                        + MAX_METADATA_TEXT_LENGTH + " ký tự");
+            }
+            if (cleanValue.contains("<") || cleanValue.contains(">")) {
+                throw new IllegalArgumentException("Giá trị '" + key + "' không được chứa ký tự < hoặc >");
+            }
+            return cleanValue;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        throw new IllegalArgumentException("Giá trị '" + key + "' chỉ được là chữ, số hoặc lựa chọn đơn giản");
+    }
+
+    private List<RequiredMetadataField> requiredMetadataFields(String formCode) {
+        List<RequiredMetadataField> fields = new ArrayList<>(COMMON_REQUIRED_METADATA_FIELDS);
+        fields.addAll(REQUIRED_METADATA_BY_FORM_CODE.getOrDefault(
+                formCode,
+                REQUIRED_METADATA_BY_FORM_CODE.get("KHAC")
+        ));
+        return fields;
+    }
+
+    private void validateMetadataOptions(Map<String, Object> metadata) {
+        requireOneOf(metadata, "gender", "Giới tính", VALID_GENDERS);
+        requireOneOf(metadata, "deductionType", "Xác nhận giảm trừ gia cảnh", VALID_DEDUCTION_TYPES);
+        requireOneOf(metadata, "tuitionSupportType", "Diện miễn/giảm học phí", VALID_TUITION_SUPPORT_TYPES);
+        requireOneOf(metadata, "orphanStatus", "Đối tượng mồ côi", VALID_ORPHAN_STATUSES);
+    }
+
+    private void requireOneOf(Map<String, Object> metadata, String key, String label, Set<String> validValues) {
+        String value = metadataText(metadata, key);
+        if (!value.isBlank() && !validValues.contains(value)) {
+            throw new IllegalArgumentException(label + " không hợp lệ");
+        }
+    }
+
+    private void validateNumericMetadata(Map<String, Object> metadata) {
+        validateIntegerRange(metadata, "graduationMonth", "Tháng ra trường dự kiến", 1, 12);
+        validateIntegerRange(metadata, "graduationYear", "Năm ra trường dự kiến", 2000, 2100);
+        validateIntegerRange(metadata, "studyDurationMonths", "Thời gian học tại trường", 1, 120);
+        validateIntegerRange(metadata, "monthlyTuition", "Học phí hằng tháng", 1, 100_000_000);
+    }
+
+    private void validateIntegerRange(
+            Map<String, Object> metadata,
+            String key,
+            String label,
+            int min,
+            int max
+    ) {
+        String value = metadataText(metadata, key);
+        if (value.isBlank()) {
+            return;
+        }
+        try {
+            int number = Integer.parseInt(value);
+            if (number < min || number > max) {
+                throw new IllegalArgumentException(label + " phải từ " + min + " đến " + max);
+            }
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(label + " phải là số hợp lệ");
+        }
+    }
+
+    private String resolveFormCode(FormType formType) {
+        String formCode = cleanText(formType.getFormCode()).toUpperCase();
+        if (!formCode.isBlank()) {
+            return formCode;
+        }
+        String name = normalizeKeyword(formType.getName());
+        if (name.contains("VAY") || name.contains("VON")) {
+            return "VAY_VON";
+        }
+        if (name.contains("NVQS") || name.contains("QUAN SU") || name.contains("NGHIA VU")) {
+            return "NVQS";
+        }
+        return "KHAC";
+    }
+
+    private String normalizeKeyword(String value) {
+        return Normalizer.normalize(cleanText(value), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toUpperCase();
+    }
+
+    private String metadataText(Map<String, Object> metadata, String key) {
+        Object value = metadata.get(key);
+        return value == null ? "" : cleanText(String.valueOf(value));
+    }
+
+    private String cleanText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     private void applyBulkUpdate(ConfirmationRequest request, BulkUpdateStatusDTO dto) {
         if (dto.getStatus() != null) {
             request.setStatus(dto.getStatus());
@@ -231,5 +433,8 @@ public class ConfirmationRequestServiceImpl implements ConfirmationRequestServic
             }
         }
         return dto;
+    }
+
+    private record RequiredMetadataField(String key, String label) {
     }
 }

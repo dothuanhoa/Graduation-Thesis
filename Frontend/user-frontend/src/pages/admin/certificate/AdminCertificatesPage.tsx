@@ -29,7 +29,7 @@ type RequestRow = TableRow & {
 
 const toRow = (item: ConfirmationRequest): RequestRow => ({
   id: String(item.id),
-  studentId: item.studentId || (item.studentProfile?.studentId ?? "N/A"),
+  studentId: item.studentId || (item.studentProfile?.studentId ?? "Chưa có"),
   formTypeName: item.formTypeName,
   status: item.status,
   appointmentDate: item.appointmentDate ? formatVietnamDate(item.appointmentDate) : "Chưa hẹn",

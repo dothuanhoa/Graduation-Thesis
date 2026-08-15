@@ -213,7 +213,7 @@ public class ExamService {
             String detail = errors.isEmpty()
                     ? "Không tìm thấy dòng câu hỏi hợp lệ. File cần có cột: Câu hỏi | A | B | C | D | Đáp án đúng."
                     : String.join("; ", errors);
-            throw new BadRequestException("Không import được câu hỏi nào. " + detail);
+            throw new BadRequestException("Không nhập được câu hỏi nào. " + detail);
         }
 
         return QuestionImportResult.builder().imported(imported).skipped(skipped).errors(errors).build();

@@ -368,9 +368,9 @@ function AdminExamDetailPage() {
       const result = await examApi.importQuestions(id, file);
       setQuestions(await examApi.listQuestions(id));
       setExam(await examApi.get(id));
-      setMessage(`Import xong: ${result.imported} câu, bỏ qua ${result.skipped}${result.errors.length ? `. Lỗi: ${result.errors.slice(0, 3).join("; ")}` : ""}`);
+      setMessage(`Nhập xong: ${result.imported} câu, bỏ qua ${result.skipped}${result.errors.length ? `. Lỗi: ${result.errors.slice(0, 3).join("; ")}` : ""}`);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không import được câu hỏi.");
+      setMessage(err instanceof Error ? err.message : "Không nhập được câu hỏi.");
     }
   };
 
@@ -396,12 +396,12 @@ function AdminExamDetailPage() {
       setQuestions(questionData);
       setExam(examData);
       setImportProgress(100);
-      setImportStatus(`Hoàn tất: đã import ${result.imported} câu, bỏ qua ${result.skipped} dòng.`);
-      setMessage(`Import xong: ${result.imported} câu, bỏ qua ${result.skipped}${result.errors.length ? `. Lỗi: ${result.errors.slice(0, 5).join("; ")}` : ""}`);
+      setImportStatus(`Hoàn tất: đã nhập ${result.imported} câu, bỏ qua ${result.skipped} dòng.`);
+      setMessage(`Nhập xong: ${result.imported} câu, bỏ qua ${result.skipped}${result.errors.length ? `. Lỗi: ${result.errors.slice(0, 5).join("; ")}` : ""}`);
     } catch (err) {
       setImportProgress(0);
       setImportStatus("");
-      setMessage(err instanceof Error ? err.message : "Không import được câu hỏi.");
+      setMessage(err instanceof Error ? err.message : "Không nhập được câu hỏi.");
     } finally {
       setImportingQuestions(false);
     }
@@ -414,11 +414,11 @@ function AdminExamDetailPage() {
         rows: [
           ["C\u00e2u h\u1ecfi", "A", "B", "C", "D", "\u0110\u00e1p \u00e1n \u0111\u00fang"],
           ["Sinh vi\u00ean c\u1ea7n l\u00e0m g\u00ec tr\u01b0\u1edbc khi tham gia k\u1ef3 thi tr\u1ef1c tuy\u1ebfn?", "\u0110\u0103ng nh\u1eadp \u0111\u00fang t\u00e0i kho\u1ea3n c\u00e1 nh\u00e2n", "M\u01b0\u1ee3n t\u00e0i kho\u1ea3n c\u1ee7a b\u1ea1n", "B\u1ecf qua h\u01b0\u1edbng d\u1eabn", "T\u1eaft m\u1ea1ng tr\u01b0\u1edbc khi thi", "A"],
-          ["\u0110\u00e1p \u00e1n \u0111\u00fang trong file import ph\u1ea3i nh\u1eadp nh\u01b0 th\u1ebf n\u00e0o?", "A/B/C/D", "N\u1ed9i dung \u0111\u1ea7y \u0111\u1ee7", "S\u1ed1 th\u1ee9 t\u1ef1", "B\u1ecf tr\u1ed1ng", "A"],
+          ["\u0110\u00e1p \u00e1n \u0111\u00fang trong file nh\u1eadp ph\u1ea3i nh\u1eadp nh\u01b0 th\u1ebf n\u00e0o?", "A/B/C/D", "N\u1ed9i dung \u0111\u1ea7y \u0111\u1ee7", "S\u1ed1 th\u1ee9 t\u1ef1", "B\u1ecf tr\u1ed1ng", "A"],
         ],
       },
     ]);
-    setMessage("\u0110\u00e3 t\u1ea3i file m\u1eabu import c\u00e2u h\u1ecfi.");
+    setMessage("\u0110\u00e3 t\u1ea3i file m\u1eabu nh\u1eadp c\u00e2u h\u1ecfi.");
   };
 
   const exportExamResults = () => {
@@ -468,7 +468,7 @@ function AdminExamDetailPage() {
 
       <PageHeader
         title={exam?.title || "Chi tiết kỳ thi"}
-        subtitle="Chỉnh cấu hình kỳ thi, quản lý câu hỏi, import Excel và theo dõi kết quả sinh viên."
+        subtitle="Chỉnh cấu hình kỳ thi, quản lý câu hỏi, nhập Excel và theo dõi kết quả sinh viên."
       />
 
       {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
@@ -528,12 +528,12 @@ function AdminExamDetailPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-xl font-bold text-on-surface">Ngân hàng câu hỏi</h2>
-              <p className="mt-1 text-sm text-on-surface-variant">File Excel import: Câu hỏi | A | B | C | D | Đáp án đúng.</p>
+              <p className="mt-1 text-sm text-on-surface-variant">File Excel nhập: Câu hỏi | A | B | C | D | Đáp án đúng.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <label className={`inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary ${importingQuestions ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
                 {importingQuestions ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
-                {importingQuestions ? "Đang import..." : "Import Excel"}
+                {importingQuestions ? "Đang nhập..." : "Nhập Excel"}
                 <input
                   accept=".xlsx,.xls"
                   className="hidden"

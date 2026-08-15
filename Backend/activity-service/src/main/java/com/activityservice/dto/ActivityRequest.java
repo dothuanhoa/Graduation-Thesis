@@ -50,8 +50,8 @@ public class ActivityRequest {
     @Positive(message = "Số lượng tối đa phải lớn hơn 0")
     private Integer capacity;
 
-    @Min(value = 1, message = "So lan diem danh phai tu 1 den 3")
-    @Max(value = 3, message = "So lan diem danh phai tu 1 den 3")
+    @Min(value = 1, message = "Số lần điểm danh phải từ 1 đến 3")
+    @Max(value = 3, message = "Số lần điểm danh phải từ 1 đến 3")
     private Integer attendanceSessionCount;
 
     @AssertTrue(message = "Hoạt động giới hạn cần có thời gian mở đăng ký")
@@ -74,7 +74,7 @@ public class ActivityRequest {
         return participationType != Activity.ParticipationType.OPEN || attendanceSessionCount == null || attendanceSessionCount == 1;
     }
 
-    @AssertTrue(message = "Hoat dong gioi han chi duoc chon 2 hoac 3 lan diem danh")
+    @AssertTrue(message = "Hoạt động giới hạn chỉ được chọn 2 hoặc 3 lần điểm danh")
     public boolean isLimitedActivityAttendanceCountValid() {
         return participationType != Activity.ParticipationType.LIMITED || attendanceSessionCount == null || attendanceSessionCount == 2 || attendanceSessionCount == 3;
     }

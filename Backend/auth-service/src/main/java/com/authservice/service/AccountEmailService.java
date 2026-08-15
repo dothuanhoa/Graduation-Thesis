@@ -27,7 +27,7 @@ public class AccountEmailService {
     @Value("${app.mail.from:no-reply@stu.edu.vn}")
     private String fromAddress;
 
-    @Value("${app.mail.from-name:Cong sinh vien STU}")
+    @Value("${app.mail.from-name:Cổng sinh viên STU}")
     private String fromName;
 
     @Value("${app.mail.send-delay-ms:1000}")
@@ -175,25 +175,25 @@ public class AccountEmailService {
                 helper.setText(body, false);
                 mailSender.send(message);
                 if (shouldLogEmailDetails()) {
-                    log.info("Account email sent for {} to {}.", username, email);
+                    log.info("Đã gửi email tài khoản cho {} đến {}.", username, email);
                 }
                 return;
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 if (shouldLogEmailDetails()) {
-                    log.warn("Account email sending interrupted for {} to {}.", username, email);
+                    log.warn("Quá trình gửi email tài khoản cho {} đến {} bị gián đoạn.", username, email);
                 }
                 return;
             } catch (Exception ex) {
                 if (attempt >= attempts) {
                     if (shouldLogEmailDetails()) {
-                        log.error("Could not send account email for {} to {} after {} attempt(s).", username, email, attempts, ex);
+                        log.error("Không gửi được email tài khoản cho {} đến {} sau {} lần thử.", username, email, attempts, ex);
                     }
                     return;
                 }
 
                 if (shouldLogEmailDetails()) {
-                    log.warn("Could not send account email for {} to {} on attempt {}/{}. Retrying.",
+                    log.warn("Không gửi được email tài khoản cho {} đến {} ở lần thử {}/{}. Đang thử lại.",
                             username, email, attempt, attempts, ex);
                 }
                 waitBeforeRetry(username, email);
@@ -217,7 +217,7 @@ public class AccountEmailService {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             if (shouldLogEmailDetails()) {
-                log.warn("Account email retry interrupted for {} to {}.", username, email);
+                log.warn("Quá trình chờ thử gửi lại email tài khoản cho {} đến {} bị gián đoạn.", username, email);
             }
         }
     }

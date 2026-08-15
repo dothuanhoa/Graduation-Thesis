@@ -214,21 +214,21 @@ public class UserServiceImpl implements UserService {
 
         if (createdStudents == 0 && updatedStudents == 0) {
             report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
-                    authProcessed, 0, "Không có hồ sơ sinh viên hợp lệ để import.");
-            return "Không có hồ sơ sinh viên hợp lệ để import.";
+                    authProcessed, 0, "Không có hồ sơ sinh viên hợp lệ để nhập.");
+            return "Không có hồ sơ sinh viên hợp lệ để nhập.";
         }
 
         int authTotal = pendingAccounts.size();
         String authMessage = sendMail
                 ? "Đang tạo tài khoản đăng nhập và gửi email cho sinh viên mới."
-                : "Đang tạo tài khoản đăng nhập, bỏ qua gửi email theo tùy chọn import.";
+                : "Đang tạo tài khoản đăng nhập, bỏ qua gửi email theo tùy chọn nhập dữ liệu.";
         report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
                 authProcessed, authTotal, authMessage);
 
         for (int start = 0; start < pendingAccounts.size(); start += AUTH_BATCH_SIZE) {
             int end = Math.min(start + AUTH_BATCH_SIZE, pendingAccounts.size());
             List<BulkRegisterMessage.UserAccountDTO> accountBatch = pendingAccounts.subList(start, end);
-            runAuthSync("import tài khoản sinh viên", () ->
+            runAuthSync("nhập tài khoản sinh viên", () ->
                     authServiceClient.bulkRegisterAccount(INTERNAL_ADMIN_ROLE, sendMail, accountBatch)
             );
             authProcessed = end;
@@ -241,7 +241,7 @@ public class UserServiceImpl implements UserService {
 
         String result = organizationSummary.toStudentMessage(createdStudents, updatedStudents, skippedStudents);
         if (!sendMail) {
-            result += " Đã bỏ qua gửi email tài khoản theo tùy chọn import.";
+            result += " Đã bỏ qua gửi email tài khoản theo tùy chọn nhập dữ liệu.";
         }
         report(progressConsumer, totalRows, processedRows, createdStudents, updatedStudents, skippedStudents,
                 authProcessed, authTotal, result);
@@ -385,7 +385,7 @@ public class UserServiceImpl implements UserService {
             Consumer<FaceImageBulkImportResponse> progressConsumer
     ) {
         if (files == null || files.isEmpty()) {
-            throw new BadRequestException("Vui lòng chọn một thư mục có ảnh khuôn mặt sinh viên");
+            throw new BadRequestException("Vui lòng chọn một thư mục ảnh khuôn mặt sinh viên");
         }
         if (files.size() > studentFaceMaxBulkFiles) {
             throw new BadRequestException("Mỗi lần chỉ được gửi tối đa " + studentFaceMaxBulkFiles + " ảnh");
@@ -460,14 +460,14 @@ public class UserServiceImpl implements UserService {
 
     public StudentFaceImage loadFaceImage(Long id) {
         UserProfile user = userProfileRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Kh?ng t?m th?y h? s? sinh vi?n v?i id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với id: " + id));
         if (user.getFaceImagePath() == null || user.getFaceImagePath().isBlank()) {
-            throw new ResourceNotFoundException("Sinh vi?n ch?a c? ?nh khu?n m?t m?u");
+            throw new ResourceNotFoundException("Sinh viên chưa có ảnh khuôn mặt mẫu");
         }
 
         Path imagePath = Path.of(user.getFaceImagePath()).normalize();
         if (!Files.exists(imagePath) || !Files.isRegularFile(imagePath)) {
-            throw new ResourceNotFoundException("Kh?ng t?m th?y file ?nh khu?n m?t m?u");
+            throw new ResourceNotFoundException("Không tìm thấy file ảnh khuôn mặt mẫu");
         }
         try {
             String contentType = Files.probeContentType(imagePath);
@@ -476,16 +476,16 @@ public class UserServiceImpl implements UserService {
             }
             return new StudentFaceImage(Files.readAllBytes(imagePath), contentType, imagePath.getFileName().toString());
         } catch (IOException ex) {
-            throw new BadRequestException("Kh?ng ??c ???c ?nh khu?n m?t m?u");
+            throw new BadRequestException("Không đọc được ảnh khuôn mặt mẫu");
         }
     }
 
     public FaceVerificationResponse verifyFaceByStudentId(String studentId, MultipartFile file) {
         UserProfile user = userProfileRepository.findByStudentIdIgnoreCase(clean(studentId))
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay ho so sinh vien voi MSSV: " + studentId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ sinh viên với MSSV: " + studentId));
         validateStudentFaceFile(file);
         if (user.getFaceImagePath() == null || user.getFaceImagePath().isBlank()) {
-            throw new BadRequestException("Sinh vien " + user.getStudentId() + " chua co anh khuon mat mau");
+            throw new BadRequestException("Sinh viên " + user.getStudentId() + " chưa có ảnh khuôn mặt mẫu");
         }
         byte[] sourceBytes = loadStoredFaceBytes(user);
         byte[] targetBytes = readFaceImageBytes(file);
@@ -520,7 +520,7 @@ public class UserServiceImpl implements UserService {
         decodeFaceImage(targetBytes);
         List<UserProfile> candidates = resolveFaceCandidates(candidateStudentIds);
         if (candidates.isEmpty()) {
-            throw new BadRequestException("Khong co sinh vien co anh khuon mat mau de nhan dien");
+            throw new BadRequestException("Không có sinh viên có ảnh khuôn mặt mẫu để nhận diện");
         }
 
         List<CandidateFaceMatch> matches = new ArrayList<>();
@@ -575,7 +575,7 @@ public class UserServiceImpl implements UserService {
         try {
             return file.getBytes();
         } catch (IOException ex) {
-            throw new BadRequestException("Khong doc duoc anh chup de xac thuc khuon mat");
+            throw new BadRequestException("Không đọc được ảnh chụp để xác thực khuôn mặt");
         }
     }
 

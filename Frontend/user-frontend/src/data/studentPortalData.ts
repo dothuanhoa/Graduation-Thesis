@@ -279,7 +279,7 @@ export const studentCertificates: StudentCertificate[] = [
 export const profileTimeline = [
   {
     title: "Tạo hồ sơ sinh viên",
-    time: "Khi import/tạo hồ sơ",
+    time: "Khi nhập hoặc tạo hồ sơ",
     status: "COMPLETED" as StatusType,
   },
   {

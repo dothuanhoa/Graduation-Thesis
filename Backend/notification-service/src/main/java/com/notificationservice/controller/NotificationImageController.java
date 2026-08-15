@@ -27,7 +27,7 @@ public class NotificationImageController {
             @RequestParam("file") MultipartFile file
     ) {
         if (!isAdmin(role)) {
-            return ResponseEntity.status(403).body(Map.of("message", "Chi quan tri vien moi duoc tai anh thong bao."));
+            return ResponseEntity.status(403).body(Map.of("message", "Chỉ quản trị viên mới được tải ảnh thông báo."));
         }
 
         try {
@@ -36,7 +36,7 @@ public class NotificationImageController {
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         } catch (IOException ex) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Khong luu duoc anh thong bao."));
+            return ResponseEntity.internalServerError().body(Map.of("message", "Không lưu được ảnh thông báo."));
         }
     }
 

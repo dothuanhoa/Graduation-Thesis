@@ -229,9 +229,11 @@ function CheckerScanPage() {
     navigate(getDashboardPath(role), { replace: true });
   };
 
-  const checkedIn = selectedActivity?.attendedCount ?? 0;
   const registered = selectedActivity?.registrationCount ?? 0;
   const selectedOpenActivity = (selectedActivity?.participationType || "LIMITED") === "OPEN";
+  const checkedIn = selectedOpenActivity
+    ? (selectedActivity?.attendedCount ?? 0)
+    : (selectedActivity?.faceVerifiedCount ?? selectedActivity?.attendedCount ?? 0);
   const percent = registered > 0 ? Math.min(100, Math.round((checkedIn / registered) * 100)) : 0;
 
   return (
@@ -325,7 +327,7 @@ function CheckerScanPage() {
                 <Upload className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <label className="font-bold text-white" htmlFor="face-test-upload">Ảnh dùng để test điểm danh</label>
+                <label className="font-bold text-white" htmlFor="face-test-upload">Ảnh dùng để kiểm thử điểm danh</label>
                 <p className="mt-1 break-words text-xs leading-5 text-white/60">Chọn một ảnh JPG/PNG có một hoặc nhiều sinh viên. Ảnh sẽ được gửi xác thực ngay sau khi chọn.</p>
               </div>
             </div>
@@ -394,7 +396,7 @@ function CheckerScanPage() {
 
                     <div className="mt-5 flex items-end justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-on-surface-variant">{selectedOpenActivity ? "Đã điểm danh" : "Đã tham gia đủ"}</p>
+                        <p className="text-sm font-semibold text-on-surface-variant">{selectedOpenActivity ? "Đã điểm danh" : "Đã xác thực khuôn mặt"}</p>
                         <p className="text-4xl font-bold text-primary">{checkedIn}</p>
                       </div>
                       <p className="pb-2 text-sm font-semibold text-on-surface-variant">/ {registered} {selectedOpenActivity ? "sinh viên đã ghi nhận" : "sinh viên đăng ký"}</p>

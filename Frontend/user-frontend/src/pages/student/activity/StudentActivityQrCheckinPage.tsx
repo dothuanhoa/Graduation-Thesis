@@ -6,7 +6,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import BackButton from "../../../components/BackButton";
 import { activityApi, ApiError, type ActivityRegistrationResponse, type ActivityResponse } from "../../../services/api";
 import { formatDateTime } from "../../../utils/activityUi";
-import { getCurrentBrowserLocation, type BrowserLocation } from "../../../utils/geolocation";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
@@ -25,18 +24,10 @@ const extractQrPayload = (rawValue: string) => {
     const fromQuery = url.searchParams.get("qrCode") || url.searchParams.get("code");
     if (fromQuery?.trim()) return fromQuery.trim();
   } catch {
-    // Khong phai URL.
+    // Không phải URL.
   }
 
   return value;
-};
-
-const tryGetQrCheckinLocation = async (): Promise<BrowserLocation | null> => {
-  try {
-    return await getCurrentBrowserLocation();
-  } catch {
-    return null;
-  }
 };
 
 function StudentActivityQrCheckinPage() {
@@ -104,11 +95,9 @@ function StudentActivityQrCheckinPage() {
       setMessage("");
       setResult(null);
       try {
-        setMessage("Đang lấy vị trí hiện tại để kiểm tra phạm vi điểm danh...");
-        const location = await tryGetQrCheckinLocation();
+        setMessage("Đang ghi nhận điểm danh bằng QR...");
         const checkinPayload = {
           qrCode: payload,
-          ...(location ?? {}),
         };
         const checked = id ? await activityApi.qrCheckin(id, checkinPayload) : await activityApi.qrCheckinByPayload(checkinPayload);
         stopScanner();
@@ -125,7 +114,7 @@ function StudentActivityQrCheckinPage() {
 
   const startScanner = useCallback(async () => {
     if (!videoRef.current) {
-      setMessage("Khong tim thay khung camera.");
+      setMessage("Không tìm thấy khung camera.");
       return;
     }
 
@@ -318,9 +307,6 @@ function StudentActivityQrCheckinPage() {
               <p className="text-xs font-bold uppercase text-emerald-700">Điểm danh thành công</p>
               <h2 className="mt-1 text-xl font-bold text-on-surface">{result.activityTitle || activity?.title || "Hoạt động"}</h2>
               <p className="mt-3 font-semibold text-on-surface">{result.studentCode} · {result.fullName}</p>
-              {(result.finalLocationVerified || result.middleLocationVerified) && (
-                <p className="mt-2 text-sm text-on-surface-variant">Vị trí hợp lệ: {Math.round(result.finalDistanceMeters ?? result.middleDistanceMeters ?? 0)}m từ điểm tạo QR</p>
-              )}
               <p className="mt-1 text-sm text-on-surface-variant">
                 {result.finalCheckinTime || result.middleCheckinTime || result.checkinTime
                   ? formatDateTime(result.finalCheckinTime || result.middleCheckinTime || result.checkinTime)
@@ -348,10 +334,6 @@ function StudentActivityQrCheckinPage() {
               <li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary">2</span><span>Giữ mã QR đủ sáng, nằm trọn trong bốn góc của khung.</span></li>
               <li className="flex gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary">3</span><span>Giữ yên một chút; hệ thống sẽ tự quét và ghi nhận.</span></li>
             </ol>
-            <div className="mt-4 flex items-start gap-2 rounded-xl bg-surface-container-low p-3 text-xs leading-5 text-on-surface-variant">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              Hệ thống có thể yêu cầu quyền vị trí để xác nhận bạn đang ở đúng khu vực điểm danh.
-            </div>
           </section>
         </aside>
       </div>

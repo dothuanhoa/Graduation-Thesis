@@ -82,7 +82,7 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách tài khoản không được để trống");
         }
         authService.bulkRegister(accounts, sendMail);
-        return ResponseEntity.ok("Import thành công!");
+        return ResponseEntity.ok("Nhập dữ liệu thành công!");
     }
 
     @PostMapping("/internal/email/{username}")
@@ -230,7 +230,7 @@ public class AuthController {
         if (!isGatewayRequest(gatewaySecretHeader) || !isAdmin(role)) return forbidden();
         validateUsername(username);
         authService.resetPassword(username);
-        return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
+        return ResponseEntity.ok("Đã đặt lại mật khẩu thành công. Vui lòng kiểm tra email để xem mật khẩu mới.");
     }
 
     // API nội bộ dành cho service-to-service
@@ -267,7 +267,7 @@ public class AuthController {
         if (!isInternalRequest(internalSecret) || !isAdmin(role)) return forbidden();
         validateUsername(username);
         authService.resetPassword(username);
-        return ResponseEntity.ok("Đã reset mật khẩu thành công. Vui lòng check mail để xem mật khẩu mới.");
+        return ResponseEntity.ok("Đã đặt lại mật khẩu thành công. Vui lòng kiểm tra email để xem mật khẩu mới.");
     }
 
     private ResponseEntity<TokenResponse> withRefreshCookie(TokenResponse token) {
@@ -349,6 +349,6 @@ public class AuthController {
     }
 
     private ResponseEntity<String> forbidden() {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ Admin mới có quyền này");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Chỉ quản trị viên mới có quyền này");
     }
 }

@@ -17,7 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,12 +45,56 @@ class ConfirmationRequestServiceImplTest {
         FormType formType = formType(1L, "NVQS", false);
         CreateConfirmationRequestDTO dto = new CreateConfirmationRequestDTO();
         dto.setFormTypeId(1L);
+        dto.setReason("Xin xác nhận");
+        dto.setContactPhone("0912345678");
         dto.setSemester("2");
+        dto.setMetadata(completeNvqsMetadata());
 
         when(formTypeRepository.findById(1L)).thenReturn(Optional.of(formType));
 
         assertThatThrownBy(() -> service.createRequest("DH52201258", dto))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void createRequestRejectsMissingRequiredMetadata() {
+        FormType formType = formType(1L, "NVQS", true);
+        CreateConfirmationRequestDTO dto = new CreateConfirmationRequestDTO();
+        dto.setFormTypeId(1L);
+        dto.setReason("Xin xác nhận");
+        dto.setContactPhone("0912345678");
+        dto.setSemester("2");
+        dto.setMetadata(Map.of("fullName", "Nguyễn Văn A"));
+
+        when(formTypeRepository.findById(1L)).thenReturn(Optional.of(formType));
+
+        assertThatThrownBy(() -> service.createRequest("DH52201258", dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Vui lòng nhập đầy đủ thông tin trên đơn");
+    }
+
+    @Test
+    void createRequestSavesNormalizedMetadataWhenAllRequiredFieldsArePresent() {
+        FormType formType = formType(1L, "NVQS", true);
+        CreateConfirmationRequestDTO dto = new CreateConfirmationRequestDTO();
+        dto.setFormTypeId(1L);
+        dto.setReason(" Xin xác nhận ");
+        dto.setContactPhone(" 0912345678 ");
+        dto.setSemester(" 2 ");
+        dto.setMetadata(completeNvqsMetadata());
+
+        when(formTypeRepository.findById(1L)).thenReturn(Optional.of(formType));
+        when(requestRepository.existsByStudentIdAndFormTypeIdAndSemesterAndStatusNot(
+                "DH52201258", 1L, "2", RequestStatus.CANCELLED
+        )).thenReturn(false);
+        when(requestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.createRequest("DH52201258", dto);
+
+        assertThat(result.getReason()).isEqualTo("Xin xác nhận");
+        assertThat(result.getContactPhone()).isEqualTo("0912345678");
+        assertThat(result.getSemester()).isEqualTo("2");
+        assertThat(result.getMetadata()).containsEntry("formCode", "NVQS");
     }
 
     @Test
@@ -97,5 +143,24 @@ class ConfirmationRequestServiceImplTest {
         formType.setFormCode(code);
         formType.setIsActive(active);
         return formType;
+    }
+
+    private Map<String, Object> completeNvqsMetadata() {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("fullName", "Nguyễn Văn A");
+        metadata.put("studentId", "DH52201258");
+        metadata.put("dob", "2004-01-02");
+        metadata.put("gender", "Nam");
+        metadata.put("contactPhone", "0912345678");
+        metadata.put("classCode", "D22_TH01");
+        metadata.put("facultyName", "Công nghệ thông tin");
+        metadata.put("educationLevel", "Đại học");
+        metadata.put("trainingType", "Chính quy");
+        metadata.put("requestDate", "2026-08-14");
+        metadata.put("permanentAddress", "TP. Hồ Chí Minh");
+        metadata.put("academicYear", "2022-2026");
+        metadata.put("requestSchoolYear", "2025-2026");
+        metadata.put("reason", "Xin xác nhận");
+        return metadata;
     }
 }

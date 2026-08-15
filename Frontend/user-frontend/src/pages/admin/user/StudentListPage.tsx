@@ -516,14 +516,14 @@ function StudentListPage() {
           className="rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
           to="/admin/students/import"
         >
-          Import Excel
+          Nhập Excel
         </Link>
         <Link
           className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container"
           to="/admin/students/import-faces"
         >
           <Images className="h-5 w-5" />
-          Import ảnh
+          Nhập ảnh
         </Link>
         <button
           className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container disabled:opacity-60"

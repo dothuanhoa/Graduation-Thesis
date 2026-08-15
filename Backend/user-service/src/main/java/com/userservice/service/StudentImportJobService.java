@@ -34,7 +34,7 @@ public class StudentImportJobService {
                 .totalRows(rows.size())
                 .processedRows(0)
                 .progressPercent(0)
-                .message("Đã nhận file, đang chuẩn bị import.")
+                .message("Đã nhận file, đang chuẩn bị nhập dữ liệu.")
                 .startedAt(Instant.now())
                 .build();
 
@@ -51,8 +51,8 @@ public class StudentImportJobService {
         try {
             progress.setStatus(StudentImportProgress.Status.PROCESSING);
             progress.setMessage(sendMail
-                    ? "Đang import hồ sơ sinh viên và chuẩn bị gửi email tài khoản."
-                    : "Đang import hồ sơ sinh viên, không gửi email tài khoản.");
+                    ? "Đang nhập hồ sơ sinh viên và chuẩn bị gửi email tài khoản."
+                    : "Đang nhập hồ sơ sinh viên, không gửi email tài khoản.");
             progress.setProgressPercent(1);
 
             String result = userService.bulkImport(rows, update -> applyUpdate(progress, update), sendMail);
@@ -64,7 +64,7 @@ public class StudentImportJobService {
         } catch (Exception exception) {
             progress.setStatus(StudentImportProgress.Status.FAILED);
             progress.setError(exception.getMessage());
-            progress.setMessage("Import chưa hoàn tất. Vui lòng kiểm tra lại file hoặc thử lại.");
+            progress.setMessage("Nhập dữ liệu chưa hoàn tất. Vui lòng kiểm tra lại file hoặc thử lại.");
             progress.setFinishedAt(Instant.now());
         }
     }

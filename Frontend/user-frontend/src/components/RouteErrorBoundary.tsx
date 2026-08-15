@@ -19,7 +19,7 @@ class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBo
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Route render error", error, info);
+    console.error("Lỗi khi hiển thị trang", error, info);
   }
 
   render() {
