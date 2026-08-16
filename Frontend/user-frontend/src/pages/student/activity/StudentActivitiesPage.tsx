@@ -218,8 +218,8 @@ function StudentActivitiesPage() {
     <div className="space-y-gutter">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <PageHeader
-          title="Hoạt động ngoại khóa"
-          subtitle="Theo dõi hoạt động ngoại khóa, thời gian, địa điểm và đăng ký trực tiếp trên hệ thống."
+          title="Hoạt động trong trường"
+          subtitle="Theo dõi hoạt động trong trường, thời gian, địa điểm và đăng ký trực tiếp trên hệ thống."
         />
         <button
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
