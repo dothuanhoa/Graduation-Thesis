@@ -1,10 +1,35 @@
-import { Camera, CheckCircle2, ListChecks, MapPin, RefreshCw, Send, ShieldCheck, Upload, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  Camera,
+  CheckCircle2,
+  ListChecks,
+  MapPin,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Upload,
+  XCircle,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BackButton from "../../components/BackButton";
 import { useAuth } from "../../context/useAuth";
-import { activityApi, type ActivityResponse, type FaceCheckinBatchResponse } from "../../services/api";
-import { activityParticipationLabels, formatActivityRange, isActivityScanActive } from "../../utils/activityUi";
+import {
+  activityApi,
+  type ActivityResponse,
+  type FaceCheckinBatchResponse,
+} from "../../services/api";
+import {
+  activityParticipationLabels,
+  formatActivityRange,
+  isActivityScanActive,
+} from "../../utils/activityUi";
 import { getDashboardPath } from "../../utils/authRouting";
 import { validateFaceImageFile } from "../../validation/faceImageValidation";
 
@@ -13,7 +38,10 @@ const getCameraErrorMessage = (error: unknown) => {
     if (error.name === "NotAllowedError" || error.name === "SecurityError") {
       return "Trình duyệt đang chặn quyền camera. Vui lòng cho phép quyền camera rồi thử lại.";
     }
-    if (error.name === "NotFoundError" || error.name === "OverconstrainedError") {
+    if (
+      error.name === "NotFoundError" ||
+      error.name === "OverconstrainedError"
+    ) {
       return "Không tìm thấy camera phù hợp trên thiết bị. Vui lòng kiểm tra camera hoặc tải ảnh lên.";
     }
     if (error.name === "NotReadableError" || error.name === "AbortError") {
@@ -55,19 +83,32 @@ function CheckerScanPage() {
     }
 
     try {
-      const data = await activityApi.listMyCheckerActivities({ suppressToast: true });
-      const activeActivities = data
-        .filter((activity) => isActivityScanActive(activity));
+      const data = await activityApi.listMyCheckerActivities({
+        suppressToast: true,
+      });
+      const activeActivities = data.filter((activity) =>
+        isActivityScanActive(activity),
+      );
       setActivities(activeActivities);
-      setActivityId((current) => (current && activeActivities.some((activity) => activity.id === current) ? current : activeActivities[0]?.id || ""));
+      setActivityId((current) =>
+        current && activeActivities.some((activity) => activity.id === current)
+          ? current
+          : activeActivities[0]?.id || "",
+      );
 
       if (activeActivities.length === 0 && !preserveFeedback) {
-        setMessage("Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang diễn ra.");
+        setMessage(
+          "Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang diễn ra.",
+        );
       }
     } catch (err) {
       setActivities([]);
       setActivityId("");
-      setMessage(err instanceof Error ? err.message : "Không tải được danh sách hoạt động được phân quyền.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải được danh sách hoạt động được phân quyền.",
+      );
     } finally {
       setLoading(false);
     }
@@ -111,11 +152,15 @@ function CheckerScanPage() {
 
   const startCamera = useCallback(async () => {
     if (!hasCheckerAccess) {
-      setMessage("Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang diễn ra.");
+      setMessage(
+        "Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang diễn ra.",
+      );
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setMessage("Trình duyệt không hỗ trợ mở camera trực tiếp. Vui lòng dùng HTTPS/localhost hoặc tải ảnh lên.");
+      setMessage(
+        "Trình duyệt không hỗ trợ mở camera trực tiếp. Vui lòng dùng HTTPS/localhost hoặc tải ảnh lên.",
+      );
       return;
     }
 
@@ -153,8 +198,13 @@ function CheckerScanPage() {
     async (nextFaceFile: File) => {
       if (checking) return;
 
-      if (!activityId || !activities.some((activity) => activity.id === activityId)) {
-        setMessage("Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động này.");
+      if (
+        !activityId ||
+        !activities.some((activity) => activity.id === activityId)
+      ) {
+        setMessage(
+          "Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động này.",
+        );
         return;
       }
 
@@ -172,9 +222,15 @@ function CheckerScanPage() {
         const checked = await activityApi.faceCheckin(activityId, nextFaceFile);
         await loadActivities(true);
         setResult(checked);
-        setMessage(`Đã nhận diện ${checked.recognizedCount} sinh viên và điểm danh thành công ${checked.checkedInCount} sinh viên.`);
+        setMessage(
+          `Đã nhận diện ${checked.recognizedCount} sinh viên và điểm danh thành công ${checked.checkedInCount} sinh viên.`,
+        );
       } catch (err) {
-        setMessage(err instanceof Error ? err.message : "Không xác thực được khuôn mặt sinh viên.");
+        setMessage(
+          err instanceof Error
+            ? err.message
+            : "Không xác thực được khuôn mặt sinh viên.",
+        );
       } finally {
         setChecking(false);
       }
@@ -184,7 +240,12 @@ function CheckerScanPage() {
 
   const captureFromCamera = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !cameraActive || video.videoWidth === 0 || video.videoHeight === 0) {
+    if (
+      !video ||
+      !cameraActive ||
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
+    ) {
       setMessage("Camera chưa sẵn sàng. Vui lòng mở camera và thử chụp lại.");
       return;
     }
@@ -194,22 +255,34 @@ function CheckerScanPage() {
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     if (!context) {
-      setMessage("Không tạo được ảnh từ camera. Vui lòng thử lại hoặc tải ảnh lên.");
+      setMessage(
+        "Không tạo được ảnh từ camera. Vui lòng thử lại hoặc tải ảnh lên.",
+      );
       return;
     }
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        setMessage("Không chụp được ảnh từ camera. Vui lòng thử lại hoặc tải ảnh lên.");
-        return;
-      }
-      const nextFaceFile = new File([blob], `face-checkin-${Date.now()}.jpg`, { type: "image/jpeg" });
-      setFaceFile(nextFaceFile);
-      setResult(null);
-      stopCamera();
-      void submitFaceCheckin(nextFaceFile);
-    }, "image/jpeg", 0.92);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setMessage(
+            "Không chụp được ảnh từ camera. Vui lòng thử lại hoặc tải ảnh lên.",
+          );
+          return;
+        }
+        const nextFaceFile = new File(
+          [blob],
+          `face-checkin-${Date.now()}.jpg`,
+          { type: "image/jpeg" },
+        );
+        setFaceFile(nextFaceFile);
+        setResult(null);
+        stopCamera();
+        void submitFaceCheckin(nextFaceFile);
+      },
+      "image/jpeg",
+      0.92,
+    );
   }, [cameraActive, stopCamera, submitFaceCheckin]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -230,16 +303,25 @@ function CheckerScanPage() {
   };
 
   const registered = selectedActivity?.registrationCount ?? 0;
-  const selectedOpenActivity = (selectedActivity?.participationType || "LIMITED") === "OPEN";
+  const selectedOpenActivity =
+    (selectedActivity?.participationType || "LIMITED") === "OPEN";
   const checkedIn = selectedOpenActivity
     ? (selectedActivity?.attendedCount ?? 0)
-    : (selectedActivity?.faceVerifiedCount ?? selectedActivity?.attendedCount ?? 0);
-  const percent = registered > 0 ? Math.min(100, Math.round((checkedIn / registered) * 100)) : 0;
+    : (selectedActivity?.faceVerifiedCount ??
+      selectedActivity?.attendedCount ??
+      0);
+  const percent =
+    registered > 0
+      ? Math.min(100, Math.round((checkedIn / registered) * 100))
+      : 0;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-950 px-4 py-6 text-white">
       <div className="mx-auto mb-4 max-w-6xl">
-        <BackButton className="border-white/15 bg-white/10 px-4 py-3 text-white hover:bg-white/15" onClick={handleBack}>
+        <BackButton
+          className="border-white/15 bg-white/10 px-4 py-3 text-white hover:bg-white/15"
+          onClick={handleBack}
+        >
           Quay lại
         </BackButton>
       </div>
@@ -247,12 +329,20 @@ function CheckerScanPage() {
       <div className="mx-auto grid min-h-[calc(100vh-112px)] min-w-0 max-w-6xl gap-5 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="flex min-h-[640px] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-raised">
           <header className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-            <button className="rounded-xl bg-white/10 p-3 transition hover:bg-white/15" onClick={() => void loadActivities()} type="button">
+            <button
+              className="rounded-xl bg-white/10 p-3 transition hover:bg-white/15"
+              onClick={() => void loadActivities()}
+              type="button"
+            >
               <RefreshCw className="h-5 w-5" />
             </button>
             <div className="min-w-0 flex-1 px-2 text-center">
-              <h1 className="break-words text-sm font-bold leading-5 sm:text-base">Điểm danh khuôn mặt theo nhóm</h1>
-              <p className="truncate text-xs text-white/60">{username || "Chưa xác định người xác thực"}</p>
+              <h1 className="break-words text-sm font-bold leading-5 sm:text-base">
+                Điểm danh khuôn mặt theo nhóm
+              </h1>
+              <p className="truncate text-xs text-white/60">
+                {username || "Chưa xác định người xác thực"}
+              </p>
             </div>
             <div className="rounded-xl bg-white/10 p-3">
               <ShieldCheck className="h-5 w-5" />
@@ -261,7 +351,11 @@ function CheckerScanPage() {
 
           <div className="relative flex min-h-[420px] flex-1 items-center justify-center overflow-hidden bg-black">
             {previewUrl ? (
-              <img alt="Ảnh khuôn mặt cần xác thực" className="h-full min-h-[420px] w-full object-contain" src={previewUrl} />
+              <img
+                alt="Ảnh khuôn mặt cần xác thực"
+                className="h-full min-h-[420px] w-full object-contain"
+                src={previewUrl}
+              />
             ) : null}
             <video
               ref={videoRef}
@@ -275,7 +369,11 @@ function CheckerScanPage() {
                 <div className="rounded-2xl bg-white/10 p-5">
                   <Camera className="h-12 w-12" />
                 </div>
-                <h2 className="mt-4 break-words text-xl font-bold sm:text-2xl">{hasCheckerAccess ? "Chụp khuôn mặt sinh viên" : "Chưa có quyền xác thực"}</h2>
+                <h2 className="mt-4 break-words text-xl font-bold sm:text-2xl">
+                  {hasCheckerAccess
+                    ? "Chụp khuôn mặt sinh viên"
+                    : "Chưa có quyền xác thực"}
+                </h2>
                 <p className="mt-2 max-w-sm text-sm text-white/65">
                   {hasCheckerAccess
                     ? "Chụp hoặc tải ảnh có nhiều sinh viên để hệ thống nhận diện và điểm danh cùng lúc."
@@ -283,8 +381,16 @@ function CheckerScanPage() {
                 </p>
               </div>
             ) : null}
-            {cameraLoading && <div className="absolute bottom-5 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-950">Đang mở camera...</div>}
-            {checking && <div className="absolute bottom-5 rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary">Đang xác thực...</div>}
+            {cameraLoading && (
+              <div className="absolute bottom-5 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-950">
+                Đang mở camera...
+              </div>
+            )}
+            {checking && (
+              <div className="absolute bottom-5 rounded-full bg-primary px-4 py-2 text-sm font-bold text-on-primary">
+                Đang xác thực...
+              </div>
+            )}
           </div>
 
           <div className="grid gap-3 border-t border-white/10 p-5 md:grid-cols-2">
@@ -321,14 +427,22 @@ function CheckerScanPage() {
             )}
           </div>
 
-          <div className="border-t border-white/10 bg-white/[0.03] p-5">
+          <div className="border-t border-white/10 bg-white/[0.03] p-5 hidden">
             <div className="mb-3 flex items-start gap-3">
               <div className="rounded-xl bg-white/10 p-2.5">
                 <Upload className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <label className="font-bold text-white" htmlFor="face-test-upload">Ảnh dùng để kiểm thử điểm danh</label>
-                <p className="mt-1 break-words text-xs leading-5 text-white/60">Chọn một ảnh JPG/PNG có một hoặc nhiều sinh viên. Ảnh sẽ được gửi xác thực ngay sau khi chọn.</p>
+                <label
+                  className="font-bold text-white"
+                  htmlFor="face-test-upload"
+                >
+                  Ảnh dùng để kiểm thử điểm danh
+                </label>
+                <p className="mt-1 break-words text-xs leading-5 text-white/60">
+                  Chọn một ảnh JPG/PNG có một hoặc nhiều sinh viên. Ảnh sẽ được
+                  gửi xác thực ngay sau khi chọn.
+                </p>
               </div>
             </div>
             <input
@@ -339,7 +453,11 @@ function CheckerScanPage() {
               onChange={handleFileChange}
               type="file"
             />
-            {faceFile && <p className="mt-2 truncate text-xs font-semibold text-white/70">Đã chọn: {faceFile.name}</p>}
+            {faceFile && (
+              <p className="mt-2 truncate text-xs font-semibold text-white/70">
+                Đã chọn: {faceFile.name}
+              </p>
+            )}
             <button
               className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!hasCheckerAccess || !faceFile || checking}
@@ -348,7 +466,11 @@ function CheckerScanPage() {
               }}
               type="button"
             >
-              {checking ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              {checking ? (
+                <RefreshCw className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
               {checking ? "Đang gửi ảnh..." : "Gửi ảnh test"}
             </button>
           </div>
@@ -357,11 +479,19 @@ function CheckerScanPage() {
         <aside className="space-y-5">
           <section className="rounded-2xl bg-white p-5 text-on-surface shadow-panel">
             {loading ? (
-              <p className="text-sm text-on-surface-variant">Đang tải hoạt động...</p>
+              <p className="text-sm text-on-surface-variant">
+                Đang tải hoạt động...
+              </p>
             ) : !hasCheckerAccess ? (
               <div className="space-y-4">
-                <p className="text-sm text-on-surface-variant">Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang diễn ra.</p>
-                <Link className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" to="/student/activities">
+                <p className="text-sm text-on-surface-variant">
+                  Bạn chưa được phân quyền xác thực khuôn mặt cho hoạt động đang
+                  diễn ra.
+                </p>
+                <Link
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+                  to="/student/activities"
+                >
                   Xem hoạt động
                   <ListChecks className="h-4 w-4" />
                 </Link>
@@ -369,8 +499,14 @@ function CheckerScanPage() {
             ) : (
               <>
                 <label className="flex flex-col gap-2">
-                  <span className="text-xs font-bold uppercase text-primary">Hoạt động được phân quyền</span>
-                  <select className="rounded-lg border border-outline-variant px-3 py-3 text-sm focus-ring" onChange={(event) => setActivityId(event.target.value)} value={activityId}>
+                  <span className="text-xs font-bold uppercase text-primary">
+                    Hoạt động được phân quyền
+                  </span>
+                  <select
+                    className="rounded-lg border border-outline-variant px-3 py-3 text-sm focus-ring"
+                    onChange={(event) => setActivityId(event.target.value)}
+                    value={activityId}
+                  >
                     {activities.map((activity) => (
                       <option key={activity.id} value={activity.id}>
                         {activity.title}
@@ -381,28 +517,56 @@ function CheckerScanPage() {
 
                 {selectedActivity && (
                   <div className="mt-5">
-                    <h2 className="text-xl font-bold">{selectedActivity.title}</h2>
+                    <h2 className="text-xl font-bold">
+                      {selectedActivity.title}
+                    </h2>
                     <p className="mt-2 flex items-center gap-2 text-sm text-on-surface-variant">
                       <MapPin className="h-4 w-4" />
                       {selectedActivity.location || "Chưa cập nhật địa điểm"}
                     </p>
-                    <p className="mt-1 text-sm text-on-surface-variant">{formatActivityRange(selectedActivity.startTime, selectedActivity.endTime)}</p>
-                    <p className="mt-1 text-sm font-semibold text-primary">{activityParticipationLabels[selectedActivity.participationType || "LIMITED"]}</p>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      {formatActivityRange(
+                        selectedActivity.startTime,
+                        selectedActivity.endTime,
+                      )}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-primary">
+                      {
+                        activityParticipationLabels[
+                          selectedActivity.participationType || "LIMITED"
+                        ]
+                      }
+                    </p>
                     {selectedOpenActivity && (
                       <p className="mt-3 rounded-lg bg-surface-container-low p-3 text-xs font-semibold text-on-surface-variant">
-                        Hoạt động tự do: không kiểm tra danh sách đăng ký, mỗi sinh viên được ghi nhận bằng một lần xác thực khuôn mặt.
+                        Hoạt động tự do: không kiểm tra danh sách đăng ký, mỗi
+                        sinh viên được ghi nhận bằng một lần xác thực khuôn mặt.
                       </p>
                     )}
 
                     <div className="mt-5 flex items-end justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-on-surface-variant">{selectedOpenActivity ? "Đã điểm danh" : "Đã xác thực khuôn mặt"}</p>
-                        <p className="text-4xl font-bold text-primary">{checkedIn}</p>
+                        <p className="text-sm font-semibold text-on-surface-variant">
+                          {selectedOpenActivity
+                            ? "Đã điểm danh"
+                            : "Đã xác thực khuôn mặt"}
+                        </p>
+                        <p className="text-4xl font-bold text-primary">
+                          {checkedIn}
+                        </p>
                       </div>
-                      <p className="pb-2 text-sm font-semibold text-on-surface-variant">/ {registered} {selectedOpenActivity ? "sinh viên đã ghi nhận" : "sinh viên đăng ký"}</p>
+                      <p className="pb-2 text-sm font-semibold text-on-surface-variant">
+                        / {registered}{" "}
+                        {selectedOpenActivity
+                          ? "sinh viên đã ghi nhận"
+                          : "sinh viên đăng ký"}
+                      </p>
                     </div>
                     <div className="mt-4 h-2 rounded-full bg-primary-fixed">
-                      <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+                      <div
+                        className="h-2 rounded-full bg-primary transition-all"
+                        style={{ width: `${percent}%` }}
+                      />
                     </div>
                   </div>
                 )}
@@ -412,19 +576,29 @@ function CheckerScanPage() {
 
           <section className="rounded-2xl bg-white p-5 text-on-surface shadow-panel">
             {message && (
-              <div className={`mb-4 rounded-xl p-4 ${result ? "bg-emerald-50 text-emerald-800" : "bg-error-container text-error"}`}>
+              <div
+                className={`mb-4 rounded-xl p-4 ${result ? "bg-emerald-50 text-emerald-800" : "bg-error-container text-error"}`}
+              >
                 <div className="flex gap-3">
-                  {result ? <CheckCircle2 className="h-6 w-6" /> : <XCircle className="h-6 w-6" />}
+                  {result ? (
+                    <CheckCircle2 className="h-6 w-6" />
+                  ) : (
+                    <XCircle className="h-6 w-6" />
+                  )}
                   <div>
                     <p className="text-sm font-bold">{message}</p>
                     {result?.registrations.map((registration) => (
                       <div className="mt-2" key={registration.id}>
                         <h3 className="font-bold">{registration.fullName}</h3>
-                        <p className="text-sm">MSSV: {registration.studentCode}</p>
+                        <p className="text-sm">
+                          MSSV: {registration.studentCode}
+                        </p>
                       </div>
                     ))}
                     {result?.skipped.map((detail) => (
-                      <p className="mt-2 text-xs" key={detail}>Bỏ qua: {detail}</p>
+                      <p className="mt-2 text-xs" key={detail}>
+                        Bỏ qua: {detail}
+                      </p>
                     ))}
                   </div>
                 </div>
@@ -432,16 +606,31 @@ function CheckerScanPage() {
             )}
 
             <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
-              <p className="text-sm font-bold text-on-surface">Kết quả xác thực tự động</p>
-              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                Chọn hoạt động rồi chụp hoặc tải một ảnh nhóm. Hệ thống sẽ nhận diện nhiều sinh viên trong cùng ảnh,
-                kiểm tra danh sách đăng ký nếu là hoạt động giới hạn và điểm danh tất cả kết quả hợp lệ.
+              <p className="text-sm font-bold text-on-surface">
+                Kết quả xác thực tự động
               </p>
-              {faceFile && <p className="mt-3 text-sm font-semibold text-on-surface-variant">Ảnh đã chọn: {faceFile.name}</p>}
-              {checking && <p className="mt-3 text-sm font-semibold text-primary">Đang nhận diện khuôn mặt...</p>}
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                Chọn hoạt động rồi chụp hoặc tải một ảnh nhóm. Hệ thống sẽ nhận
+                diện nhiều sinh viên trong cùng ảnh, kiểm tra danh sách đăng ký
+                nếu là hoạt động giới hạn và điểm danh tất cả kết quả hợp lệ.
+              </p>
+              {faceFile && (
+                <p className="mt-3 text-sm font-semibold text-on-surface-variant">
+                  Ảnh đã chọn: {faceFile.name}
+                </p>
+              )}
+              {checking && (
+                <p className="mt-3 text-sm font-semibold text-primary">
+                  Đang nhận diện khuôn mặt...
+                </p>
+              )}
             </div>
 
-            <button className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-outline-variant px-4 py-4 font-bold text-on-surface" onClick={() => void loadActivities()} type="button">
+            <button
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-outline-variant px-4 py-4 font-bold text-on-surface"
+              onClick={() => void loadActivities()}
+              type="button"
+            >
               <ListChecks className="h-5 w-5" />
               Cập nhật số liệu
             </button>

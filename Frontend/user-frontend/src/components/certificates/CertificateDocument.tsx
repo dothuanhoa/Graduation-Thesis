@@ -76,7 +76,9 @@ const getEditableValue = (
 ) => {
   if (hasMetadataValue(metadata, key)) {
     const current = text(metadata[key]);
-    return key === "enrollmentDate" && current ? formatVietnamDate(current) : current;
+    return key === "enrollmentDate" && current
+      ? formatVietnamDate(current)
+      : current;
   }
   return getDefaultValue(key, metadata, profile);
 };
@@ -115,7 +117,7 @@ function Field({
   const value = isEditable
     ? getEditableValue(name, metadata, profile)
     : getDefaultValue(name, metadata, profile);
-  const compactWidth = `${Math.max(Math.min((value || "").length + 1, 52), 2)}ch`;
+  const compactWidth = `${Math.max(Math.min((value || "").length + 2, 52), 3)}ch`;
 
   if (!isEditable) {
     if (adminMode) {
@@ -455,16 +457,14 @@ function GeneralForm(props: CertificateDocumentProps) {
             {...props}
             metadata={metadata}
             className="min-w-36"
-          />
-          {" "}
+          />{" "}
           Khoa:{" "}
           <Field
             name="facultyName"
             {...props}
             metadata={metadata}
             className="min-w-48"
-          />
-          {" "}
+          />{" "}
           MSSV:{" "}
           <Field
             name="studentId"
@@ -489,8 +489,7 @@ function GeneralForm(props: CertificateDocumentProps) {
             {...props}
             metadata={metadata}
             className="min-w-28"
-          />
-          {" "}
+          />{" "}
           Hệ đào tạo:{" "}
           <Field
             name="trainingType"
@@ -587,14 +586,18 @@ function LoanForm(props: CertificateDocumentProps) {
             metadata={metadata}
             className="min-w-32"
           />
-          ngày cấp{" "}
+        </p>
+        <p>
+          Ngày cấp:{" "}
           <Field
             name="issueDate"
             {...props}
             metadata={metadata}
             className="min-w-28"
           />
-          Nơi cấp{" "}
+        </p>
+        <p>
+          Nơi cấp:{" "}
           <Field
             name="issuePlace"
             {...props}
@@ -608,8 +611,10 @@ function LoanForm(props: CertificateDocumentProps) {
             name="schoolCode"
             {...props}
             metadata={metadata}
-            className="w-16"
-          />{" "}
+            className="min-w-52"
+          />
+        </p>
+        <p>
           Tên trường:{" "}
           <Field
             name="schoolName"

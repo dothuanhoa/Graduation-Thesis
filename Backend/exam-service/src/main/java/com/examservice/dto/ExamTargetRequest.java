@@ -39,10 +39,8 @@ public class ExamTargetRequest {
     @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentIds = new ArrayList<>();
 
-    @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentCodes = new ArrayList<>();
 
-    @Size(max = 3000, message = "Không được chọn quá 3000 sinh viên")
     private List<String> studentNames = new ArrayList<>();
 
     @NotNull(message = "Thời gian mở đề không được để trống")

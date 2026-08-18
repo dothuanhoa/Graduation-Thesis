@@ -16,7 +16,7 @@ public class NotificationRequest {
     private String title;
 
     @NotBlank(message = "Nội dung thông báo không được để trống")
-    @Size(max = 5000, message = "Nội dung thông báo không được vượt quá 5000 ký tự")
+    @Size(max = 10000000, message = "Nội dung thông báo không được vượt quá 10.000.000 ký tự (có thể do ảnh)")
     private String content;
 
     @Size(max = 500, message = "Đường dẫn tệp đính kèm không được vượt quá 500 ký tự")
