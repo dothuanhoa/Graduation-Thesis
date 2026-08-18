@@ -1,15 +1,38 @@
-import { ImageIcon, KeyRound, Lock, RotateCcw, Save, Trash2, Unlock, Upload } from "lucide-react";
+import {
+  ImageIcon,
+  KeyRound,
+  Lock,
+  RotateCcw,
+  Save,
+  Trash2,
+  Unlock,
+  Upload,
+} from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import AutocompleteInput, { type AutocompleteOption } from "../../../components/AutocompleteInput";
+import AutocompleteInput, {
+  type AutocompleteOption,
+} from "../../../components/AutocompleteInput";
 import BackButton from "../../../components/BackButton";
 import Card from "../../../components/Card";
 import FormField from "../../../components/FormField";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { ApiError, authApi, classApi, userApi, type ClassResponse, type StudentGroupResponse, type UserProfile, type UserProfilePayload } from "../../../services/api";
+import {
+  ApiError,
+  authApi,
+  classApi,
+  userApi,
+  type ClassResponse,
+  type StudentGroupResponse,
+  type UserProfile,
+  type UserProfilePayload,
+} from "../../../services/api";
 import { defaultStudentGroups } from "../../../utils/studentGroups";
-import { getZodMessage, userProfileSchema } from "../../../validation/userSchemas";
+import {
+  getZodMessage,
+  userProfileSchema,
+} from "../../../validation/userSchemas";
 import { validateFaceImageFile } from "../../../validation/faceImageValidation";
 
 const emptyProfile: UserProfilePayload = {
@@ -22,17 +45,22 @@ const emptyProfile: UserProfilePayload = {
   studentStatus: "STUDYING",
 };
 
-const studentStatusOptions: Array<{ value: NonNullable<UserProfilePayload["studentStatus"]>; label: string }> = [
+const studentStatusOptions: Array<{
+  value: NonNullable<UserProfilePayload["studentStatus"]>;
+  label: string;
+}> = [
   { value: "STUDYING", label: "Đang học" },
   { value: "RESERVED", label: "Bảo lưu" },
   { value: "SUSPENDED", label: "Đình chỉ" },
   { value: "GRADUATED", label: "Đã tốt nghiệp" },
 ];
 
-const genderOptions: Array<{ value: NonNullable<UserProfilePayload["gender"]>; label: string }> = [
+const genderOptions: Array<{
+  value: NonNullable<UserProfilePayload["gender"]>;
+  label: string;
+}> = [
   { value: "MALE", label: "Nam" },
   { value: "FEMALE", label: "Nữ" },
-  { value: "OTHER", label: "Khác" },
 ];
 
 function StudentDetailPage() {
@@ -45,7 +73,8 @@ function StudentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [classes, setClasses] = useState<ClassResponse[]>([]);
-  const [studentGroups, setStudentGroups] = useState<StudentGroupResponse[]>(defaultStudentGroups);
+  const [studentGroups, setStudentGroups] =
+    useState<StudentGroupResponse[]>(defaultStudentGroups);
   const [classId, setClassId] = useState("");
   const [classSearch, setClassSearch] = useState("");
   const [studentGroupId, setStudentGroupId] = useState("1");
@@ -55,7 +84,9 @@ function StudentDetailPage() {
   const classOptions: AutocompleteOption[] = classes.map((clazz) => ({
     value: clazz.id,
     label: clazz.classCode,
-    description: [clazz.faculty?.facultyCode, clazz.academicYear?.yearName].filter(Boolean).join(" · "),
+    description: [clazz.faculty?.facultyCode, clazz.academicYear?.yearName]
+      .filter(Boolean)
+      .join(" · "),
     searchText: `${clazz.id} ${clazz.classCode} ${clazz.faculty?.facultyCode ?? ""} ${clazz.faculty?.facultyName ?? ""} ${clazz.academicYear?.yearName ?? ""}`,
   }));
 
@@ -63,8 +94,16 @@ function StudentDetailPage() {
     const cleanValue = value.trim().toLowerCase();
     if (!cleanValue) return undefined;
     return classes.find((clazz) =>
-      [clazz.id, clazz.classCode, `${clazz.classCode} - ${clazz.faculty?.facultyCode ?? ""}`]
-        .map((item) => String(item ?? "").trim().toLowerCase())
+      [
+        clazz.id,
+        clazz.classCode,
+        `${clazz.classCode} - ${clazz.faculty?.facultyCode ?? ""}`,
+      ]
+        .map((item) =>
+          String(item ?? "")
+            .trim()
+            .toLowerCase(),
+        )
         .includes(cleanValue),
     );
   };
@@ -94,7 +133,11 @@ function StudentDetailPage() {
       setStudentGroups(groupData.length ? groupData : defaultStudentGroups);
       setClassId(data.clazz?.id ? String(data.clazz.id) : "");
       setClassSearch(data.clazz?.classCode || "");
-      setStudentGroupId(data.studentGroup?.id ? String(data.studentGroup.id) : data.studentGroup?.code || "1");
+      setStudentGroupId(
+        data.studentGroup?.id
+          ? String(data.studentGroup.id)
+          : data.studentGroup?.code || "1",
+      );
       setFormData({
         studentId: data.studentId,
         fullName: data.fullName,
@@ -109,7 +152,9 @@ function StudentDetailPage() {
         navigate("/404", { replace: true });
         return;
       }
-      setMessage(err instanceof Error ? err.message : "Không tải được hồ sơ sinh viên.");
+      setMessage(
+        err instanceof Error ? err.message : "Không tải được hồ sơ sinh viên.",
+      );
     } finally {
       setLoading(false);
     }
@@ -143,17 +188,31 @@ function StudentDetailPage() {
       const validated = userProfileSchema.parse(formData);
       const payload: UserProfilePayload = {
         ...validated,
-        clazz: matchedClass || classId ? { id: matchedClass?.id ?? classId } : undefined,
-        studentGroup: studentGroupId ? { id: Number(studentGroupId) } : undefined,
+        clazz:
+          matchedClass || classId
+            ? { id: matchedClass?.id ?? classId }
+            : undefined,
+        studentGroup: studentGroupId
+          ? { id: Number(studentGroupId) }
+          : undefined,
       };
       const updated = await userApi.update(profile.id, payload);
       setProfile(updated);
       setClassId(updated.clazz?.id ? String(updated.clazz.id) : "");
       setClassSearch(updated.clazz?.classCode || "");
-      setStudentGroupId(updated.studentGroup?.id ? String(updated.studentGroup.id) : updated.studentGroup?.code || "1");
+      setStudentGroupId(
+        updated.studentGroup?.id
+          ? String(updated.studentGroup.id)
+          : updated.studentGroup?.code || "1",
+      );
       setMessage("Đã cập nhật hồ sơ sinh viên.");
     } catch (err) {
-      setMessage(getZodMessage(err, err instanceof Error ? err.message : "Không cập nhật được hồ sơ."));
+      setMessage(
+        getZodMessage(
+          err,
+          err instanceof Error ? err.message : "Không cập nhật được hồ sơ.",
+        ),
+      );
     } finally {
       setSaving(false);
     }
@@ -172,9 +231,17 @@ function StudentDetailPage() {
       const updated = await userApi.uploadFaceImage(profile.id, file);
       setProfile(updated);
       setFaceImageVersion(Date.now());
-      setMessage("Đã cập nhật ảnh khuôn mặt mẫu cho sinh viên " + updated.studentId + ".");
+      setMessage(
+        "Đã cập nhật ảnh khuôn mặt mẫu cho sinh viên " +
+          updated.studentId +
+          ".",
+      );
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không tải lên được ảnh khuôn mặt mẫu.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không tải lên được ảnh khuôn mặt mẫu.",
+      );
     } finally {
       setFaceUploading(false);
     }
@@ -192,18 +259,25 @@ function StudentDetailPage() {
             : await authApi.unlockUser(profile.studentId);
       setMessage(result || "Thao tác tài khoản đã hoàn tất.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không thực hiện được thao tác tài khoản.");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : "Không thực hiện được thao tác tài khoản.",
+      );
     }
   };
 
   const handleDelete = async () => {
-    if (!profile || !window.confirm(`Xóa hồ sơ sinh viên ${profile.fullName}?`)) return;
+    if (!profile || !window.confirm(`Xóa hồ sơ sinh viên ${profile.fullName}?`))
+      return;
 
     try {
       await userApi.remove(profile.id);
       navigate("/admin/students", { replace: true });
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Không xóa được hồ sơ sinh viên.");
+      setMessage(
+        err instanceof Error ? err.message : "Không xóa được hồ sơ sinh viên.",
+      );
     }
   };
 
@@ -216,16 +290,26 @@ function StudentDetailPage() {
 
       <div className="flex flex-wrap gap-3">
         <BackButton to="/admin/students">Quay lại danh sách</BackButton>
-        <button className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={loadProfile} type="button">
+        <button
+          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+          onClick={loadProfile}
+          type="button"
+        >
           <RotateCcw className="h-5 w-5" />
           Tải lại
         </button>
       </div>
 
-      {message && <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">{message}</div>}
+      {message && (
+        <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm font-semibold text-primary">
+          {message}
+        </div>
+      )}
 
       {loading ? (
-        <div className="panel p-6 text-on-surface-variant">Đang tải hồ sơ...</div>
+        <div className="panel p-6 text-on-surface-variant">
+          Đang tải hồ sơ...
+        </div>
       ) : (
         <section className="grid gap-gutter xl:grid-cols-[1fr_360px]">
           <Card>
@@ -235,18 +319,42 @@ function StudentDetailPage() {
                 disabled
                 hint="Mã sinh viên không được thay đổi sau khi tạo hồ sơ."
                 label="MSSV"
-                onChange={(event) => updateField("studentId", event.target.value)}
+                onChange={(event) =>
+                  updateField("studentId", event.target.value)
+                }
                 required
                 value={formData.studentId}
               />
-              <FormField label="Họ tên" onChange={(event) => updateField("fullName", event.target.value)} required value={formData.fullName} />
-              <FormField label="Email sinh viên" onChange={(event) => updateField("email", event.target.value)} required type="email" value={formData.email} />
-              <FormField label="Ngày sinh" onChange={(event) => updateField("dob", event.target.value)} type="date" value={formData.dob} />
+              <FormField
+                label="Họ tên"
+                onChange={(event) =>
+                  updateField("fullName", event.target.value)
+                }
+                required
+                value={formData.fullName}
+              />
+              <FormField
+                label="Email sinh viên"
+                onChange={(event) => updateField("email", event.target.value)}
+                required
+                type="email"
+                value={formData.email}
+              />
+              <FormField
+                label="Ngày sinh"
+                onChange={(event) => updateField("dob", event.target.value)}
+                type="date"
+                value={formData.dob}
+              />
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-on-surface">Giới tính</span>
+                <span className="text-sm font-semibold text-on-surface">
+                  Giới tính
+                </span>
                 <select
                   className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
-                  onChange={(event) => updateField("gender", event.target.value)}
+                  onChange={(event) =>
+                    updateField("gender", event.target.value)
+                  }
                   value={formData.gender}
                 >
                   {genderOptions.map((option) => (
@@ -256,12 +364,23 @@ function StudentDetailPage() {
                   ))}
                 </select>
               </label>
-              <FormField label="Số điện thoại" onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="090..." value={formData.contactPhone} />
+              <FormField
+                label="Số điện thoại"
+                onChange={(event) =>
+                  updateField("contactPhone", event.target.value)
+                }
+                placeholder="090..."
+                value={formData.contactPhone}
+              />
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-on-surface">Trạng thái</span>
+                <span className="text-sm font-semibold text-on-surface">
+                  Trạng thái
+                </span>
                 <select
                   className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
-                  onChange={(event) => updateField("studentStatus", event.target.value)}
+                  onChange={(event) =>
+                    updateField("studentStatus", event.target.value)
+                  }
                   value={formData.studentStatus}
                 >
                   {studentStatusOptions.map((option) => (
@@ -285,25 +404,38 @@ function StudentDetailPage() {
                 value={classSearch}
               />
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-semibold text-on-surface">Nhóm sinh viên</span>
+                <span className="text-sm font-semibold text-on-surface">
+                  Nhóm sinh viên
+                </span>
                 <select
                   className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface focus-ring"
                   onChange={(event) => setStudentGroupId(event.target.value)}
                   value={studentGroupId}
                 >
                   {studentGroups.map((group) => (
-                    <option key={group.id ?? group.code} value={group.id ?? group.code}>
+                    <option
+                      key={group.id ?? group.code}
+                      value={group.id ?? group.code}
+                    >
                       {group.name}
                     </option>
                   ))}
                 </select>
               </label>
               <div className="md:col-span-2 flex flex-wrap gap-3">
-                <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60" disabled={saving} type="submit">
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-on-primary disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
                   <Save className="h-5 w-5" />
                   {saving ? "Đang lưu" : "Lưu hồ sơ"}
                 </button>
-                <button className="inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold text-error hover:bg-error-container" onClick={handleDelete} type="button">
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-3 font-semibold text-error hover:bg-error-container"
+                  onClick={handleDelete}
+                  type="button"
+                >
                   <Trash2 className="h-5 w-5" />
                   Xóa hồ sơ
                 </button>
@@ -313,17 +445,32 @@ function StudentDetailPage() {
 
           <div className="space-y-gutter">
             <Card>
-              <p className="text-sm font-semibold text-primary">Tài khoản đăng nhập</p>
-              <h2 className="mt-2 text-xl font-bold text-on-surface">{profile?.studentId}</h2>
-              <p className="mt-2 text-sm text-on-surface-variant">{profile?.email || `${profile?.studentId}@student.edu.vn`}</p>
-              <div className="mt-4">{profile?.studentStatus && <StatusBadge status={profile.studentStatus} />}</div>
+              <p className="text-sm font-semibold text-primary">
+                Tài khoản đăng nhập
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-on-surface">
+                {profile?.studentId}
+              </h2>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                {profile?.email || `${profile?.studentId}@student.edu.vn`}
+              </p>
+              <div className="mt-4">
+                {profile?.studentStatus && (
+                  <StatusBadge status={profile.studentStatus} />
+                )}
+              </div>
             </Card>
 
             <Card>
-              <p className="text-sm font-semibold text-primary">Xác thực khuôn mặt</p>
-              <h2 className="mt-2 text-lg font-bold text-on-surface">Ảnh khuôn mặt mẫu</h2>
+              <p className="text-sm font-semibold text-primary">
+                Xác thực khuôn mặt
+              </p>
+              <h2 className="mt-2 text-lg font-bold text-on-surface">
+                Ảnh khuôn mặt mẫu
+              </h2>
               <p className="mt-2 text-sm text-on-surface-variant">
-                Ảnh được AWS kiểm tra khuôn mặt trước khi lưu dạng PNG trong thư mục public của hệ thống.
+                Ảnh được AWS kiểm tra khuôn mặt trước khi lưu dạng PNG trong thư
+                mục public của hệ thống.
               </p>
               {profile?.faceImageUrl ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low">
@@ -339,7 +486,9 @@ function StudentDetailPage() {
                 </div>
               )}
               <div className="mt-4 rounded-lg bg-surface-container-low p-3 text-sm font-semibold text-on-surface-variant">
-                {profile?.faceImageUrl ? "Đã có ảnh khuôn mặt mẫu." : "Chưa có ảnh khuôn mặt mẫu."}
+                {profile?.faceImageUrl
+                  ? "Đã có ảnh khuôn mặt mẫu."
+                  : "Chưa có ảnh khuôn mặt mẫu."}
               </div>
               <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary hover:bg-surface-container">
                 <Upload className="h-5 w-5" />
@@ -359,17 +508,31 @@ function StudentDetailPage() {
             </Card>
 
             <Card>
-              <h2 className="text-lg font-bold text-on-surface">Thao tác tài khoản</h2>
+              <h2 className="text-lg font-bold text-on-surface">
+                Thao tác tài khoản
+              </h2>
               <div className="mt-5 grid gap-3">
-                <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => void runAuthAction("reset")} type="button">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+                  onClick={() => void runAuthAction("reset")}
+                  type="button"
+                >
                   <KeyRound className="h-5 w-5" />
                   Reset mật khẩu
                 </button>
-                <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary" onClick={() => void runAuthAction("unlock")} type="button">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 py-3 font-semibold text-primary"
+                  onClick={() => void runAuthAction("unlock")}
+                  type="button"
+                >
                   <Unlock className="h-5 w-5" />
                   Mở khóa tài khoản
                 </button>
-                <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-error-container px-4 py-3 font-semibold text-error" onClick={() => void runAuthAction("revoke")} type="button">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-error-container px-4 py-3 font-semibold text-error"
+                  onClick={() => void runAuthAction("revoke")}
+                  type="button"
+                >
                   <Lock className="h-5 w-5" />
                   Khóa tài khoản
                 </button>
